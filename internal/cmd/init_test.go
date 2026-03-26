@@ -44,12 +44,12 @@ func TestIsV2Workspace(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte("[workspace]\nname = \"test\"\nversion = 2\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("[workspace]\nname = \"test\"\nversion = 2\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
 	if !isV2Workspace(tmpDir) {
-		t.Error("dir with .bc/settings.toml should be v2 workspace")
+		t.Error("dir with .bc/settings.json should be v2 workspace")
 	}
 }
 
@@ -71,18 +71,18 @@ func TestInitV2Workspace(t *testing.T) {
 		t.Errorf(".bc directory not created: %v", err)
 	}
 
-	// Verify settings.toml exists and is valid
-	configPath := filepath.Join(bcDir, "settings.toml")
+	// Verify settings.json exists and is valid
+	configPath := filepath.Join(bcDir, "settings.json")
 	cfg, err := workspace.LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if cfg.Workspace.Name != "test-project" {
-		t.Errorf("expected name 'test-project', got %q", cfg.Workspace.Name)
+	if cfg != "test-project" {
+		t.Errorf("expected name 'test-project', got %q", cfg)
 	}
-	if cfg.Workspace.Version != 2 {
-		t.Errorf("expected version 2, got %d", cfg.Workspace.Version)
+	if cfg.Version != 2 {
+		t.Errorf("expected version 2, got %d", cfg.Version)
 	}
 	if validateErr := cfg.Validate(); validateErr != nil {
 		t.Errorf("config validation failed: %v", validateErr)

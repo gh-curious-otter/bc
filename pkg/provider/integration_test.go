@@ -167,8 +167,8 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 }
 
 func TestConfigProviderRegistrySync(t *testing.T) {
-	// Load settings.toml defaults and verify they match DefaultRegistry
-	cfg := workspace.DefaultConfig("test")
+	// Load settings.json defaults and verify they match DefaultRegistry
+	cfg := workspace.DefaultConfig()
 
 	// Every provider in config should be in the registry
 	configProviders := []struct {

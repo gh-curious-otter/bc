@@ -84,8 +84,8 @@ func setupTestWorkspace(t *testing.T) string {
 		t.Fatalf("failed to create .bc/agents: %v", err)
 	}
 	// demons directory removed in CLI restructure (#1916)
-	// Create minimal settings.toml for v2 workspace detection
-	configPath := filepath.Join(bcDir, "settings.toml")
+	// Create minimal settings.json for v2 workspace detection
+	configPath := filepath.Join(bcDir, "settings.json")
 	configContent := `[workspace]
 name = "test"
 version = 2
@@ -98,7 +98,7 @@ command = "claude"
 enabled = true
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
-		t.Fatalf("failed to write settings.toml: %v", err)
+		t.Fatalf("failed to write settings.json: %v", err)
 	}
 
 	if err := os.Chdir(tmpDir); err != nil {

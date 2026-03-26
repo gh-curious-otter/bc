@@ -43,20 +43,20 @@ func TestIsV2Workspace(t *testing.T) {
 		t.Fatalf("failed to create .bc dir: %v", err)
 	}
 
-	// Still not v2 without settings.toml
+	// Still not v2 without settings.json
 	if isV2Workspace(tmpDir) {
-		t.Error("expected workspace without settings.toml to return false")
+		t.Error("expected workspace without settings.json to return false")
 	}
 
-	// Create settings.toml
-	configPath := filepath.Join(bcDir, "settings.toml")
+	// Create settings.json
+	configPath := filepath.Join(bcDir, "settings.json")
 	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"test\"\n"), 0600); err != nil {
-		t.Fatalf("failed to create settings.toml: %v", err)
+		t.Fatalf("failed to create settings.json: %v", err)
 	}
 
 	// Now it should be v2
 	if !isV2Workspace(tmpDir) {
-		t.Error("expected workspace with settings.toml to return true")
+		t.Error("expected workspace with settings.json to return true")
 	}
 }
 
@@ -90,7 +90,7 @@ func TestDiscoverWithScanPath(t *testing.T) {
 	}
 
 	// Create minimal config
-	configPath := filepath.Join(bcDir, "settings.toml")
+	configPath := filepath.Join(bcDir, "settings.json")
 	configContent := `[workspace]
 name = "test-workspace"
 `
@@ -138,7 +138,7 @@ func TestDiscoverSkipsHiddenDirs(t *testing.T) {
 		t.Fatalf("failed to create hidden workspace dir: %v", err)
 	}
 
-	configPath := filepath.Join(hiddenBcDir, "settings.toml")
+	configPath := filepath.Join(hiddenBcDir, "settings.json")
 	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"hidden\"\n"), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestDiscoverSkipsNodeModules(t *testing.T) {
 		t.Fatalf("failed to create node_modules workspace dir: %v", err)
 	}
 
-	configPath := filepath.Join(nodeBcDir, "settings.toml")
+	configPath := filepath.Join(nodeBcDir, "settings.json")
 	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"npm-pkg\"\n"), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
@@ -255,8 +255,8 @@ func TestDiscoverMaxDepthRespected(t *testing.T) {
 		t.Fatalf("failed to create deep workspace dir: %v", err)
 	}
 
-	// Create settings.toml - workspace will use directory name as fallback
-	configPath := filepath.Join(bcDir, "settings.toml")
+	// Create settings.json - workspace will use directory name as fallback
+	configPath := filepath.Join(bcDir, "settings.json")
 	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"deep-ws\"\n"), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestDiscoverMultipleWorkspaces(t *testing.T) {
 		if err := os.MkdirAll(bcDir, 0750); err != nil {
 			t.Fatalf("failed to create workspace %d: %v", i, err)
 		}
-		configPath := filepath.Join(bcDir, "settings.toml")
+		configPath := filepath.Join(bcDir, "settings.json")
 		if err := os.WriteFile(configPath, []byte("[workspace]\nname = \""+name+"\"\n"), 0600); err != nil {
 			t.Fatalf("failed to create config %d: %v", i, err)
 		}
@@ -423,7 +423,7 @@ func TestDiscoverAndRegister(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatalf("failed to create workspace dir: %v", err)
 	}
-	configPath := filepath.Join(bcDir, "settings.toml")
+	configPath := filepath.Join(bcDir, "settings.json")
 	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"test-ws\"\n"), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
@@ -515,7 +515,7 @@ func TestDiscoverSkipsVendorDir(t *testing.T) {
 		t.Fatalf("failed to create vendor workspace dir: %v", err)
 	}
 
-	configPath := filepath.Join(vendorBcDir, "settings.toml")
+	configPath := filepath.Join(vendorBcDir, "settings.json")
 	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"vendor-pkg\"\n"), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
@@ -552,7 +552,7 @@ func TestDiscoverSkipsPycacheDir(t *testing.T) {
 		t.Fatalf("failed to create __pycache__ workspace dir: %v", err)
 	}
 
-	configPath := filepath.Join(pycacheBcDir, "settings.toml")
+	configPath := filepath.Join(pycacheBcDir, "settings.json")
 	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"pycache-pkg\"\n"), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
@@ -601,7 +601,7 @@ func TestDiscoverDuplicatePath(t *testing.T) {
 		t.Fatalf("failed to create workspace dir: %v", err)
 	}
 
-	configPath := filepath.Join(bcDir, "settings.toml")
+	configPath := filepath.Join(bcDir, "settings.json")
 	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"dup-workspace\"\n"), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
@@ -643,7 +643,7 @@ func TestDiscoverIncludeCached(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte("[workspace]\nname = \"cached-ws\"\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("[workspace]\nname = \"cached-ws\"\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -682,7 +682,7 @@ func TestDiscoverIncludeCached(t *testing.T) {
 				t.Errorf("cached workspace name = %q, want %q", ws.Name, "cached-ws")
 			}
 			if !ws.IsV2 {
-				t.Error("cached workspace should be V2 (has settings.toml)")
+				t.Error("cached workspace should be V2 (has settings.json)")
 			}
 		}
 	}
@@ -740,7 +740,7 @@ func TestDiscoverScanHome(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte("[workspace]\nname = \"home-ws\"\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("[workspace]\nname = \"home-ws\"\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -778,7 +778,7 @@ func TestDiscoverCachedDeduplication(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte("[workspace]\nname = \"dedup-ws\"\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("[workspace]\nname = \"dedup-ws\"\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 

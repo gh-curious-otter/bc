@@ -12,7 +12,6 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
-// newTestWorkspace creates a minimal workspace in a temp directory with a valid config.
 func newTestWorkspace(t *testing.T) *workspace.Workspace {
 	t.Helper()
 	dir := t.TempDir()
@@ -21,17 +20,14 @@ func newTestWorkspace(t *testing.T) *workspace.Workspace {
 		t.Fatal(err)
 	}
 	cfg := &workspace.Config{
-		Workspace: workspace.WorkspaceConfig{
-			Name:    "test-ws",
-			Version: workspace.ConfigVersion,
-		},
+		Version: workspace.ConfigVersion,
 		Providers: workspace.ProvidersConfig{
-			Default: "claude",
-			Claude:  &workspace.ProviderConfig{Enabled: true},
+			Default:   "claude",
+			Providers: map[string]workspace.ProviderConfig{"claude": {Command: "claude"}},
 		},
-		Runtime: workspace.RuntimeConfig{
-			Backend: "tmux",
-		},
+		Runtime: workspace.RuntimeConfig{Default: "tmux"},
+		Server:  workspace.ServerConfig{Host: "127.0.0.1", Port: 9374, CORSOrigin: "*"},
+		UI:      workspace.UIConfig{Theme: "dark", Mode: "auto"},
 	}
 	return &workspace.Workspace{
 		Config:  cfg,
@@ -50,52 +46,39 @@ func TestSettingsPatchSection(t *testing.T) {
 		body       string
 		wantErr    string
 		name       string
-		section    string
 		wantStatus int
 	}{
 		{
 			name:       "patch user section",
-			section:    "user",
-			body:       `{"nickname":"@alice"}`,
+			body:       `{"user":{"name":"alice"}}`,
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "patch runtime section",
-			section:    "runtime",
-			body:       `{"backend":"docker"}`,
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "patch env section",
-			section:    "env",
-			body:       `{"FOO":"bar"}`,
+			body:       `{"runtime":{"default":"docker"}}`,
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "patch logs section",
-			section:    "logs",
-			body:       `{"path":"custom/logs"}`,
+			body:       `{"logs":{"path":"custom/logs"}}`,
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "unknown section returns 400",
-			section:    "bogus",
-			body:       `{}`,
+			body:       `{"bogus":{}}`,
 			wantStatus: http.StatusBadRequest,
 			wantErr:    "unknown section: bogus",
 		},
 		{
 			name:       "invalid JSON returns 400",
-			section:    "user",
 			body:       `{not json}`,
 			wantStatus: http.StatusBadRequest,
-			wantErr:    "invalid user config:",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPatch, "/api/settings/"+tt.section, strings.NewReader(tt.body))
+			req := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 
@@ -104,10 +87,8 @@ func TestSettingsPatchSection(t *testing.T) {
 			if rec.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d; body = %s", rec.Code, tt.wantStatus, rec.Body.String())
 			}
-			if tt.wantErr != "" {
-				if !strings.Contains(rec.Body.String(), tt.wantErr) {
-					t.Errorf("body = %q, want to contain %q", rec.Body.String(), tt.wantErr)
-				}
+			if tt.wantErr != "" && !strings.Contains(rec.Body.String(), tt.wantErr) {
+				t.Errorf("body = %s, want containing %q", rec.Body.String(), tt.wantErr)
 			}
 		})
 	}
@@ -120,26 +101,24 @@ func TestSettingsPatchUpdatesConfig(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	// PATCH user section
-	body := `{"nickname":"@bob"}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/settings/user", strings.NewReader(body))
+	body := `{"user":{"name":"bob"}}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
+
 	mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 	}
 
-	// Verify the response contains the full config with updated user.
 	var result map[string]json.RawMessage
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	// Verify the in-memory config was updated.
-	if ws.Config.User.Nickname != "@bob" {
-		t.Errorf("config.User.Nickname = %q, want %q", ws.Config.User.Nickname, "@bob")
+	if ws.Config.User.Name != "bob" {
+		t.Errorf("config.User.Name = %q, want %q", ws.Config.User.Name, "bob")
 	}
 }
 
@@ -150,8 +129,7 @@ func TestSettingsPatchMethodNotAllowed(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	// GET on /api/settings/user should be 405
-	req := httptest.NewRequest(http.MethodGet, "/api/settings/user", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/settings", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -167,49 +145,28 @@ func TestSettingsPatchAllSections(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	sections := []struct {
-		name string
-		body string
-	}{
-		{"user", `{"nickname":"@test"}`},
-		{"tui", `{}`},
-		{"runtime", `{"backend":"tmux"}`},
-		{"providers", `{"default":"claude"}`},
-		{"services", `{}`},
-		{"logs", `{}`},
-		{"performance", `{}`},
-		{"env", `{}`},
-		{"roster", `{}`},
-	}
-
-	for _, s := range sections {
-		t.Run(s.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPatch, "/api/settings/"+s.name, strings.NewReader(s.body))
-			req.Header.Set("Content-Type", "application/json")
-			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, req)
-
-			if rec.Code != http.StatusOK {
-				t.Errorf("section %q: status = %d, want %d; body = %s", s.name, rec.Code, http.StatusOK, rec.Body.String())
-			}
-		})
-	}
-}
-
-func TestSettingsPatchNilConfig(t *testing.T) {
-	ws := newTestWorkspace(t)
-	ws.Config = nil
-	h := NewSettingsHandler(ws)
-
-	mux := http.NewServeMux()
-	h.Register(mux)
-
-	req := httptest.NewRequest(http.MethodPatch, "/api/settings/user", strings.NewReader(`{}`))
+	body := `{
+		"user": {"name": "test"},
+		"server": {"host": "0.0.0.0", "port": 8080, "cors_origin": "*"},
+		"runtime": {"default": "docker"},
+		"ui": {"theme": "light", "mode": "dark"}
+	}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	if ws.Config.User.Name != "test" {
+		t.Errorf("User.Name = %q, want %q", ws.Config.User.Name, "test")
+	}
+	if ws.Config.Server.Port != 8080 {
+		t.Errorf("Server.Port = %d, want %d", ws.Config.Server.Port, 8080)
+	}
+	if ws.Config.UI.Theme != "light" {
+		t.Errorf("UI.Theme = %q, want %q", ws.Config.UI.Theme, "light")
 	}
 }

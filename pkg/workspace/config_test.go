@@ -11,11 +11,11 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig("test-project")
 
-	if cfg.Workspace.Name != "test-project" {
-		t.Errorf("expected name 'test-project', got %q", cfg.Workspace.Name)
+	if cfg != "test-project" {
+		t.Errorf("expected name 'test-project', got %q", cfg)
 	}
-	if cfg.Workspace.Version != ConfigVersion {
-		t.Errorf("expected version %d, got %d", ConfigVersion, cfg.Workspace.Version)
+	if cfg.Version != ConfigVersion {
+		t.Errorf("expected version %d, got %d", ConfigVersion, cfg.Version)
 	}
 	// Default provider is gemini (minimal root-only startup)
 	if cfg.Providers.Default != "gemini" {
@@ -64,7 +64,7 @@ max_bytes = 2097152
 
 func TestLogsConfigSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "settings.toml")
+	path := filepath.Join(dir, "settings.json")
 
 	cfg := DefaultConfig("test")
 	cfg.Logs.Path = ".bc/my-logs"
@@ -106,11 +106,11 @@ enabled = true
 		t.Fatalf("failed to parse config: %v", err)
 	}
 
-	if cfg.Workspace.Name != "my-project" {
-		t.Errorf("expected name 'my-project', got %q", cfg.Workspace.Name)
+	if cfg != "my-project" {
+		t.Errorf("expected name 'my-project', got %q", cfg)
 	}
-	if cfg.Workspace.Version != 2 {
-		t.Errorf("expected version 2, got %d", cfg.Workspace.Version)
+	if cfg.Version != 2 {
+		t.Errorf("expected version 2, got %d", cfg.Version)
 	}
 	if cfg.Providers.Default != "claude" {
 		t.Errorf("expected default provider 'claude', got %q", cfg.Providers.Default)
@@ -580,7 +580,7 @@ func TestConfigGetProvider_Default(t *testing.T) {
 
 func TestConfigSaveAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, ".bc", "settings.toml")
+	configPath := filepath.Join(tmpDir, ".bc", "settings.json")
 
 	// Create and save config
 	cfg := DefaultConfig("save-test")
@@ -600,8 +600,8 @@ func TestConfigSaveAndLoad(t *testing.T) {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if loaded.Workspace.Name != "save-test" {
-		t.Errorf("expected name 'save-test', got %q", loaded.Workspace.Name)
+	if loaded != "save-test" {
+		t.Errorf("expected name 'save-test', got %q", loaded)
 	}
 	if loaded.Providers.Default != "gemini" {
 		t.Errorf("expected default provider 'gemini', got %q", loaded.Providers.Default)
@@ -611,7 +611,7 @@ func TestConfigSaveAndLoad(t *testing.T) {
 // TestConfigSaveAndLoadPerformance tests save/load round-trip for performance config (#1013)
 func TestConfigSaveAndLoadPerformance(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, ".bc", "settings.toml")
+	configPath := filepath.Join(tmpDir, ".bc", "settings.json")
 
 	// Create config with custom performance values
 	cfg := DefaultConfig("perf-save-test")
@@ -671,14 +671,14 @@ func TestConfigSaveAndLoadPerformance(t *testing.T) {
 
 func TestConfigPath(t *testing.T) {
 	path := ConfigPath("/home/user/project")
-	expected := "/home/user/project/.bc/settings.toml"
+	expected := "/home/user/project/.bc/settings.json"
 	if path != expected {
 		t.Errorf("expected %q, got %q", expected, path)
 	}
 }
 
 func TestLoadConfigNotFound(t *testing.T) {
-	_, err := LoadConfig("/nonexistent/path/settings.toml")
+	_, err := LoadConfig("/nonexistent/path/settings.json")
 	if err == nil {
 		t.Error("expected error for nonexistent file")
 	}
@@ -944,8 +944,8 @@ func TestMergeUserDefaults(t *testing.T) {
 			cfg := tt.cfg
 			MergeUserDefaults(&cfg, tt.defaults)
 
-			if cfg.User.Nickname != tt.wantNickname {
-				t.Errorf("Nickname = %q, want %q", cfg.User.Nickname, tt.wantNickname)
+			if cfg.User.Name != tt.wantNickname {
+				t.Errorf("Nickname = %q, want %q", cfg.User.Name, tt.wantNickname)
 			}
 			if cfg.Providers.Default != tt.wantDefaultProvider {
 				t.Errorf("Providers.Default = %q, want %q", cfg.Providers.Default, tt.wantDefaultProvider)
@@ -992,8 +992,8 @@ preferred = ["claude", "gemini"]
 	}
 
 	// Verify values
-	if loaded.User.Nickname != expectedNickname {
-		t.Errorf("Nickname = %q, want %q", loaded.User.Nickname, expectedNickname)
+	if loaded.User.Name != expectedNickname {
+		t.Errorf("Nickname = %q, want %q", loaded.User.Name, expectedNickname)
 	}
 	if loaded.Defaults.DefaultRole != expectedRole {
 		t.Errorf("DefaultRole = %q, want %q", loaded.Defaults.DefaultRole, expectedRole)
@@ -1143,8 +1143,8 @@ func TestSaveUserDefaultsSuccess(t *testing.T) {
 	if loaded == nil {
 		t.Fatal("expected loaded defaults to not be nil")
 	}
-	if loaded.User.Nickname != "@testuser" {
-		t.Errorf("Nickname = %q, want @testuser", loaded.User.Nickname)
+	if loaded.User.Name != "@testuser" {
+		t.Errorf("Nickname = %q, want @testuser", loaded.User.Name)
 	}
 }
 
@@ -1540,7 +1540,7 @@ func TestConfigSaveErrorPath(t *testing.T) {
 	cfg := DefaultConfig("test")
 
 	// Try to save to a path where the parent can't be created
-	err := cfg.Save("/dev/null/impossible/settings.toml")
+	err := cfg.Save("/dev/null/impossible/settings.json")
 	if err == nil {
 		t.Error("Save should fail for impossible path")
 	}
@@ -1587,7 +1587,7 @@ func TestValidatePerformanceCacheTTLOutOfRange(t *testing.T) {
 
 func TestValidateUserNickname(t *testing.T) {
 	cfg := DefaultConfig("test")
-	cfg.User.Nickname = "no-at-prefix"
+	cfg.User.Name = "no-at-prefix"
 
 	err := cfg.Validate()
 	if err != ErrNicknameMissingPrefix {
@@ -1703,7 +1703,7 @@ func TestRosterConfig_EmptyByDefault(t *testing.T) {
 
 func TestRosterConfig_SaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "settings.toml")
+	path := filepath.Join(dir, "settings.json")
 
 	cfg := DefaultConfig("myws")
 	cfg.Roster.Agents = []RosterEntry{
@@ -1800,7 +1800,7 @@ sqlite_path = "/var/data/bc.db"
 
 func TestServerSchedulerStorageSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
+	path := filepath.Join(dir, "config.json")
 
 	cfg := DefaultConfig("test")
 	cfg.Server.Addr = "0.0.0.0:9000"

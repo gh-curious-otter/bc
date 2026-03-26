@@ -162,7 +162,7 @@ func TestAgentCreate_EmptyName(t *testing.T) {
 	}
 
 	// Create minimal config
-	configPath := filepath.Join(bcDir, "settings.toml")
+	configPath := filepath.Join(bcDir, "settings.json")
 	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"test\"\n"), 0600); err != nil {
 		t.Fatal(err)
 	}

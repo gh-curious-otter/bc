@@ -62,7 +62,7 @@ default = "gemini"
 command = "echo test"
 enabled = true
 `
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte(cfg), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(cfg), 0600); err != nil {
 		t.Fatal(err)
 	}
 

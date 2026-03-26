@@ -24,8 +24,8 @@ func TestUserRCConfigPath(t *testing.T) {
 func TestDefaultUserRCConfig(t *testing.T) {
 	cfg := DefaultUserRCConfig()
 
-	if cfg.User.Nickname != DefaultNickname {
-		t.Errorf("expected default nickname %s, got: %s", DefaultNickname, cfg.User.Nickname)
+	if cfg.User.Name != DefaultNickname {
+		t.Errorf("expected default nickname %s, got: %s", DefaultNickname, cfg.User.Name)
 	}
 
 	if cfg.Defaults.DefaultRole != "engineer" {
@@ -59,8 +59,8 @@ preferred = ["cursor", "claude-code"]
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	if cfg.User.Nickname != "@alice" {
-		t.Errorf("expected nickname '@alice', got: %s", cfg.User.Nickname)
+	if cfg.User.Name != "@alice" {
+		t.Errorf("expected nickname '@alice', got: %s", cfg.User.Name)
 	}
 
 	if cfg.Defaults.DefaultRole != "manager" {
@@ -85,7 +85,7 @@ func TestUserRCConfigSaveAndLoad(t *testing.T) {
 
 	// Create and save a config
 	cfg := DefaultUserRCConfig()
-	cfg.User.Nickname = "@testuser"
+	cfg.User.Name = "@testuser"
 
 	err := cfg.Save()
 	if err != nil {
@@ -108,8 +108,8 @@ func TestUserRCConfigSaveAndLoad(t *testing.T) {
 		t.Fatal("loaded config is nil")
 	}
 
-	if loaded.User.Nickname != "@testuser" {
-		t.Errorf("expected nickname '@testuser', got: %s", loaded.User.Nickname)
+	if loaded.User.Name != "@testuser" {
+		t.Errorf("expected nickname '@testuser', got: %s", loaded.User.Name)
 	}
 }
 
@@ -128,8 +128,8 @@ func TestMergeWithUserRC(t *testing.T) {
 	wsCfg.MergeWithUserRC(rcCfg)
 
 	// User RC nickname should be used since workspace has default
-	if wsCfg.User.Nickname != "@custom" {
-		t.Errorf("expected merged nickname '@custom', got: %s", wsCfg.User.Nickname)
+	if wsCfg.User.Name != "@custom" {
+		t.Errorf("expected merged nickname '@custom', got: %s", wsCfg.User.Name)
 	}
 }
 
@@ -355,19 +355,19 @@ func TestLoadUserRCConfigNotFound(t *testing.T) {
 
 func TestMergeWithUserRCNil(t *testing.T) {
 	cfg := DefaultConfig("test")
-	originalNickname := cfg.User.Nickname
+	originalNickname := cfg.User.Name
 
 	// Merge with nil should not change anything
 	cfg.MergeWithUserRC(nil)
 
-	if cfg.User.Nickname != originalNickname {
-		t.Errorf("MergeWithUserRC(nil) changed nickname from %q to %q", originalNickname, cfg.User.Nickname)
+	if cfg.User.Name != originalNickname {
+		t.Errorf("MergeWithUserRC(nil) changed nickname from %q to %q", originalNickname, cfg.User.Name)
 	}
 }
 
 func TestMergeWithUserRCPreserveWorkspace(t *testing.T) {
 	cfg := DefaultConfig("test")
-	cfg.User.Nickname = "@workspace-user"
+	cfg.User.Name = "@workspace-user"
 
 	rc := &UserRCConfig{
 		User: UserRCUserConfig{
@@ -378,8 +378,8 @@ func TestMergeWithUserRCPreserveWorkspace(t *testing.T) {
 	cfg.MergeWithUserRC(rc)
 
 	// Workspace nickname should be preserved
-	if cfg.User.Nickname != "@workspace-user" {
-		t.Errorf("MergeWithUserRC changed workspace nickname to %q", cfg.User.Nickname)
+	if cfg.User.Name != "@workspace-user" {
+		t.Errorf("MergeWithUserRC changed workspace nickname to %q", cfg.User.Name)
 	}
 }
 

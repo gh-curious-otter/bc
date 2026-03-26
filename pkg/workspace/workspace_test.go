@@ -36,10 +36,10 @@ func TestInit(t *testing.T) {
 		t.Errorf(".bc directory not created: %v", statErr)
 	}
 
-	// settings.toml was written
-	configPath := filepath.Join(stateDir, "settings.toml")
+	// settings.json was written
+	configPath := filepath.Join(stateDir, "settings.json")
 	if _, statErr := os.Stat(configPath); statErr != nil {
-		t.Fatalf("settings.toml not written: %v", statErr)
+		t.Fatalf("settings.json not written: %v", statErr)
 	}
 }
 
@@ -92,7 +92,7 @@ func TestLoadInvalidTOML(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte("{{bad"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("{{bad"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -111,7 +111,7 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 
 	moved := t.TempDir()
 	// Copy .bc directory
-	srcCfg := filepath.Join(orig, ".bc", "settings.toml")
+	srcCfg := filepath.Join(orig, ".bc", "settings.json")
 	dstDir := filepath.Join(moved, ".bc")
 	if err := os.MkdirAll(dstDir, 0750); err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if writeErr := os.WriteFile(filepath.Join(dstDir, "settings.toml"), data, 0600); writeErr != nil {
+	if writeErr := os.WriteFile(filepath.Join(dstDir, "settings.json"), data, 0600); writeErr != nil {
 		t.Fatal(writeErr)
 	}
 	// Also create roles dir (needed for TOML workspace loading)
@@ -256,7 +256,7 @@ func TestSave(t *testing.T) {
 	}
 
 	// Modify config
-	ws.Config.Workspace.Name = "renamed"
+	ws.Config = "renamed"
 
 	if saveErr := ws.Save(); saveErr != nil {
 		t.Fatalf("Save: %v", saveErr)
@@ -786,14 +786,14 @@ func TestInitV2Format(t *testing.T) {
 	if ws.Config == nil {
 		t.Fatal("Config is nil")
 	}
-	if ws.Config.Workspace.Name != filepath.Base(dir) {
-		t.Errorf("Config.Workspace.Name = %q, want %q", ws.Config.Workspace.Name, filepath.Base(dir))
+	if ws.Config != filepath.Base(dir) {
+		t.Errorf("Config = %q, want %q", ws.Config, filepath.Base(dir))
 	}
 
-	// Check settings.toml was created
-	tomlPath := filepath.Join(dir, ".bc", "settings.toml")
+	// Check settings.json was created
+	tomlPath := filepath.Join(dir, ".bc", "settings.json")
 	if _, err := os.Stat(tomlPath); err != nil {
-		t.Errorf("settings.toml not created: %v", err)
+		t.Errorf("settings.json not created: %v", err)
 	}
 
 	// Check RoleManager is initialized with a store
@@ -831,8 +831,8 @@ func TestLoadV2Workspace(t *testing.T) {
 	if ws.Config == nil {
 		t.Fatal("Config is nil after load")
 	}
-	if ws.Config.Workspace.Version != 2 {
-		t.Errorf("ConfigVersion = %d, want 2", ws.Config.Workspace.Version)
+	if ws.Config.Version != 2 {
+		t.Errorf("ConfigVersion = %d, want 2", ws.Config.Version)
 	}
 	if ws.RoleManager == nil {
 		t.Error("RoleManager is nil after load")
@@ -855,9 +855,9 @@ func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create both config.json (v1) and settings.toml (v2)
+	// Create both config.json (v1) and settings.json (v2)
 	tomlCfg := DefaultConfig("v2-name")
-	if err := tomlCfg.Save(filepath.Join(stateDir, "settings.toml")); err != nil {
+	if err := tomlCfg.Save(filepath.Join(stateDir, "settings.json")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -876,7 +876,7 @@ func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if ws.Config == nil || ws.Config.Workspace.Version != 2 {
+	if ws.Config == nil || ws.Config.Version != 2 {
 		t.Errorf("should load v2 config")
 	}
 	if ws.Name() != "v2-name" {
@@ -977,7 +977,7 @@ func TestWorkspaceSaveV2(t *testing.T) {
 	}
 
 	// Modify config
-	ws.Config.Workspace.Name = "modified-name"
+	ws.Config = "modified-name"
 
 	// Save
 	if saveErr := ws.Save(); saveErr != nil {
