@@ -103,6 +103,8 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 			disk_write_bytes BIGINT NOT NULL DEFAULT 0
 		)`,
 		// Token metrics — per-agent token consumption from JSONL
+		// UNIQUE constraint on (time, agent_name, model) makes inserts
+		// idempotent so bcd restarts don't duplicate historical entries.
 		`CREATE TABLE IF NOT EXISTS token_metrics (
 			time          TIMESTAMPTZ NOT NULL,
 			agent_name    TEXT NOT NULL DEFAULT '',
@@ -111,7 +113,8 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 			output_tokens BIGINT NOT NULL DEFAULT 0,
 			cache_read    BIGINT NOT NULL DEFAULT 0,
 			cache_create  BIGINT NOT NULL DEFAULT 0,
-			cost_usd      DOUBLE PRECISION NOT NULL DEFAULT 0
+			cost_usd      DOUBLE PRECISION NOT NULL DEFAULT 0,
+			UNIQUE (time, agent_name, model)
 		)`,
 		// Channel metrics — message/member/reaction counts
 		`CREATE TABLE IF NOT EXISTS channel_metrics (

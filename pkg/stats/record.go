@@ -31,11 +31,14 @@ func (s *Store) RecordAgent(ctx context.Context, m AgentMetric) error {
 	return nil
 }
 
-// RecordToken inserts a token usage sample.
+// RecordToken inserts a token usage sample. Duplicate entries (same time,
+// agent, model) are silently skipped via ON CONFLICT, making this idempotent
+// across bcd restarts.
 func (s *Store) RecordToken(ctx context.Context, m TokenMetric) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO token_metrics (time, agent_name, model, input_tokens, output_tokens, cache_read, cache_create, cost_usd)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (time, agent_name, model) DO NOTHING`,
 		m.Time, m.AgentName, m.Model, m.InputTokens, m.OutputTokens, m.CacheRead, m.CacheCreate, m.CostUSD,
 	)
 	if err != nil {
