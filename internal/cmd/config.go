@@ -19,7 +19,7 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage workspace configuration",
-	Long: `Commands for managing workspace configuration (.bc/settings.toml).
+	Long: `Commands for managing workspace configuration (.bc/settings.json).
 
 Configuration uses a hierarchical key structure with dot notation:
   workspace.name
@@ -147,7 +147,7 @@ User configuration provides defaults that apply across all bc workspaces:
   - Default role for new agents
   - Preferred AI tools
 
-Workspace config (.bc/settings.toml) takes precedence over user config.
+Workspace config (.bc/settings.json) takes precedence over user config.
 
 Examples:
   bc config user init   # Create ~/.bcrc with guided prompts
@@ -453,7 +453,7 @@ func runConfigReset(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create default config
-	defaultCfg := workspace.DefaultConfig(ws.Name())
+	defaultCfg := workspace.DefaultConfig()
 
 	// Save it
 	if err := defaultCfg.Save(configPath); err != nil {
@@ -566,8 +566,8 @@ func findField(v reflect.Value, name string) reflect.Value {
 	for i := 0; i < v.NumField(); i++ {
 		field := t.Field(i)
 		// Check TOML tag first
-		if tomlTag := field.Tag.Get("toml"); tomlTag != "" {
-			tagName := strings.Split(tomlTag, ",")[0]
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+			tagName := strings.Split(jsonTag, ",")[0]
 			if strings.EqualFold(tagName, name) {
 				return v.Field(i)
 			}
@@ -591,8 +591,8 @@ func listConfigKeys(cfg *workspace.Config, prefix string) []string {
 
 		// Get TOML name
 		tomlName := field.Name
-		if tomlTag := field.Tag.Get("toml"); tomlTag != "" {
-			tomlName = strings.Split(tomlTag, ",")[0]
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+			tomlName = strings.Split(jsonTag, ",")[0]
 		}
 		tomlName = strings.ToLower(tomlName)
 
@@ -623,8 +623,8 @@ func listStructKeys(v reflect.Value, prefix string) []string {
 
 		// Get TOML name
 		tomlName := field.Name
-		if tomlTag := field.Tag.Get("toml"); tomlTag != "" {
-			tomlName = strings.Split(tomlTag, ",")[0]
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+			tomlName = strings.Split(jsonTag, ",")[0]
 		}
 		tomlName = strings.ToLower(tomlName)
 
@@ -655,37 +655,39 @@ func printConfig(cfg *workspace.Config) {
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println()
 
-	fmt.Println("[workspace]")
-	fmt.Printf("  name: %s\n", cfg.Workspace.Name)
-	fmt.Printf("  version: %d\n", cfg.Workspace.Version)
+	fmt.Printf("  version: %d\n", cfg.Version)
+	fmt.Println()
+
+	fmt.Println("[user]")
+	fmt.Printf("  name: %s\n", cfg.User.Name)
+	fmt.Println()
+
+	fmt.Println("[server]")
+	fmt.Printf("  host: %s\n", cfg.Server.Host)
+	fmt.Printf("  port: %d\n", cfg.Server.Port)
+	fmt.Printf("  cors_origin: %s\n", cfg.Server.CORSOrigin)
+	fmt.Println()
+
+	fmt.Println("[runtime]")
+	fmt.Printf("  default: %s\n", cfg.Runtime.Default)
 	fmt.Println()
 
 	fmt.Println("[providers]")
 	fmt.Printf("  default: %s\n", cfg.Providers.Default)
-	if cfg.Providers.Claude != nil {
-		fmt.Printf("  claude.command: %s\n", cfg.Providers.Claude.Command)
-		fmt.Printf("  claude.enabled: %v\n", cfg.Providers.Claude.Enabled)
-	}
-	if cfg.Providers.Gemini != nil {
-		fmt.Printf("  gemini.command: %s\n", cfg.Providers.Gemini.Command)
-		fmt.Printf("  gemini.enabled: %v\n", cfg.Providers.Gemini.Enabled)
+	for name, p := range cfg.Providers.Providers {
+		fmt.Printf("  %s.command: %s\n", name, p.Command)
 	}
 	fmt.Println()
 
-	fmt.Println("[performance]")
-	fmt.Printf("  poll_interval_agents: %d\n", cfg.Performance.PollIntervalAgents)
-	fmt.Printf("  poll_interval_channels: %d\n", cfg.Performance.PollIntervalChannels)
-	fmt.Printf("  poll_interval_costs: %d\n", cfg.Performance.PollIntervalCosts)
-	fmt.Printf("  poll_interval_status: %d\n", cfg.Performance.PollIntervalStatus)
-	fmt.Printf("  poll_interval_logs: %d\n", cfg.Performance.PollIntervalLogs)
-	fmt.Printf("  poll_interval_teams: %d\n", cfg.Performance.PollIntervalTeams)
-	fmt.Printf("  poll_interval_demons: %d\n", cfg.Performance.PollIntervalDemons)
-	fmt.Printf("  cache_ttl_tmux: %d\n", cfg.Performance.CacheTTLTmux)
-	fmt.Printf("  cache_ttl_commands: %d\n", cfg.Performance.CacheTTLCommands)
-	fmt.Printf("  adaptive_fast_interval: %d\n", cfg.Performance.AdaptiveFastInterval)
-	fmt.Printf("  adaptive_normal_interval: %d\n", cfg.Performance.AdaptiveNormalInterval)
-	fmt.Printf("  adaptive_slow_interval: %d\n", cfg.Performance.AdaptiveSlowInterval)
-	fmt.Printf("  adaptive_max_interval: %d\n", cfg.Performance.AdaptiveMaxInterval)
+	fmt.Println("[cron]")
+	fmt.Printf("  poll_interval_seconds: %d\n", cfg.Cron.PollIntervalSeconds)
+	fmt.Printf("  job_timeout_seconds: %d\n", cfg.Cron.JobTimeoutSeconds)
+	fmt.Println()
+
+	fmt.Println("[ui]")
+	fmt.Printf("  theme: %s\n", cfg.UI.Theme)
+	fmt.Printf("  mode: %s\n", cfg.UI.Mode)
+	fmt.Printf("  default_view: %s\n", cfg.UI.DefaultView)
 }
 
 func printValue(key string, value any, indent int) error {
@@ -700,8 +702,8 @@ func printValue(key string, value any, indent int) error {
 			fieldValue := v.Field(i)
 
 			tomlName := field.Name
-			if tomlTag := field.Tag.Get("toml"); tomlTag != "" {
-				tomlName = strings.Split(tomlTag, ",")[0]
+			if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+				tomlName = strings.Split(jsonTag, ",")[0]
 			}
 
 			if err := printValue(tomlName, fieldValue.Interface(), indent+1); err != nil {
@@ -807,7 +809,7 @@ func runConfigUserInitWizard() (workspace.UserRCConfig, error) {
 	fmt.Println()
 
 	// Nickname
-	fmt.Printf("Your nickname [%s]: ", workspace.DefaultNickname)
+	fmt.Printf("Your nickname [%s]: ", "@bc")
 	var input string
 	if _, err := fmt.Scanln(&input); err == nil && input != "" {
 		nickname, err := workspace.NormalizeNickname(input)

@@ -40,7 +40,7 @@ func NewWizardState(dir string) *WizardState {
 		Step:      1,
 		TotalStep: 3,
 		Dir:       dir,
-		Nickname:  workspace.DefaultNickname,
+		Nickname:  "@bc",
 		Preset:    PresetSolo,
 		Tool:      "claude",
 		Channels:  []string{"general", "eng"},
@@ -109,7 +109,7 @@ func wizardStepBasics(state *WizardState, reader *bufio.Reader) error {
 	printStepHeader(1, state.TotalStep, "Workspace Setup")
 
 	// Prompt for nickname
-	fmt.Printf("  Your nickname [%s]: ", workspace.DefaultNickname)
+	fmt.Printf("  Your nickname [%s]: ", "@bc")
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("failed to read input: %w", err)
@@ -119,7 +119,7 @@ func wizardStepBasics(state *WizardState, reader *bufio.Reader) error {
 	if input != "" {
 		nickname, err := workspace.NormalizeNickname(input)
 		if err != nil {
-			fmt.Printf("  %s Using default: %s\n", ui.YellowText("!"), workspace.DefaultNickname)
+			fmt.Printf("  %s Using default: %s\n", ui.YellowText("!"), "@bc")
 		} else {
 			state.Nickname = nickname
 			if !strings.HasPrefix(input, "@") {
@@ -212,8 +212,8 @@ func createWorkspaceFromWizard(state *WizardState) error {
 
 	// Create config
 	name := filepath.Base(state.Dir)
-	cfg := workspace.DefaultConfig(name)
-	cfg.User.Nickname = state.Nickname
+	cfg := workspace.DefaultConfig()
+	cfg.User.Name = state.Nickname
 	cfg.Providers.Default = state.Tool
 
 	configPath := workspace.ConfigPath(state.Dir)
@@ -255,7 +255,7 @@ func printWizardSuccess(state *WizardState) {
 	fmt.Println("  " + ui.GreenText("✓") + " Workspace initialized!")
 	fmt.Println()
 	fmt.Println("  Created:")
-	fmt.Println("    .bc/settings.toml     # Workspace configuration")
+	fmt.Println("    .bc/settings.json     # Workspace configuration")
 	fmt.Println("    .bc/agents/         # Agent state directory")
 	fmt.Println("    .bc/roles/          # Role definitions")
 	fmt.Println("    .bc/roles/root.md   # Root agent role")

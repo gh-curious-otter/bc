@@ -29,7 +29,7 @@ import (
 func newAgentManager(ws *workspace.Workspace) *agent.Manager {
 	backend := ""
 	if ws.Config != nil {
-		backend = ws.Config.Runtime.Backend
+		backend = ws.Config.Runtime.Default
 	}
 
 	var mgr *agent.Manager

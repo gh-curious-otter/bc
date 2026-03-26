@@ -4,9 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"encoding/json"
 	"testing"
-
-	"github.com/BurntSushi/toml"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -987,8 +986,8 @@ preferred = ["claude", "gemini"]
 		t.Fatalf("failed to read test file: %v", err)
 	}
 
-	var loaded UserDefaultsConfig
-	if err := toml.Unmarshal(content, &loaded); err != nil {
+	var loaded UserRCConfig
+	if err := json.Unmarshal(content, &loaded); err != nil {
 		t.Fatalf("failed to parse test data: %v", err)
 	}
 

@@ -20,7 +20,7 @@ var doctorCmd = &cobra.Command{
 Checks workspace config, agent state, databases, tools, and git worktrees.
 
 Categories:
-  workspace   .bc/ directory, settings.toml, role files
+  workspace   .bc/ directory, settings.json, role files
   database    SQLite integrity and table existence
   agents      Running agents, stale sessions, missing worktrees
   tools       tmux, git, and AI provider installations
