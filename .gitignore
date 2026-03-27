@@ -2,6 +2,7 @@
 /bin/
 /dist/
 .claude/
+CLAUDE.md
 
 # Go build artifacts
 *.exe
