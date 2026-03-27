@@ -66,6 +66,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/container"
 	"github.com/gh-curious-otter/bc/pkg/db"
 	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/names"
 	"github.com/gh-curious-otter/bc/pkg/provider"
 	"github.com/gh-curious-otter/bc/pkg/runtime"
 	"github.com/gh-curious-otter/bc/pkg/secret"
@@ -741,6 +742,21 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 	parentID := opts.ParentID
 
 	m.mu.Lock()
+
+	// Auto-generate name if empty
+	if name == "" {
+		existing := make(map[string]bool, len(m.agents))
+		for n := range m.agents {
+			existing[n] = true
+		}
+		generated, genErr := names.GenerateUnique(existing, 100)
+		if genErr != nil {
+			m.mu.Unlock()
+			return nil, fmt.Errorf("failed to generate agent name: %w", genErr)
+		}
+		name = generated
+		opts.Name = name
+	}
 
 	log.Debug("spawning agent", "name", name, "role", role, "workspace", wsPath, "parentID", parentID, "tool", opts.Tool)
 
