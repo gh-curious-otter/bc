@@ -25,33 +25,38 @@ jobs:
             const body = context.payload.pull_request.body || '';
             const cleanBody = body.replace(/<!--[\s\S]*?-->/g, '').trim();
 
+            let errors = [];
             let warnings = [];
 
-            // Conventional commit title
-            const conventionalRegex = /^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\(.+\))?: .+/;
+            // Conventional commit title (blocking)
+            const conventionalRegex = /^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\([^)]+\))?: .+/;
             if (!conventionalRegex.test(title)) {
-              warnings.push('Title should follow conventional commit format: type(scope): description');
+              errors.push('Title must follow conventional commit format: type(scope): description');
             }
 
-            // Issue reference
-            if (!/#\d+/.test(body)) {
-              warnings.push('Should reference an issue (e.g., "Fixes #123")');
+            // Issue reference (blocking)
+            if (!/(?:Closes|Fixes|Resolves|Part of) #\d+/i.test(body)) {
+              errors.push('Must reference an issue (e.g., "Fixes #123", "Closes #123", "Part of #123")');
             }
 
-            // Description length
+            // Description length (advisory)
             if (cleanBody.length < 50) {
               warnings.push(`Description is too short (${cleanBody.length} chars, minimum 50)`);
             }
 
-            // Test evidence
+            // Test evidence (advisory)
             if (!/(test plan|testing|tests pass|\[x\].*test)/i.test(body)) {
               warnings.push('Should include a test plan or test evidence');
             }
 
             // Report
-            if (warnings.length === 0) {
-              core.info('✅ PR meets quality guidelines');
-            } else {
+            if (warnings.length > 0) {
               core.warning('PR quality suggestions:');
               warnings.forEach(w => core.warning(`  - ${w}`));
+            }
+            if (errors.length > 0) {
+              errors.forEach(e => core.setFailed(`  - ${e}`));
+            }
+            if (errors.length === 0 && warnings.length === 0) {
+              core.info('✅ PR meets quality guidelines');
             }
