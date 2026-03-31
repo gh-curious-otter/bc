@@ -15,4 +15,4 @@ x11vnc -display :99 -forever -nopw -shared -rfbport 5900 &
 websockify --web=/usr/share/novnc 6080 localhost:5900 &
 
 # Start Playwright MCP server — bind to 0.0.0.0 so Docker port mapping works
-exec npx -y @playwright/mcp --port 3000 --host 0.0.0.0
+exec npx -y @playwright/mcp --port 3000 --host 0.0.0.0 --allowed-hosts '*'
