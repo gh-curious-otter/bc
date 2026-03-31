@@ -1,0 +1,21 @@
+# Infrastructure agent image with AWS CLI and Cloudflare CLI
+# Extends the Claude agent image with cloud ops tooling.
+# Usage: docker build -t bc-agent-infra:latest -f docker/Dockerfile.infra .
+# Requires: bc-agent-claude:latest
+
+FROM bc-agent-claude:latest
+
+USER root
+
+# Install AWS CLI v2
+RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip && \
+    unzip -q /tmp/awscliv2.zip -d /tmp && \
+    /tmp/aws/install && \
+    rm -rf /tmp/aws /tmp/awscliv2.zip
+
+# Install Cloudflare Wrangler CLI (bun is available from base image)
+RUN bun install -g wrangler
+
+USER agent
+WORKDIR /workspace
+ENTRYPOINT ["bash", "-c"]
