@@ -260,8 +260,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
 		handlers.NewSettingsHandler(svc.WS).Register(mux)
 
-		// File upload/download for channel attachments
+		// File upload/download for channel attachments + shared screenshots
 		fileStore := attachment.NewStore(svc.WS.StateDir())
+		fileStore.AddSharedDir("/tmp/bc-shared")
 		handlers.NewFileHandler(fileStore).Register(mux)
 	}
 

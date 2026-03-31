@@ -15,7 +15,7 @@ import (
 var downCmd = &cobra.Command{
 	Use:   "down",
 	Short: "Stop bc services",
-	Long: `Stop bc-<id>-daemon, bc-stats, and bc-sql Docker containers.
+	Long: `Stop bc-<id>-daemon, playwright-visible, bc-stats, and bc-sql Docker containers.
 
 Examples:
   bc down
@@ -53,7 +53,7 @@ func runDown(cmd *cobra.Command, _ []string) error {
 	daemonName := fmt.Sprintf("bc-%s-daemon", id)
 
 	var stopped int
-	for _, name := range []string{daemonName, "bc-stats", "bc-sql"} {
+	for _, name := range []string{daemonName, "playwright-visible", "bc-stats", "bc-sql"} {
 		//nolint:gosec // trusted
 		out, _ := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}}", name).Output()
 		if strings.TrimSpace(string(out)) != "true" {

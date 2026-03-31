@@ -20,7 +20,7 @@ import (
 var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start bc services",
-	Long: `Start bc-sql, bc-stats, and bc-<id>-daemon in Docker.
+	Long: `Start bc-sql, bc-stats, bc-<id>-daemon, and playwright-visible in Docker.
 
 Examples:
   bc up
@@ -93,12 +93,16 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 	fmt.Println(ui.GreenText("ready"))
 
+	// Shared volume for screenshots and temp files between containers
+	const sharedVolume = "bc-shared-tmp"
+
 	// 4. bc-<id>-daemon with docker.sock + workspace mount
 	daemonName := fmt.Sprintf("bc-%s-daemon", id)
 	daemonArgs := []string{
 		"-p", upPort + ":9374",
 		"-v", ws.RootDir + ":/workspace",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
+		"-v", sharedVolume + ":/tmp/bc-shared",
 		"-e", "DATABASE_URL=postgres://bc:bc@host.docker.internal:5432/bc",
 		"-e", "STATS_DATABASE_URL=postgres://bc:bc@host.docker.internal:5433/bcstats",
 		"-e", "BC_HOST_WORKSPACE=" + ws.RootDir,
@@ -126,11 +130,24 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		fmt.Println(ui.GreenText("ready"))
 	}
 
+	// 6. playwright-visible — Playwright MCP server with Chromium + noVNC
+	if err := dockerRun(ctx, "playwright-visible", []string{
+		"-p", "6080:6080",
+		"-v", sharedVolume + ":/tmp/bc-shared",
+		"-e", "DISPLAY=:99",
+		"--restart", "always",
+		"bc-playwright:latest",
+	}); err != nil {
+		// Non-fatal — Playwright is optional
+		fmt.Printf("  %s playwright skipped: %v\n", ui.YellowText("note"), err)
+	}
+
 	fmt.Println()
 	fmt.Printf("  %s bc workspace ready\n", ui.GreenText("ok"))
-	fmt.Printf("  bcd:      http://%s\n", addr)
-	fmt.Println("  bc-sql:   localhost:5432")
-	fmt.Println("  bc-stats: localhost:5433")
+	fmt.Printf("  bcd:        http://%s\n", addr)
+	fmt.Println("  bc-sql:     localhost:5432")
+	fmt.Println("  bc-stats:   localhost:5433")
+	fmt.Println("  playwright: http://localhost:6080 (noVNC)")
 	fmt.Println()
 
 	return nil
