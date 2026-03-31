@@ -27,4 +27,5 @@ exec npx -y @playwright/mcp \
   --host 0.0.0.0 \
   --port 3000 \
   --allowed-hosts '*' \
-  --no-sandbox
+  --no-sandbox \
+  --output-dir /tmp/bc-shared
