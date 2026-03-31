@@ -152,6 +152,39 @@ func (m *Manager) IsGatewayChannel(name string) bool {
 	return ok
 }
 
+// SeedChannel adds a known gateway channel to the channel map.
+// Used on startup to restore mappings for channels that were dynamically
+// discovered in previous sessions. The channelID is set to the channel name
+// suffix (e.g., "all-bc" for "slack:all-bc") since the platform adapter
+// will resolve it.
+func (m *Manager) SeedChannel(bcChannel string) {
+	parts := strings.SplitN(bcChannel, ":", 2)
+	if len(parts) != 2 {
+		return
+	}
+	platform := parts[0]
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Don't overwrite existing mappings (from adapter discovery)
+	if _, exists := m.channelMap[bcChannel]; exists {
+		return
+	}
+
+	adapter, ok := m.adapters[platform]
+	if !ok {
+		return
+	}
+
+	m.channelMap[bcChannel] = channelRoute{
+		Platform:  platform,
+		ChannelID: parts[1], // will be resolved by adapter on first send
+		Adapter:   adapter,
+	}
+	log.Info("gateway: seeded channel from store", "bc_channel", bcChannel, "platform", platform)
+}
+
 // ExternalChannels returns all discovered external channels.
 func (m *Manager) ExternalChannels() []string {
 	m.mu.RLock()

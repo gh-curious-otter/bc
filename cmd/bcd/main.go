@@ -301,6 +301,17 @@ func run(addr, wsRoot, corsOrigin string) error {
 				}
 			}()
 
+			// Seed gateway channel map from existing channels in the store.
+			// On restart, dynamically-mapped channels (slack:all-bc, etc.) lose
+			// their channelMap entries. This restores them so send_file works.
+			if channels, listErr := channelSvc.List(ctx); listErr == nil {
+				for _, ch := range channels {
+					if strings.Contains(ch.Name, ":") {
+						gwManager.SeedChannel(ch.Name)
+					}
+				}
+			}
+
 			// Restore gateway channel members after startup.
 			// When bcd restarts, gateway channels exist in the DB but may
 			// have lost their members (e.g., channel was auto-created fresh).
