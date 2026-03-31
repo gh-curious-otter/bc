@@ -20,7 +20,7 @@ import (
 var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start bc services",
-	Long: `Start bc-sql, bc-stats, and bc-<id>-daemon in Docker.
+	Long: `Start bc-sql, bc-stats, bc-<id>-daemon, and playwright-visible in Docker.
 
 Examples:
   bc up
@@ -126,11 +126,23 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		fmt.Println(ui.GreenText("ready"))
 	}
 
+	// 6. playwright-visible — Playwright MCP server with Chromium + noVNC
+	if err := dockerRun(ctx, "playwright-visible", []string{
+		"-p", "6080:6080",
+		"-e", "DISPLAY=:99",
+		"--restart", "always",
+		"bc-playwright:latest",
+	}); err != nil {
+		// Non-fatal — Playwright is optional
+		fmt.Printf("  %s playwright skipped: %v\n", ui.YellowText("note"), err)
+	}
+
 	fmt.Println()
 	fmt.Printf("  %s bc workspace ready\n", ui.GreenText("ok"))
-	fmt.Printf("  bcd:      http://%s\n", addr)
-	fmt.Println("  bc-sql:   localhost:5432")
-	fmt.Println("  bc-stats: localhost:5433")
+	fmt.Printf("  bcd:        http://%s\n", addr)
+	fmt.Println("  bc-sql:     localhost:5432")
+	fmt.Println("  bc-stats:   localhost:5433")
+	fmt.Println("  playwright: http://localhost:6080 (noVNC)")
 	fmt.Println()
 
 	return nil
