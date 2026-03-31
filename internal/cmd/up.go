@@ -20,7 +20,7 @@ import (
 var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start bc services",
-	Long: `Start bc-sql, bc-stats, bc-<id>-daemon, and bc-playwright in Docker.
+	Long: `Start bc-db, bc-<id>-daemon, and bc-playwright in Docker.
 
 Examples:
   bc up
@@ -61,42 +61,28 @@ func runUp(cmd *cobra.Command, _ []string) error {
 
 	id := wsID(ws.RootDir)
 
-	// 1. bc-sql — persistent volume for Postgres data
-	if err := dockerRun(ctx, "bc-sql", []string{
-		"-p", "5432:5432",
-		"-e", "POSTGRES_PASSWORD=bc",
-		"-v", "bc-sql-data:/var/lib/postgresql/data",
-		"--restart", "always",
-		"bc-bcsql:latest",
-	}); err != nil {
-		return fmt.Errorf("bc-sql failed to start: %w", err)
-	}
-
-	// 2. bc-stats — persistent volume for TimescaleDB data
-	if err := dockerRun(ctx, "bc-stats", []string{
-		"-p", "5433:5432",
-		"-e", "POSTGRES_PASSWORD=bc",
-		"-v", "bc-stats-data:/var/lib/postgresql/data",
-		"--restart", "always",
-		"bc-bcstats:latest",
-	}); err != nil {
-		return fmt.Errorf("bc-stats failed to start: %w", err)
-	}
-
-	// 3. Wait for databases
-	fmt.Print("  Waiting for databases... ")
-	if err := waitPG(ctx, "bc-sql", 30*time.Second); err != nil {
-		return fmt.Errorf("bc-sql not ready: %w", err)
-	}
-	if err := waitPG(ctx, "bc-stats", 30*time.Second); err != nil {
-		return fmt.Errorf("bc-stats not ready: %w", err)
-	}
-	fmt.Println(ui.GreenText("ready"))
-
 	// Shared volume for screenshots and temp files between containers
 	const sharedVolume = "bc-shared-tmp"
 
-	// 4. bc-<id>-daemon with docker.sock + workspace mount
+	// 1. bc-db — unified database (TimescaleDB = Postgres + hypertables)
+	if err := dockerRun(ctx, "bc-db", []string{
+		"-p", "5432:5432",
+		"-e", "POSTGRES_PASSWORD=bc",
+		"-v", "bc-db-data:/var/lib/postgresql/data",
+		"--restart", "always",
+		"bc-bcdb:latest",
+	}); err != nil {
+		return fmt.Errorf("bc-db failed to start: %w", err)
+	}
+
+	// 2. Wait for database
+	fmt.Print("  Waiting for database... ")
+	if err := waitPG(ctx, "bc-db", 30*time.Second); err != nil {
+		return fmt.Errorf("bc-db not ready: %w", err)
+	}
+	fmt.Println(ui.GreenText("ready"))
+
+	// 3. bc-<id>-daemon with docker.sock + workspace mount
 	daemonName := fmt.Sprintf("bc-%s-daemon", id)
 	daemonArgs := []string{
 		"-p", upPort + ":9374",
@@ -104,7 +90,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
 		"-v", sharedVolume + ":/tmp/bc-shared",
 		"-e", "DATABASE_URL=postgres://bc:bc@host.docker.internal:5432/bc",
-		"-e", "STATS_DATABASE_URL=postgres://bc:bc@host.docker.internal:5433/bcstats",
+		"-e", "STATS_DATABASE_URL=postgres://bc:bc@host.docker.internal:5432/bc",
 		"-e", "BC_HOST_WORKSPACE=" + ws.RootDir,
 		"--restart", "always",
 	}
@@ -121,7 +107,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("  %s daemon failed to start: %v\n", ui.YellowText("warning"), err)
 	}
 
-	// 5. Wait for bcd
+	// 4. Wait for bcd
 	addr := fmt.Sprintf("127.0.0.1:%s", upPort)
 	fmt.Print("  Waiting for bcd... ")
 	if waitHTTP(ctx, addr, 30*time.Second) != nil {
@@ -130,7 +116,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		fmt.Println(ui.GreenText("ready"))
 	}
 
-	// 6. bc-playwright — Playwright MCP server with Chromium + noVNC
+	// 5. bc-playwright — Playwright MCP server with Chromium + noVNC
 	// --init prevents zombie processes, --ipc=host prevents Chromium OOM crashes
 	// See: https://playwright.dev/docs/docker
 	if err := dockerRun(ctx, "bc-playwright", []string{
@@ -150,8 +136,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	fmt.Println()
 	fmt.Printf("  %s bc workspace ready\n", ui.GreenText("ok"))
 	fmt.Printf("  bcd:        http://%s\n", addr)
-	fmt.Println("  bc-sql:     localhost:5432")
-	fmt.Println("  bc-stats:   localhost:5433")
+	fmt.Println("  bc-db:      localhost:5432")
 	fmt.Println("  playwright: http://localhost:6080 (noVNC), MCP localhost:3100")
 	fmt.Println()
 
@@ -229,4 +214,3 @@ func wsID(path string) string {
 	h := sha256.Sum256([]byte(path))
 	return fmt.Sprintf("%x", h[:3])
 }
-

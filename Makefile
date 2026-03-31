@@ -87,7 +87,7 @@ version: ## Show version info
 
 build: build-local build-docker ## Build everything (local + docker)
 build-local: build-local-go build-local-ts ## Build local binaries (go + ts)
-build-docker: build-docker-sql build-docker-stats build-docker-daemon build-docker-playwright ## Build Docker images (sql, stats, bcd, playwright)
+build-docker: build-docker-db build-docker-daemon build-docker-playwright ## Build Docker images (db, bcd, playwright)
 
 test: test-go test-ts ## Run all tests
 lint: lint-go lint-ts ## Run all linters
@@ -138,10 +138,13 @@ build-local-landing: ## Build landing page
 build-docker-daemon: ## Build bcd Docker image
 	docker build -t $(REGISTRY)-daemon:$(IMAGE_TAG) -f docker/Dockerfile.bcd .
 
-build-docker-sql: ## Build bc-sql (Postgres) Docker image
+build-docker-db: ## Build bc-db (unified TimescaleDB) Docker image
+	docker build -t $(REGISTRY)-bcdb:$(IMAGE_TAG) -f docker/Dockerfile.bcdb .
+
+build-docker-sql: ## Build bc-sql (legacy, use build-docker-db instead)
 	docker build -t $(REGISTRY)-bcsql:$(IMAGE_TAG) -f docker/Dockerfile.bcsql .
 
-build-docker-stats: ## Build bc-stats (TimescaleDB) Docker image
+build-docker-stats: ## Build bc-stats (legacy, use build-docker-db instead)
 	docker build -t $(REGISTRY)-bcstats:$(IMAGE_TAG) -f docker/Dockerfile.bcstats .
 
 build-docker-agent-base: ## Build agent base image
