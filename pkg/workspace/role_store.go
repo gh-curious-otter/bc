@@ -72,6 +72,7 @@ func (s *RoleStore) InitSchema() error {
 			prompt_stop   TEXT NOT NULL DEFAULT '',
 			prompt_delete TEXT NOT NULL DEFAULT '',
 			review        TEXT NOT NULL DEFAULT '',
+			cli_tools     TEXT NOT NULL DEFAULT '[]',
 			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);`
@@ -95,6 +96,7 @@ func (s *RoleStore) InitSchema() error {
 			prompt_stop   TEXT NOT NULL DEFAULT '',
 			prompt_delete TEXT NOT NULL DEFAULT '',
 			review        TEXT NOT NULL DEFAULT '',
+			cli_tools     TEXT NOT NULL DEFAULT '[]',
 			created_at    TEXT NOT NULL,
 			updated_at    TEXT NOT NULL
 		);`
@@ -104,6 +106,11 @@ func (s *RoleStore) InitSchema() error {
 	if err != nil {
 		return fmt.Errorf("create roles table: %w", err)
 	}
+
+	// Migration: add cli_tools column if not present (existing databases)
+	_, _ = s.sqlDB.ExecContext(context.Background(),
+		"ALTER TABLE roles ADD COLUMN cli_tools TEXT NOT NULL DEFAULT '[]'") //nolint:errcheck // ignore if already exists
+
 	return nil
 }
 
@@ -166,6 +173,11 @@ func (s *RoleStore) Save(role *Role) error {
 		return fmt.Errorf("marshal commands: %w", err)
 	}
 
+	cliToolsJSON, err := json.Marshal(role.Metadata.CLITools)
+	if err != nil {
+		return fmt.Errorf("marshal cli_tools: %w", err)
+	}
+
 	now := time.Now().Format(time.RFC3339)
 
 	ctx := context.Background()
@@ -174,34 +186,36 @@ func (s *RoleStore) Save(role *Role) error {
 		INSERT INTO roles
 		(name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
 		 settings, rules, agents, skills, commands,
-		 prompt_create, prompt_start, prompt_stop, prompt_delete, review,
+		 prompt_create, prompt_start, prompt_stop, prompt_delete, review, cli_tools,
 		 created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
 		ON CONFLICT(name) DO UPDATE SET
 		 description=$2, prompt=$3, mcp_servers=$4, parent_roles=$5, secrets=$6, plugins=$7,
 		 settings=$8, rules=$9, agents=$10, skills=$11, commands=$12,
-		 prompt_create=$13, prompt_start=$14, prompt_stop=$15, prompt_delete=$16, review=$17,
+		 prompt_create=$13, prompt_start=$14, prompt_stop=$15, prompt_delete=$16, review=$17, cli_tools=$18,
 		 updated_at=NOW()`,
 			role.Metadata.Name, role.Metadata.Description, role.Prompt,
 			string(mcpServers), string(parentRoles), string(secretsJSON), string(pluginsJSON),
 			string(settingsJSON), string(rulesJSON), string(agentsJSON), string(skillsJSON), string(commandsJSON),
 			role.Metadata.PromptCreate, role.Metadata.PromptStart,
 			role.Metadata.PromptStop, role.Metadata.PromptDelete, role.Metadata.Review,
+			string(cliToolsJSON),
 		)
 	} else {
 		_, err = s.sqlDB.ExecContext(ctx, `
 		INSERT OR REPLACE INTO roles
 		(name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
 		 settings, rules, agents, skills, commands,
-		 prompt_create, prompt_start, prompt_stop, prompt_delete, review,
+		 prompt_create, prompt_start, prompt_stop, prompt_delete, review, cli_tools,
 		 created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
 		 COALESCE((SELECT created_at FROM roles WHERE name = ?), ?), ?)`,
 			role.Metadata.Name, role.Metadata.Description, role.Prompt,
 			string(mcpServers), string(parentRoles), string(secretsJSON), string(pluginsJSON),
 			string(settingsJSON), string(rulesJSON), string(agentsJSON), string(skillsJSON), string(commandsJSON),
 			role.Metadata.PromptCreate, role.Metadata.PromptStart,
 			role.Metadata.PromptStop, role.Metadata.PromptDelete, role.Metadata.Review,
+			string(cliToolsJSON),
 			role.Metadata.Name, now, now,
 		)
 	}
@@ -212,7 +226,7 @@ func (s *RoleStore) Save(role *Role) error {
 func (s *RoleStore) Load(name string) (*Role, error) {
 	q := `SELECT name, description, prompt, mcp_servers, parent_roles, secrets, plugins,` + //nolint:gosec // G202: placeholder is "?" or "$1", not user input
 		`       settings, rules, agents, skills, commands,
-		       prompt_create, prompt_start, prompt_stop, prompt_delete, review,
+		       prompt_create, prompt_start, prompt_stop, prompt_delete, review, cli_tools,
 		       created_at, updated_at
 		FROM roles WHERE name = ` + s.placeholder(1)
 
@@ -225,7 +239,7 @@ func (s *RoleStore) LoadAll() (map[string]*Role, error) {
 	rows, err := s.sqlDB.QueryContext(context.Background(), `
 		SELECT name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
 		       settings, rules, agents, skills, commands,
-		       prompt_create, prompt_start, prompt_stop, prompt_delete, review,
+		       prompt_create, prompt_start, prompt_stop, prompt_delete, review, cli_tools,
 		       created_at, updated_at
 		FROM roles ORDER BY name`)
 	if err != nil {
@@ -379,7 +393,7 @@ func scanRoleRow(scanner interface{ Scan(...any) error }) (*Role, error) {
 		settingsJSON, rulesJSON, agentsJSON                 string
 		skillsJSON, commandsJSON                            string
 		promptCreate, promptStart, promptStop, promptDelete string
-		review                                              string
+		review, cliToolsJSON                                string
 		createdAt, updatedAt                                any // any to handle both TEXT (SQLite) and TIMESTAMPTZ (Postgres)
 	)
 
@@ -387,7 +401,7 @@ func scanRoleRow(scanner interface{ Scan(...any) error }) (*Role, error) {
 		&name, &description, &prompt,
 		&mcpServersJSON, &parentRolesJSON, &secretsJSON, &pluginsJSON,
 		&settingsJSON, &rulesJSON, &agentsJSON, &skillsJSON, &commandsJSON,
-		&promptCreate, &promptStart, &promptStop, &promptDelete, &review,
+		&promptCreate, &promptStart, &promptStop, &promptDelete, &review, &cliToolsJSON,
 		&createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -437,6 +451,9 @@ func scanRoleRow(scanner interface{ Scan(...any) error }) (*Role, error) {
 	}
 	if commandsJSON != "" && commandsJSON != "{}" {
 		_ = json.Unmarshal([]byte(commandsJSON), &role.Metadata.Commands) //nolint:errcheck
+	}
+	if cliToolsJSON != "" && cliToolsJSON != "[]" {
+		_ = json.Unmarshal([]byte(cliToolsJSON), &role.Metadata.CLITools) //nolint:errcheck
 	}
 
 	return role, nil

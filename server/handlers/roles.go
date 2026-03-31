@@ -42,6 +42,7 @@ type roleRequest struct {
 	MCPServers   []string          `json:"mcp_servers"`
 	Secrets      []string          `json:"secrets"`
 	Plugins      []string          `json:"plugins"`
+	CLITools     []string          `json:"cli_tools"`
 }
 
 func (req *roleRequest) toRole() *workspace.Role {
@@ -63,6 +64,7 @@ func (req *roleRequest) toRole() *workspace.Role {
 			PromptCreate: req.PromptCreate,
 			PromptDelete: req.PromptDelete,
 			Review:       req.Review,
+			CLITools:     req.CLITools,
 		},
 	}
 }

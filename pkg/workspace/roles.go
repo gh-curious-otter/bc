@@ -29,6 +29,7 @@ type RoleMetadata struct {
 	Secrets      []string          `yaml:"secrets,omitempty"`       // Secret names needed by MCP env vars
 	MCPServers   []string          `yaml:"mcp_servers,omitempty"`   // MCP servers available to this role
 	ParentRoles  []string          `yaml:"parent_roles,omitempty"`  // Roles to inherit from (capabilities, prompts)
+	CLITools     []string          `yaml:"cli_tools,omitempty"`     // CLI tools expected in agent PATH (e.g., gh, aws, wrangler)
 }
 
 // Role represents a parsed role file with metadata and prompt content.
