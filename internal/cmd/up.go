@@ -93,12 +93,16 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 	fmt.Println(ui.GreenText("ready"))
 
+	// Shared volume for screenshots and temp files between containers
+	const sharedVolume = "bc-shared-tmp"
+
 	// 4. bc-<id>-daemon with docker.sock + workspace mount
 	daemonName := fmt.Sprintf("bc-%s-daemon", id)
 	daemonArgs := []string{
 		"-p", upPort + ":9374",
 		"-v", ws.RootDir + ":/workspace",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
+		"-v", sharedVolume + ":/tmp/bc-shared",
 		"-e", "DATABASE_URL=postgres://bc:bc@host.docker.internal:5432/bc",
 		"-e", "STATS_DATABASE_URL=postgres://bc:bc@host.docker.internal:5433/bcstats",
 		"-e", "BC_HOST_WORKSPACE=" + ws.RootDir,
@@ -129,6 +133,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	// 6. playwright-visible — Playwright MCP server with Chromium + noVNC
 	if err := dockerRun(ctx, "playwright-visible", []string{
 		"-p", "6080:6080",
+		"-v", sharedVolume + ":/tmp/bc-shared",
 		"-e", "DISPLAY=:99",
 		"--restart", "always",
 		"bc-playwright:latest",
