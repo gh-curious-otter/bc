@@ -15,11 +15,18 @@ type SQLiteLog struct {
 	db *db.DB
 }
 
-// NewSQLiteLog opens (or creates) the events table at dbPath.
+// NewSQLiteLog opens (or creates) the events table.
+// Uses shared bc.db if available, falls back to dbPath.
 func NewSQLiteLog(dbPath string) (*SQLiteLog, error) {
-	d, err := db.Open(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("open events db: %w", err)
+	var d *db.DB
+	var err error
+	if shared := db.SharedWrapped(); shared != nil {
+		d = shared
+	} else {
+		d, err = db.Open(dbPath)
+		if err != nil {
+			return nil, fmt.Errorf("open events db: %w", err)
+		}
 	}
 
 	schema := `

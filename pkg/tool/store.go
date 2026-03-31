@@ -102,15 +102,24 @@ func NewStore(stateDir string) *Store {
 	}
 }
 
-// Open initializes the SQLite database and seeds built-in tools.
+// Open initializes the database and seeds built-in tools.
+// Uses shared bc.db if available, falls back to tools.db.
 func (s *Store) Open() error {
-	database, err := db.Open(s.path)
-	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+	var database *db.DB
+	var err error
+	if shared := db.SharedWrapped(); shared != nil {
+		database = shared
+	} else {
+		database, err = db.Open(s.path)
+		if err != nil {
+			return fmt.Errorf("failed to open database: %w", err)
+		}
 	}
 
 	if err := initSchema(database.DB); err != nil {
-		_ = database.Close()
+		if db.SharedWrapped() == nil {
+			_ = database.Close()
+		}
 		return fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
