@@ -136,7 +136,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	if err := dockerRun(ctx, "bc-playwright", []string{
 		"--init",
 		"--ipc=host",
-		"-p", "3100:3000",
+		"-p", "3000:3000",
 		"-p", "6080:6080",
 		"-v", sharedVolume + ":/tmp/bc-shared",
 		"-e", "DISPLAY=:99",
@@ -152,7 +152,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("  bcd:        http://%s\n", addr)
 	fmt.Println("  bc-sql:     localhost:5432")
 	fmt.Println("  bc-stats:   localhost:5433")
-	fmt.Println("  playwright: http://localhost:6080 (noVNC), MCP localhost:3100")
+	fmt.Println("  playwright: http://localhost:6080 (noVNC), MCP localhost:3000")
 	fmt.Println()
 
 	return nil
