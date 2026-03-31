@@ -1,40 +1,64 @@
-# Local development stack: bcd server + bcdb Postgres + Playwright MCP
-# Usage: docker-compose up
+# Local development stack: bc-sql + bc-stats + bcd server + Playwright MCP
+# Usage: docker compose up -d
 #
 # Prerequisites: build images first
-#   make build-bcd-docker build-bcdb-docker
+#   make build-docker
 
 services:
-  bcdb:
-    image: bc-bcdb:latest
+  bc-sql:
+    image: bc-bcsql:latest
+    container_name: bc-sql
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-bc}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bc}
-      POSTGRES_DB: ${POSTGRES_DB:-bc}
+      POSTGRES_PASSWORD: bc
     ports:
       - "5432:5432"
     volumes:
-      - bcdb-data:/var/lib/postgresql/data
+      - bc-sql-data:/var/lib/postgresql/data
+    restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bc -d bc"]
+      test: ["CMD-SHELL", "pg_isready -U bc"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  bc-stats:
+    image: bc-bcstats:latest
+    container_name: bc-stats
+    environment:
+      POSTGRES_PASSWORD: bc
+    ports:
+      - "5433:5432"
+    volumes:
+      - bc-stats-data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bc"]
       interval: 10s
       timeout: 5s
       start_period: 30s
       retries: 5
 
   bcd:
-    image: bc-bcd:latest
+    image: bc-daemon:latest
+    container_name: bc-daemon
     ports:
-      - "9374:9374"
+      - "${BC_PORT:-9374}:9374"
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-bc}:${POSTGRES_PASSWORD:-bc}@bcdb:5432/${POSTGRES_DB:-bc}?sslmode=disable
+      DATABASE_URL: postgres://bc:bc@bc-sql:5432/bc?sslmode=disable
+      STATS_DATABASE_URL: postgres://bc:bc@bc-stats:5432/bcstats?sslmode=disable
+      BC_HOST_WORKSPACE: ${BC_HOST_WORKSPACE:-.}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/workspace
       - shared-tmp:/tmp/bc-shared
     depends_on:
-      bcdb:
+      bc-sql:
         condition: service_healthy
+      bc-stats:
+        condition: service_healthy
+    restart: always
+    command: ["--addr", "0.0.0.0:9374", "--workspace", "/workspace"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9374/health"]
       interval: 30s
@@ -44,6 +68,7 @@ services:
 
   playwright:
     image: playwright-visible
+    container_name: bc-playwright
     ports:
       - "3100:3100"
     volumes:
@@ -51,5 +76,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  bcdb-data:
+  bc-sql-data:
+  bc-stats-data:
   shared-tmp:
