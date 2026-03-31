@@ -17,7 +17,7 @@ function parseContent(text: string): ReactNode[] {
   // Split on patterns we want to handle, preserving delimiters
   // Order matters: URLs first (greedy), then bold, then code, then #channel, then @mention
   const pattern =
-    /(https?:\/\/[^\s<>)"']+)|(\*\*(?:[^*]|\*(?!\*))+\*\*)|(`[^`]+`)|(\B#[a-zA-Z0-9_-]+\b)|(@[a-zA-Z0-9_-]+)/g;
+    /(https?:\/\/[^\s<>)"']+)|(\*\*(?:[^*]|\*(?!\*))+\*\*)|(`[^`]+`)|(\B#(?=[a-zA-Z0-9_-]*[a-zA-Z])[a-zA-Z0-9_-]+\b)|(@[a-zA-Z0-9_-]+)/g;
 
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
