@@ -9,6 +9,20 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { MessageContent } from "../components/MessageContent";
 
+/** Gateway channels are bridges to external platforms — read-only activity feeds. */
+const GATEWAY_PREFIXES = ["slack:", "telegram:", "discord:"];
+function isGatewayChannel(name: string): boolean {
+  return GATEWAY_PREFIXES.some((p) => name.startsWith(p));
+}
+
+/** Extract platform name from gateway channel for display. */
+function gatewayPlatform(name: string): string | null {
+  for (const p of GATEWAY_PREFIXES) {
+    if (name.startsWith(p)) return p.slice(0, -1);
+  }
+  return null;
+}
+
 export function Channels() {
   const { channelName: paramChannel } = useParams<{ channelName: string }>();
   const navigate = useNavigate();
@@ -87,32 +101,77 @@ export function Channels() {
             />
           </div>
         ) : (
-          (channels ?? []).map((ch) => (
-            <button
-              key={ch.name}
-              onClick={() => selectChannel(ch.name)}
-              className={`w-full text-left px-3 py-2 text-sm border-b border-bc-border/30 ${
-                selected === ch.name
-                  ? "bg-bc-accent/10 text-bc-accent"
-                  : "text-bc-text hover:bg-bc-surface"
-              }`}
-            >
-              <span className="font-medium">#{ch.name}</span>
-              <span className="ml-2 text-xs text-bc-muted">
-                ({ch.member_count})
-              </span>
-            </button>
-          ))
+          <>
+            {/* bc-native channels */}
+            {(channels ?? []).filter((ch) => !isGatewayChannel(ch.name)).length > 0 && (
+              <div className="px-3 pt-3 pb-1">
+                <span className="text-[10px] font-semibold text-bc-muted uppercase tracking-widest">Channels</span>
+              </div>
+            )}
+            {(channels ?? [])
+              .filter((ch) => !isGatewayChannel(ch.name))
+              .map((ch) => (
+                <button
+                  key={ch.name}
+                  onClick={() => selectChannel(ch.name)}
+                  className={`w-full text-left px-3 py-2 text-sm border-b border-bc-border/30 ${
+                    selected === ch.name
+                      ? "bg-bc-accent/10 text-bc-accent"
+                      : "text-bc-text hover:bg-bc-surface"
+                  }`}
+                >
+                  <span className="font-medium">#{ch.name}</span>
+                  <span className="ml-2 text-xs text-bc-muted">
+                    ({ch.member_count})
+                  </span>
+                </button>
+              ))}
+            {/* Gateway channels */}
+            {(channels ?? []).filter((ch) => isGatewayChannel(ch.name)).length > 0 && (
+              <div className="px-3 pt-4 pb-1">
+                <span className="text-[10px] font-semibold text-bc-muted uppercase tracking-widest">Gateways</span>
+              </div>
+            )}
+            {(channels ?? [])
+              .filter((ch) => isGatewayChannel(ch.name))
+              .map((ch) => {
+                const platform = gatewayPlatform(ch.name);
+                return (
+                  <button
+                    key={ch.name}
+                    onClick={() => selectChannel(ch.name)}
+                    className={`w-full text-left px-3 py-2 text-sm border-b border-bc-border/30 flex items-center gap-2 ${
+                      selected === ch.name
+                        ? "bg-bc-accent/10 text-bc-accent"
+                        : "text-bc-text hover:bg-bc-surface"
+                    }`}
+                  >
+                    <span className="font-medium">#{ch.name}</span>
+                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-bc-border/60 text-bc-muted">
+                      {platform}
+                    </span>
+                  </button>
+                );
+              })}
+          </>
         )}
       </div>
       <div className="flex-1 flex flex-col min-w-0">
         {selected ? (
-          <ChatRoom
-            channelName={selected}
-            channel={(channels ?? []).find((c) => c.name === selected)}
-            onPeekAgent={setPeekAgent}
-            onChannelUpdated={refresh}
-          />
+          isGatewayChannel(selected) ? (
+            <GatewayFeed
+              channelName={selected}
+              channel={(channels ?? []).find((c) => c.name === selected)}
+              onPeekAgent={setPeekAgent}
+            />
+          ) : (
+            <ChatRoom
+              channelName={selected}
+              channel={(channels ?? []).find((c) => c.name === selected)}
+              onPeekAgent={setPeekAgent}
+              onChannelUpdated={refresh}
+            />
+          )
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
@@ -558,6 +617,153 @@ function ChatRoom({
         >
           Send
         </button>
+      </div>
+    </>
+  );
+}
+
+/** Read-only activity feed for gateway channels (slack:*, telegram:*, discord:*). */
+function GatewayFeed({
+  channelName,
+  channel,
+  onPeekAgent,
+}: {
+  channelName: string;
+  channel?: Channel;
+  onPeekAgent: (name: string) => void;
+}) {
+  const [messages, setMessages] = useState<ChannelMessage[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { subscribe } = useWebSocket();
+
+  const platform = gatewayPlatform(channelName);
+  const channelLabel = channelName.split(":").slice(1).join(":");
+
+  // Fetch history
+  useEffect(() => {
+    setMessages([]);
+    void (async () => {
+      try {
+        const msgs = await api.getChannelHistory(channelName, 500);
+        setMessages(msgs ?? []);
+      } catch {
+        setMessages([]);
+      }
+    })();
+  }, [channelName]);
+
+  // Live updates
+  useEffect(() => {
+    return subscribe("channel.message", (event) => {
+      const data = event.data as { channel?: string; message?: ChannelMessage };
+      if (data.channel === channelName && data.message) {
+        const msg = {
+          ...data.message,
+          created_at: data.message.created_at || new Date().toISOString(),
+        };
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+      }
+    });
+  }, [subscribe, channelName]);
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  /** Classify activity type from message content. */
+  const activityType = (content: string): { icon: string; label: string; color: string } => {
+    if (content.includes("[shared a file]") || content.includes("screenshot") || content.includes("Uploaded"))
+      return { icon: "📎", label: "file", color: "text-blue-400" };
+    if (content.includes("PR #") || content.includes("pull/"))
+      return { icon: "⤴", label: "pr", color: "text-purple-400" };
+    if (content.includes("merged") || content.includes("Merge"))
+      return { icon: "✓", label: "merged", color: "text-green-400" };
+    if (content.includes("review") || content.includes("LGTM"))
+      return { icon: "◉", label: "review", color: "text-yellow-400" };
+    return { icon: "›", label: "message", color: "text-bc-muted" };
+  };
+
+  return (
+    <>
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-bc-border bg-bc-surface">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="font-medium">#{channelLabel}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-bc-border/60 text-bc-muted font-medium uppercase tracking-wider">
+              {platform} gateway
+            </span>
+          </div>
+          <span className="text-xs text-bc-muted">
+            {messages.length} event{messages.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+        {channel?.description && (
+          <p className="text-xs text-bc-muted mt-1">{channel.description}</p>
+        )}
+      </div>
+
+      {/* Activity feed */}
+      <div className="relative flex-1">
+        <div
+          ref={scrollContainerRef}
+          className="absolute inset-0 overflow-auto p-4"
+        >
+          {messages.length === 0 && (
+            <div className="flex items-center justify-center py-8">
+              <EmptyState
+                icon="⇄"
+                title="No gateway activity"
+                description={`Messages from ${platform ?? "the external platform"} will appear here.`}
+              />
+            </div>
+          )}
+          <div className="space-y-1">
+            {messages.map((msg) => {
+              const activity = activityType(msg.content);
+              return (
+                <div
+                  key={msg.id}
+                  className="flex items-start gap-3 py-1.5 px-2 rounded hover:bg-bc-surface/50 transition-colors group"
+                >
+                  <span className={`text-xs mt-0.5 w-4 text-center shrink-0 ${activity.color}`}>
+                    {activity.icon}
+                  </span>
+                  <div className="flex-1 min-w-0 text-sm">
+                    <span className="inline-flex items-baseline gap-2">
+                      <button
+                        onClick={() => onPeekAgent(msg.sender)}
+                        className="font-medium text-bc-accent hover:underline cursor-pointer text-xs"
+                        title={`Peek at ${msg.sender}`}
+                      >
+                        {msg.sender}
+                      </button>
+                      <span className="text-[11px] text-bc-muted">
+                        {formatTimestamp(msg.created_at)}
+                      </span>
+                    </span>
+                    <p className="text-xs text-bc-text/80 mt-0.5 whitespace-pre-wrap break-words line-clamp-3 group-hover:line-clamp-none">
+                      <MessageContent content={msg.content} />
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* Read-only footer — no input */}
+      <div className="px-4 py-2.5 border-t border-bc-border bg-bc-surface/50">
+        <p className="text-xs text-bc-muted text-center">
+          Gateway channel — activity from {platform ?? "external platform"}. Messages are sent via {platform ?? "the platform"} directly.
+        </p>
       </div>
     </>
   );
