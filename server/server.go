@@ -151,15 +151,19 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Channels != nil {
 		svc.Channels.OnMessage = func(ch, sender, content string) {
-			// Route outbound to gateway if this is a gateway channel
+			// Route outbound to gateway asynchronously — don't block the
+			// MCP tool response on Slack/Telegram API latency.
 			if svc.Gateway != nil && svc.Gateway.IsGatewayChannel(ch) {
-				// Don't re-send messages that came FROM the gateway (indicated by [platform] prefix)
 				if !strings.HasPrefix(sender, "[telegram]") &&
 					!strings.HasPrefix(sender, "[discord]") &&
 					!strings.HasPrefix(sender, "[slack]") {
-					if _, err := svc.Gateway.Send(context.Background(), ch, sender, content); err != nil {
-						log.Warn("gateway outbound failed", "channel", ch, "error", err)
-					}
+					go func() {
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						if _, err := svc.Gateway.Send(ctx, ch, sender, content); err != nil {
+							log.Warn("gateway outbound failed", "channel", ch, "error", err)
+						}
+					}()
 				}
 			}
 			// Publish SSE event for web UI (non-blocking)
