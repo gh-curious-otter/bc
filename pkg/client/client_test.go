@@ -70,9 +70,6 @@ func TestNew(t *testing.T) {
 	if c.Channels == nil {
 		t.Error("Channels client is nil")
 	}
-	if c.Workspaces == nil {
-		t.Error("Workspaces client is nil")
-	}
 	if c.Events == nil {
 		t.Error("Events client is nil")
 	}
@@ -1503,82 +1500,6 @@ func TestTools_Get_Error(t *testing.T) {
 	c := New(ts.URL)
 
 	_, err := c.Tools.Get(context.Background(), "missing")
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-}
-
-// --- Workspaces tests ---
-
-func TestWorkspaces_Status(t *testing.T) {
-	status := WorkspaceStatus{Name: "myproject", AgentCount: 3, RunningCount: 2, IsHealthy: true}
-	ts := mockServer(t, jsonHandler(200, status))
-	c := New(ts.URL)
-
-	result, err := c.Workspaces.Status(context.Background())
-	if err != nil {
-		t.Fatalf("Status() error = %v", err)
-	}
-	if result.Name != "myproject" {
-		t.Errorf("Name = %q, want myproject", result.Name)
-	}
-	if result.AgentCount != 3 {
-		t.Errorf("AgentCount = %d, want 3", result.AgentCount)
-	}
-	if !result.IsHealthy {
-		t.Error("IsHealthy = false, want true")
-	}
-}
-
-func TestWorkspaces_Status_Error(t *testing.T) {
-	ts := mockServer(t, jsonHandler(500, map[string]string{"error": "boom"}))
-	c := New(ts.URL)
-
-	_, err := c.Workspaces.Status(context.Background())
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-}
-
-func TestWorkspaces_Up(t *testing.T) {
-	handler, cap := capturingHandler(t, http.MethodPost, 200, map[string]any{"status": "ok", "agent": "root"})
-	ts := mockServer(t, handler)
-	c := New(ts.URL)
-
-	result, err := c.Workspaces.Up(context.Background(), "claude", "tmux")
-	if err != nil {
-		t.Fatalf("Up() error = %v", err)
-	}
-	if result["status"] != "ok" {
-		t.Errorf("status = %v, want ok", result["status"])
-	}
-	if cap.Body["tool"] != "claude" {
-		t.Errorf("body tool = %v, want claude", cap.Body["tool"])
-	}
-	if cap.Body["runtime"] != "tmux" {
-		t.Errorf("body runtime = %v, want tmux", cap.Body["runtime"])
-	}
-}
-
-func TestWorkspaces_Down(t *testing.T) {
-	handler, _ := capturingHandler(t, http.MethodPost, 200, map[string]int{"stopped": 3})
-	ts := mockServer(t, handler)
-	c := New(ts.URL)
-
-	stopped, err := c.Workspaces.Down(context.Background())
-	if err != nil {
-		t.Fatalf("Down() error = %v", err)
-	}
-	if stopped != 3 {
-		t.Errorf("stopped = %d, want 3", stopped)
-	}
-}
-
-func TestWorkspaces_Down_Error(t *testing.T) {
-	ts := mockServer(t, jsonHandler(500, map[string]string{"error": "boom"}))
-	c := New(ts.URL)
-
-	_, err := c.Workspaces.Down(context.Background())
 	if err == nil {
 		t.Error("expected error, got nil")
 	}
