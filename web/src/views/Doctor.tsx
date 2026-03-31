@@ -1,17 +1,17 @@
 import { useCallback, useState } from "react";
 import { api } from "../api/client";
-import type { DoctorCategory } from "../api/client";
+import type { DoctorCategory, DoctorItem } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
-const severityIcon = (s: number) => {
+const severityIcon = (s: string) => {
   switch (s) {
-    case 0:
+    case "ok":
       return <span className="text-green-400">&#10003;</span>;
-    case 1:
+    case "warn":
       return <span className="text-yellow-400">&#9888;</span>;
-    case 2:
+    case "error":
       return <span className="text-red-400">&#10007;</span>;
     default:
       return <span className="text-bc-muted">?</span>;
@@ -65,23 +65,12 @@ export function Doctor() {
   }
   if (!report) return null;
 
-  const categories = report.Categories ?? [];
+  const categories = report.categories ?? [];
 
-  const totalPassed = categories.reduce(
-    (n: number, c: DoctorCategory) =>
-      n + c.Items.filter((i) => i.Severity === 0).length,
-    0,
-  );
-  const totalFailed = categories.reduce(
-    (n: number, c: DoctorCategory) =>
-      n + c.Items.filter((i) => i.Severity === 2).length,
-    0,
-  );
-  const totalWarnings = categories.reduce(
-    (n: number, c: DoctorCategory) =>
-      n + c.Items.filter((i) => i.Severity === 1).length,
-    0,
-  );
+  const allItems = categories.flatMap((c) => c.items ?? []);
+  const totalPassed = allItems.filter((i) => i.severity === "ok").length;
+  const totalFailed = allItems.filter((i) => i.severity === "error").length;
+  const totalWarnings = allItems.filter((i) => i.severity === "warn").length;
 
   return (
     <div className="p-6 space-y-6">
@@ -99,7 +88,7 @@ export function Doctor() {
       </div>
 
       {categories.map((cat: DoctorCategory) => (
-        <CategorySection key={cat.Name} category={cat} />
+        <CategorySection key={cat.name} category={cat} />
       ))}
     </div>
   );
@@ -130,30 +119,31 @@ function FixButton({ fix }: { fix: string }) {
 }
 
 function CategorySection({ category }: { category: DoctorCategory }) {
+  const items = category.items ?? [];
   return (
     <div className="space-y-2">
       <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-        {category.Name}
+        {category.name}
       </h2>
       <div className="rounded border border-bc-border overflow-hidden">
-        {category.Items.map((item, i) => (
+        {items.map((item: DoctorItem, i: number) => (
           <div
             key={i}
             className="flex items-start gap-3 px-4 py-2 border-b border-bc-border/50 last:border-b-0"
           >
-            <span className="mt-0.5">{severityIcon(item.Severity)}</span>
+            <span className="mt-0.5">{severityIcon(item.severity)}</span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">{item.Name}</span>
+                <span className="font-medium text-sm">{item.name}</span>
                 <span className="text-xs text-bc-muted truncate">
-                  {item.Message}
+                  {item.message}
                 </span>
               </div>
-              {item.Severity === 2 && item.Fix ? (
-                <FixButton fix={item.Fix} />
-              ) : item.Fix ? (
+              {item.severity === "error" && item.fix ? (
+                <FixButton fix={item.fix} />
+              ) : item.fix ? (
                 <code className="text-xs text-bc-accent mt-0.5 block">
-                  {item.Fix}
+                  {item.fix}
                 </code>
               ) : null}
             </div>
