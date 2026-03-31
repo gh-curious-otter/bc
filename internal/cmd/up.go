@@ -20,7 +20,7 @@ import (
 var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start bc services",
-	Long: `Start bc-db, bc-<id>-daemon, and bc-playwright in Docker.
+	Long: `Start bc-db and bc-<id>-daemon in Docker.
 
 Examples:
   bc up
