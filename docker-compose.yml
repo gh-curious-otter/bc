@@ -51,7 +51,7 @@ services:
     environment:
       DATABASE_URL: postgres://bc:bc@bc-sql:5432/bc?sslmode=disable
       STATS_DATABASE_URL: postgres://bc:bc@bc-stats:5432/bcstats?sslmode=disable
-      BC_HOST_WORKSPACE: ${BC_HOST_WORKSPACE:-.}
+      BC_HOST_WORKSPACE: ${BC_HOST_WORKSPACE:-/workspace}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -92,5 +92,8 @@ networks:
 
 volumes:
   bc-sql-data:
+    name: bc-sql-data
   bc-stats-data:
+    name: bc-stats-data
   shared-tmp:
+    name: bc-shared-tmp
