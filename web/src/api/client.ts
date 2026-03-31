@@ -383,10 +383,17 @@ export const api = {
     ),
 
   listChannels: () => request<Channel[]>("/channels"),
-  getChannelHistory: (name: string, limit = 50) =>
-    request<ChannelMessage[]>(
-      `/channels/${encodeURIComponent(name)}/history?${new URLSearchParams({ limit: String(limit) })}`,
-    ),
+  getChannelHistory: (
+    name: string,
+    limit = 50,
+    before?: number,
+  ) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before !== undefined) params.set("before", String(before));
+    return request<ChannelMessage[]>(
+      `/channels/${encodeURIComponent(name)}/history?${params}`,
+    );
+  },
   sendToChannel: (name: string, message: string, sender = "web") =>
     request<ChannelMessage>(`/channels/${encodeURIComponent(name)}/messages`, {
       method: "POST",
