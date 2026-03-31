@@ -15,9 +15,6 @@ mock.module('../services/bc', () => ({
   getChannels: vi.fn(),
   getChannelHistory: vi.fn(),
   sendChannelMessage: vi.fn(),
-  getTeams: vi.fn(),
-  addTeamMember: vi.fn(),
-  removeTeamMember: vi.fn(),
   reportState: vi.fn(),
 }));
 
@@ -148,7 +145,6 @@ describe.skipIf(noDOM)('Advanced: Concurrent Operations and Race Conditions', ()
       total_input_tokens: 50000,
       total_output_tokens: 10000,
       by_agent: { 'eng-01': 100 },
-      by_team: {},
       by_model: {},
     };
 
@@ -208,23 +204,6 @@ describe.skipIf(noDOM)('Advanced: Concurrent Operations and Race Conditions', ()
     expect(mockBcService.sendChannelMessage).toHaveBeenCalledTimes(2);
   });
 
-  it('handles concurrent team modifications', async () => {
-    mockBcService.addTeamMember.mockResolvedValue(undefined);
-    mockBcService.removeTeamMember.mockResolvedValue(undefined);
-
-    const operations = [
-      bcService.addTeamMember('eng', 'eng-01'),
-      bcService.addTeamMember('eng', 'eng-02'),
-      bcService.removeTeamMember('eng', 'eng-03'),
-      bcService.addTeamMember('eng', 'eng-04'),
-      bcService.removeTeamMember('eng', 'eng-05'),
-    ];
-
-    await Promise.all(operations);
-
-    expect(mockBcService.addTeamMember).toHaveBeenCalledTimes(3);
-    expect(mockBcService.removeTeamMember).toHaveBeenCalledTimes(2);
-  });
 });
 
 describe('Advanced: State Consistency Verification', () => {
@@ -281,28 +260,6 @@ describe('Advanced: State Consistency Verification', () => {
     expect(status1).not.toEqual(status2);
   });
 
-  it('validates team member consistency', async () => {
-    const teamStates: { members: string[] }[] = [];
-
-    mockBcService.getTeams.mockImplementation(async () => {
-      if (teamStates.length === 0) {
-        teamStates.push({ members: ['eng-01', 'eng-02'] });
-        return { teams: [{ name: 'eng', members: ['eng-01', 'eng-02'] }] };
-      } else {
-        teamStates.push({ members: ['eng-01', 'eng-02', 'eng-03'] });
-        return { teams: [{ name: 'eng', members: ['eng-01', 'eng-02', 'eng-03'] }] };
-      }
-    });
-
-    mockBcService.addTeamMember.mockResolvedValue(undefined);
-
-    await bcService.getTeams();
-    await bcService.addTeamMember('eng', 'eng-03');
-    await bcService.getTeams();
-
-    expect(teamStates[0].members).toHaveLength(2);
-    expect(teamStates[1].members).toHaveLength(3);
-  });
 });
 
 describe('Advanced: Boundary Conditions and Limits', () => {
@@ -329,7 +286,6 @@ describe('Advanced: Boundary Conditions and Limits', () => {
       total_input_tokens: 0,
       total_output_tokens: 0,
       by_agent: {},
-      by_team: {},
       by_model: {},
     });
 
@@ -344,7 +300,6 @@ describe('Advanced: Boundary Conditions and Limits', () => {
       total_input_tokens: 9007199254740991, // MAX_SAFE_INTEGER
       total_output_tokens: 9007199254740991,
       by_agent: { 'eng-01': 999999999.99 },
-      by_team: {},
       by_model: {},
     });
 
@@ -408,17 +363,14 @@ describe('Advanced: Error Scenarios and Recovery', () => {
       agents: [],
     });
     mockBcService.getChannels.mockRejectedValue(new Error('Service down'));
-    mockBcService.getTeams.mockResolvedValue({ teams: [] });
 
     const results = await Promise.allSettled([
       bcService.getStatus(),
       bcService.getChannels(),
-      bcService.getTeams(),
     ]);
 
     expect(results[0].status).toBe('fulfilled');
     expect(results[1].status).toBe('rejected');
-    expect(results[2].status).toBe('fulfilled');
   });
 
   it('handles errors with context preservation', async () => {

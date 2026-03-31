@@ -14,9 +14,6 @@ mock.module('../services/bc', () => ({
   sendChannelMessage: vi.fn(),
   getCostSummary: vi.fn(),
   reportState: vi.fn(),
-  getTeams: vi.fn(),
-  addTeamMember: vi.fn(),
-  removeTeamMember: vi.fn(),
   getDemons: vi.fn(),
   getDemon: vi.fn(),
   getDemonLogs: vi.fn(),
@@ -152,51 +149,6 @@ describe('Data Layer - Channel communication workflow', () => {
   });
 });
 
-describe('Data Layer - Team coordination workflow', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('team operations: list -> add member -> manage', async () => {
-    // Step 1: List teams
-    const teamsData = {
-      teams: [{ name: 'eng-team', members: ['eng-01', 'eng-02'] }],
-    };
-    mockBcService.getTeams.mockResolvedValue(teamsData);
-
-    const teams = await bcService.getTeams();
-    expect(teams.teams[0].members).toHaveLength(2);
-
-    // Step 2: Add member to team
-    mockBcService.addTeamMember.mockResolvedValue(undefined);
-    await bcService.addTeamMember('eng-team', 'eng-03');
-    expect(mockBcService.addTeamMember).toHaveBeenCalledWith('eng-team', 'eng-03');
-
-    // Step 3: Refresh teams
-    const updatedTeams = {
-      teams: [{ name: 'eng-team', members: ['eng-01', 'eng-02', 'eng-03'] }],
-    };
-    mockBcService.getTeams.mockResolvedValue(updatedTeams);
-
-    const teams2 = await bcService.getTeams();
-    expect(teams2.teams[0].members).toHaveLength(3);
-  });
-
-  it('manages multiple team operations', async () => {
-    mockBcService.addTeamMember.mockResolvedValue(undefined);
-    mockBcService.removeTeamMember.mockResolvedValue(undefined);
-
-    // Add members
-    await bcService.addTeamMember('eng-team', 'eng-03');
-    await bcService.addTeamMember('eng-team', 'eng-04');
-
-    // Remove member
-    await bcService.removeTeamMember('eng-team', 'eng-02');
-
-    expect(mockBcService.addTeamMember).toHaveBeenCalledTimes(2);
-    expect(mockBcService.removeTeamMember).toHaveBeenCalledTimes(1);
-  });
-});
 
 describe('Data Layer - Demon (scheduled task) workflow', () => {
   beforeEach(() => {
@@ -262,7 +214,6 @@ describe('Data Layer - Cost tracking workflow', () => {
       total_input_tokens: 0,
       total_output_tokens: 0,
       by_agent: {},
-      by_team: {},
       by_model: {},
     };
     mockBcService.getCostSummary.mockResolvedValueOnce(initialCosts);
@@ -276,7 +227,6 @@ describe('Data Layer - Cost tracking workflow', () => {
       total_input_tokens: 50000,
       total_output_tokens: 10000,
       by_agent: { 'eng-01': 75.25, 'eng-02': 75.25 },
-      by_team: { 'eng-team': 150.5 },
       by_model: { 'claude-3-sonnet': 150.5 },
     };
     mockBcService.getCostSummary.mockResolvedValueOnce(updatedCosts);
@@ -334,20 +284,14 @@ describe('Data Layer - Complex concurrent operations', () => {
       channels: [{ name: 'eng', members: ['eng-01'] }],
     });
 
-    mockBcService.getTeams.mockResolvedValue({
-      teams: [{ name: 'eng-team', members: ['eng-01'] }],
-    });
-
     // Execute all in parallel
-    const [status, channels, teams] = await Promise.all([
+    const [status, channels] = await Promise.all([
       bcService.getStatus(),
       bcService.getChannels(),
-      bcService.getTeams(),
     ]);
 
     expect(status.agents).toBeDefined();
     expect(channels.channels).toBeDefined();
-    expect(teams.teams).toBeDefined();
   });
 
   it('handles rapid report state changes', async () => {
@@ -402,15 +346,13 @@ describe('Data Layer - Error recovery workflows', () => {
   it('handles cascading failures gracefully', async () => {
     mockBcService.getStatus.mockRejectedValue(new Error('Service unavailable'));
     mockBcService.getChannels.mockRejectedValue(new Error('Service unavailable'));
-    mockBcService.getTeams.mockRejectedValue(new Error('Service unavailable'));
 
     const results = await Promise.allSettled([
       bcService.getStatus(),
       bcService.getChannels(),
-      bcService.getTeams(),
     ]);
 
-    expect(results).toHaveLength(3);
+    expect(results).toHaveLength(2);
     results.forEach((result) => {
       expect(result.status).toBe('rejected');
     });

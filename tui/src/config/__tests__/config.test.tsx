@@ -185,7 +185,6 @@ describe('DEFAULT_PERFORMANCE_CONFIG', () => {
     expect(DEFAULT_PERFORMANCE_CONFIG.poll_interval_costs).toBeDefined();
     expect(DEFAULT_PERFORMANCE_CONFIG.poll_interval_status).toBeDefined();
     expect(DEFAULT_PERFORMANCE_CONFIG.poll_interval_logs).toBeDefined();
-    expect(DEFAULT_PERFORMANCE_CONFIG.poll_interval_teams).toBeDefined();
     expect(DEFAULT_PERFORMANCE_CONFIG.poll_interval_demons).toBeDefined();
   });
 

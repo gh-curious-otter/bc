@@ -261,20 +261,6 @@ export interface ProcessLogsResponse {
   lines: string[];
 }
 
-// Team types
-export interface Team {
-  name: string;
-  description?: string;
-  members: string[];
-  lead?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// Response from bc team list --json
-export interface TeamsResponse {
-  teams: Team[];
-}
 
 // Role types
 export interface Role {
@@ -312,7 +298,6 @@ export interface PerformanceConfig {
   poll_interval_costs: number;
   poll_interval_status: number;
   poll_interval_logs: number;
-  poll_interval_teams: number;
   poll_interval_demons: number;
   poll_interval_dashboard: number;
   cache_ttl_tmux: number;
