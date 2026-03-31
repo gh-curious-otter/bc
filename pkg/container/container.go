@@ -294,22 +294,38 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Ensure host.docker.internal resolves on Linux (macOS/Windows get this automatically)
 	args = append(args, "--add-host=host.docker.internal:host-gateway")
 
-	// Mount 1: Project workspace — mount the full workspace root so git
-	// worktrees can access the shared .git directory. Set the container's
-	// working directory to the worktree subdirectory if dir is a subpath.
+	// Mount 1: Isolated agent workspace.
+	// Project root mounted read-only at /repo (for git state).
+	// Agent worktree mounted read-write at /workspace (agent works here).
+	// This prevents agents from modifying the main branch.
 	hostRoot := b.hostWorkspacePath
 	if hostRoot == "" {
 		hostRoot = b.workspacePath
 	}
+	args = append(args, "-v", hostRoot+":/repo:ro") // read-only project root
+
 	containerWorkdir := "/workspace"
-	if dir != b.workspacePath {
-		// dir is a worktree subpath — compute the container-relative path
+	if dir != "" && dir != b.workspacePath {
+		// Agent has an isolated worktree — mount it as /workspace (read-write)
 		rel, relErr := filepath.Rel(b.workspacePath, dir)
 		if relErr == nil && !strings.HasPrefix(rel, "..") {
-			containerWorkdir = "/workspace/" + rel
+			hostWorktree := filepath.Join(hostRoot, rel)
+			args = append(args, "-v", hostWorktree+":/workspace")
 		}
+
+		// Set git env vars so git operations work with the split mount.
+		// The worktree's .git file references /workspace/.git/worktrees/<name>
+		// but project root is at /repo, not /workspace.
+		worktreeName := filepath.Base(dir)
+		args = append(args,
+			"-e", "GIT_DIR=/repo/.git/worktrees/"+worktreeName,
+			"-e", "GIT_WORK_TREE=/workspace",
+		)
+	} else {
+		// No worktree — mount project root directly (fallback)
+		args = append(args, "-v", hostRoot+":/workspace")
 	}
-	args = append(args, "-v", hostRoot+":/workspace", "-w", containerWorkdir)
+	args = append(args, "-w", containerWorkdir)
 
 	// Mount 2: Persistent Claude state (~/.claude/ dir)
 	// Use local (container) path for mkdir, host path for -v mount.
