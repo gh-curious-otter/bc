@@ -540,6 +540,8 @@ type ResolvedRole struct {
 	Plugins      []string          // Unioned plugins from all ancestors
 	Secrets      []string          // Unioned secret names from all ancestors
 	MCPServers   []string          // Unioned MCP servers from all ancestors
+	CLITools     []string          // Unioned CLI tools from all ancestors
+	Description  string            // Human-readable role description
 }
 
 // ResolveRole loads a role directly from the store. No inheritance — each role
@@ -556,6 +558,8 @@ func (rm *RoleManager) ResolveRole(name string) (*ResolvedRole, error) {
 		MCPServers:   append([]string{}, role.Metadata.MCPServers...),
 		Secrets:      append([]string{}, role.Metadata.Secrets...),
 		Plugins:      append([]string{}, role.Metadata.Plugins...),
+		CLITools:     append([]string{}, role.Metadata.CLITools...),
+		Description:  role.Metadata.Description,
 		PromptCreate: role.Metadata.PromptCreate,
 		PromptStart:  role.Metadata.PromptStart,
 		PromptStop:   role.Metadata.PromptStop,

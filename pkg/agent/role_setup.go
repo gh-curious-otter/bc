@@ -64,8 +64,10 @@ func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBa
 	}
 
 	// .claude/settings.json (project-level settings)
+	// Merge role settings into existing settings.json to preserve hooks
+	// written by WriteWorkspaceHookSettings (called before role setup).
 	if len(resolved.Settings) > 0 {
-		if e := writeJSONFile(filepath.Join(targetDir, ".claude"), "settings.json", resolved.Settings); e != nil {
+		if e := mergeSettingsJSON(filepath.Join(targetDir, ".claude"), resolved.Settings); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
@@ -90,7 +92,11 @@ func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBa
 		{resolved.Agents, "agents"},
 		{resolved.Rules, "rules"},
 	} {
-		if e := writeMDFiles(filepath.Join(claudeDir, pair.dir), pair.files); e != nil {
+		subDir := filepath.Join(claudeDir, pair.dir)
+		if e := cleanStaleMDFiles(subDir, pair.files); e != nil {
+			errs = append(errs, e.Error())
+		}
+		if e := writeMDFiles(subDir, pair.files); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
@@ -247,13 +253,33 @@ func resolveSecretValue(value string, secrets map[string]string) string {
 
 // ── Plugin config ────────────────────────────────────────────────────────────
 
-// writePluginConfig is a no-op for now.
-// Plugins must be installed inside the Docker container at runtime
-// (via /plugin command) or pre-installed in the Docker image.
-// Copying host installed_plugins.json doesn't work because paths
-// reference the host filesystem which doesn't exist in containers.
-func writePluginConfig(_ string, _ []string) error {
-	return nil
+// pluginEntry represents a single plugin in installed_plugins.json.
+type pluginEntry struct {
+	Name    string `json:"name"`
+	Source  string `json:"source"`
+	Enabled bool   `json:"enabled"`
+}
+
+// pluginManifest is the top-level structure for installed_plugins.json.
+type pluginManifest struct {
+	Plugins map[string]pluginEntry `json:"plugins"`
+}
+
+// writePluginConfig writes an installed_plugins.json manifest so Claude Code
+// knows which plugins to load. The file is placed in the agent's auth .claude/
+// directory (authClaudeDir).
+func writePluginConfig(authClaudeDir string, plugins []string) error {
+	manifest := pluginManifest{
+		Plugins: make(map[string]pluginEntry, len(plugins)),
+	}
+	for _, name := range plugins {
+		manifest.Plugins[name] = pluginEntry{
+			Name:    name,
+			Source:  "claude-plugins-official",
+			Enabled: true,
+		}
+	}
+	return writeJSONFile(authClaudeDir, "installed_plugins.json", manifest)
 }
 
 // ── File writers ────────────────────────────────────────────────────────────
@@ -277,6 +303,78 @@ func writeJSONFile(dir, name string, data any) error {
 		return fmt.Errorf("marshal %s: %w", name, err)
 	}
 	return os.WriteFile(filepath.Join(dir, name), b, 0600)
+}
+
+// cleanStaleMDFiles removes .md files from dir that are not in the new file set.
+// Non-.md files and the directory itself are left untouched.
+func cleanStaleMDFiles(dir string, newFiles map[string]string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // directory doesn't exist yet, nothing to clean
+		}
+		return fmt.Errorf("read dir %s: %w", dir, err)
+	}
+
+	// Build a set of expected .md filenames from the new file map.
+	expected := make(map[string]struct{}, len(newFiles))
+	for name := range newFiles {
+		fname := name
+		if !strings.HasSuffix(fname, ".md") {
+			fname += ".md"
+		}
+		expected[fname] = struct{}{}
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".md") {
+			continue
+		}
+		if _, ok := expected[name]; ok {
+			continue
+		}
+		// Stale .md file — remove it.
+		if rmErr := os.Remove(filepath.Join(dir, name)); rmErr != nil {
+			return fmt.Errorf("remove stale file %s: %w", name, rmErr)
+		}
+	}
+	return nil
+}
+
+// mergeSettingsJSON reads existing settings.json from dir, merges role settings
+// into it (role settings override non-hook keys, but existing hooks are preserved),
+// and writes the merged result back.
+func mergeSettingsJSON(dir string, roleSettings map[string]any) error {
+	settingsPath := filepath.Join(dir, "settings.json")
+
+	// Read existing settings (may contain hooks from WriteWorkspaceHookSettings).
+	existing := make(map[string]any)
+	data, err := os.ReadFile(settingsPath)
+	if err == nil {
+		_ = json.Unmarshal(data, &existing) //nolint:errcheck // if malformed, start fresh
+	}
+
+	// Preserve existing hooks — save them before merging.
+	savedHooks, hasHooks := existing["hooks"]
+
+	// Merge role settings into existing (role overrides existing keys).
+	for k, v := range roleSettings {
+		existing[k] = v
+	}
+
+	// Restore hooks if they existed and role settings didn't explicitly set them,
+	// or merge them back so hooks from WriteWorkspaceHookSettings are not lost.
+	if hasHooks {
+		if _, roleHasHooks := roleSettings["hooks"]; !roleHasHooks {
+			existing["hooks"] = savedHooks
+		}
+	}
+
+	return writeJSONFile(dir, "settings.json", existing)
 }
 
 func writeMDFiles(dir string, files map[string]string) error {
