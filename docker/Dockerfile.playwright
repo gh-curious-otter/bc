@@ -13,8 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Playwright MCP server
 RUN npm install -g @playwright/mcp@latest
 
-# The base image already includes chromium. Verify it exists.
+# Install browsers — chromium from base image, chrome-for-testing for MCP default
 RUN npx playwright install chromium
+RUN npx @playwright/mcp install-browser chrome-for-testing
 
 EXPOSE 3000 6080
 COPY docker/playwright-entrypoint.sh /entrypoint.sh
