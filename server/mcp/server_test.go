@@ -331,7 +331,7 @@ func TestToolsList(t *testing.T) {
 	}
 	rpc(t, srv, "tools/list", nil, &result)
 
-	wantNames := []string{"create_agent", "send_message", "report_status", "query_costs"}
+	wantNames := []string{"send_message", "send_file", "whoami", "list_channels", "read_channel", "list_agents"}
 	got := make(map[string]bool)
 	for _, tool := range result.Tools {
 		got[tool.Name] = true
@@ -360,7 +360,7 @@ func TestToolCall_InvalidParams(t *testing.T) {
 	rpcErr(t, srv, "tools/call", "not an object", mcp.ErrInvalidParams)
 }
 
-func TestToolCall_CreateAgent_MissingName(t *testing.T) {
+func TestToolCall_Whoami(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
@@ -368,16 +368,19 @@ func TestToolCall_CreateAgent_MissingName(t *testing.T) {
 		IsError bool              `json:"isError"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
-		"name":      "create_agent",
-		"arguments": map[string]any{"role": "engineer"},
+		"name":      "whoami",
+		"arguments": map[string]any{},
 	}, &result)
 
-	if !result.IsError {
-		t.Fatal("expected isError=true when name is missing")
+	if result.IsError {
+		t.Fatal("whoami returned isError=true")
+	}
+	if len(result.Content) == 0 {
+		t.Error("whoami returned no content")
 	}
 }
 
-func TestToolCall_CreateAgent_InvalidName(t *testing.T) {
+func TestToolCall_ListAgents(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
@@ -385,15 +388,15 @@ func TestToolCall_CreateAgent_InvalidName(t *testing.T) {
 		IsError bool              `json:"isError"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
-		"name": "create_agent",
-		"arguments": map[string]any{
-			"name": "bad name with spaces",
-			"role": "engineer",
-		},
+		"name":      "list_agents",
+		"arguments": map[string]any{},
 	}, &result)
 
-	if !result.IsError {
-		t.Fatal("expected isError=true for invalid agent name")
+	if result.IsError {
+		t.Fatal("list_agents returned isError=true")
+	}
+	if len(result.Content) == 0 {
+		t.Error("list_agents returned no content")
 	}
 }
 
@@ -414,7 +417,7 @@ func TestToolCall_SendMessage_MissingChannel(t *testing.T) {
 	}
 }
 
-func TestToolCall_ReportStatus_UnknownAgent(t *testing.T) {
+func TestToolCall_ListChannels(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
@@ -422,36 +425,32 @@ func TestToolCall_ReportStatus_UnknownAgent(t *testing.T) {
 		IsError bool              `json:"isError"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
-		"name": "report_status",
-		"arguments": map[string]any{
-			"agent": "no-such-agent",
-			"task":  "doing stuff",
-		},
-	}, &result)
-
-	if !result.IsError {
-		t.Fatal("expected isError=true for unknown agent")
-	}
-	if len(result.Content) == 0 || !strings.Contains(result.Content[0].Text, "no-such-agent") {
-		t.Error("expected error message to mention agent name")
-	}
-}
-
-func TestToolCall_QueryCosts_Empty(t *testing.T) {
-	srv := newTestServer(t)
-
-	var result struct {
-		Content []mcp.ToolContent `json:"content"`
-		IsError bool              `json:"isError"`
-	}
-	rpc(t, srv, "tools/call", map[string]any{
-		"name":      "query_costs",
+		"name":      "list_channels",
 		"arguments": map[string]any{},
 	}, &result)
 
-	// Empty workspace — call must not panic and must return content.
+	if result.IsError {
+		t.Fatal("list_channels returned isError=true")
+	}
 	if len(result.Content) == 0 {
-		t.Error("query_costs returned no content")
+		t.Error("list_channels returned no content")
+	}
+}
+
+func TestToolCall_ReadChannel_MissingChannel(t *testing.T) {
+	srv := newTestServer(t)
+
+	var result struct {
+		Content []mcp.ToolContent `json:"content"`
+		IsError bool              `json:"isError"`
+	}
+	rpc(t, srv, "tools/call", map[string]any{
+		"name":      "read_channel",
+		"arguments": map[string]any{},
+	}, &result)
+
+	if !result.IsError {
+		t.Fatal("expected isError=true when channel is missing")
 	}
 }
 

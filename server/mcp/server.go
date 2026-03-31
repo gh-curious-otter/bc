@@ -309,18 +309,18 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) Response {
 	)
 
 	switch p.Name {
-	case "create_agent":
-		result, err = s.toolCreateAgent(ctx, p.Arguments)
 	case "send_message":
 		result, err = s.toolSendMessage(ctx, p.Arguments)
 	case "send_file":
 		result, err = s.toolSendFile(ctx, p.Arguments)
+	case "whoami":
+		result, err = s.toolWhoami(ctx)
+	case "list_channels":
+		result, err = s.toolListChannels(p.Arguments)
 	case "read_channel":
 		result, err = s.toolReadChannel(p.Arguments)
-	case "report_status":
-		result, err = s.toolReportStatus(p.Arguments)
-	case "query_costs":
-		result, err = s.toolQueryCosts(p.Arguments)
+	case "list_agents":
+		result, err = s.toolListAgents(p.Arguments)
 	default:
 		return errResponse(req.ID, ErrInvalidParams, fmt.Sprintf("unknown tool: %s", p.Name))
 	}

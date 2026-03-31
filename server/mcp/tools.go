@@ -10,53 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/gh-curious-otter/bc/pkg/agent"
 )
 
 // definedTools returns the static list of tools this server exposes.
 func definedTools() []Tool {
 	return []Tool{
-		{
-			Name:        "create_agent",
-			Description: "Create a new agent in the bc workspace",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"name": map[string]any{
-						"type":        "string",
-						"description": "Unique agent name (alphanumeric, hyphens, underscores)",
-					},
-					"role": map[string]any{
-						"type":        "string",
-						"description": "Role for the agent (e.g. engineer, manager, root)",
-					},
-					"tool": map[string]any{
-						"type":        "string",
-						"description": "AI tool to use (claude, gemini, cursor, aider, codex)",
-					},
-				},
-				"required": []string{"name", "role"},
-			},
-		},
-		{
-			Name:        "read_channel",
-			Description: "Read recent messages from a bc channel",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"channel": map[string]any{
-						"type":        "string",
-						"description": "Channel name to read from",
-					},
-					"limit": map[string]any{
-						"type":        "number",
-						"description": "Number of messages to return (default 20, max 100)",
-					},
-				},
-				"required": []string{"channel"},
-			},
-		},
 		{
 			Name:        "send_message",
 			Description: "Send a message to a bc channel",
@@ -98,32 +56,53 @@ func definedTools() []Tool {
 			},
 		},
 		{
-			Name:        "report_status",
-			Description: "Update the current task description for a bc agent",
+			Name:        "whoami",
+			Description: "Returns the current agent's identity, role, workspace, and capabilities",
 			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"agent": map[string]any{
-						"type":        "string",
-						"description": "Agent name to update",
-					},
-					"task": map[string]any{
-						"type":        "string",
-						"description": "Current task description",
-					},
-				},
-				"required": []string{"agent", "task"},
+				"type":       "object",
+				"properties": map[string]any{},
 			},
 		},
 		{
-			Name:        "query_costs",
-			Description: "Query cost usage for the workspace or a specific agent",
+			Name:        "list_channels",
+			Description: "List all available bc channels with member counts",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"agent": map[string]any{
+					"limit": map[string]any{
+						"type":        "number",
+						"description": "Maximum number of channels to return (default 50)",
+					},
+				},
+			},
+		},
+		{
+			Name:        "read_channel",
+			Description: "Read recent messages from a bc channel",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"channel": map[string]any{
 						"type":        "string",
-						"description": "Agent name to query (omit for workspace total)",
+						"description": "Channel name to read from",
+					},
+					"limit": map[string]any{
+						"type":        "number",
+						"description": "Number of messages to return (default 20, max 100)",
+					},
+				},
+				"required": []string{"channel"},
+			},
+		},
+		{
+			Name:        "list_agents",
+			Description: "List all agents in the workspace with their status and role",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"role": map[string]any{
+						"type":        "string",
+						"description": "Filter by role (optional)",
 					},
 				},
 			},
@@ -131,50 +110,124 @@ func definedTools() []Tool {
 	}
 }
 
-// ─── create_agent ─────────────────────────────────────────────────────────────
+// ─── whoami ──────────────────────────────────────────────────────────────────
 
-type createAgentArgs struct {
-	Name string `json:"name"`
-	Role string `json:"role"`
-	Tool string `json:"tool,omitempty"`
+func (s *Server) toolWhoami(ctx context.Context) (*toolsCallResult, error) {
+	agentID := AgentFromContext(ctx)
+	if agentID == "" {
+		if s.ws != nil {
+			nick := s.ws.Config.User.Name
+			nick = strings.TrimPrefix(nick, "@")
+			if nick != "" {
+				agentID = nick
+			}
+		}
+	}
+	if agentID == "" {
+		agentID = "unknown"
+	}
+
+	info := map[string]any{
+		"agent":     agentID,
+		"workspace": "",
+	}
+	if s.ws != nil {
+		info["workspace"] = s.ws.Name()
+	}
+
+	// Look up agent details if available
+	if s.agents != nil {
+		if ag := s.agents.GetAgent(agentID); ag != nil {
+			info["role"] = ag.Role
+			info["state"] = string(ag.State)
+			if ag.Task != "" {
+				info["task"] = ag.Task
+			}
+		}
+	}
+
+	b, _ := json.MarshalIndent(info, "", "  ")
+	return &toolsCallResult{
+		Content: []ToolContent{textContent(string(b))},
+	}, nil
 }
 
-func (s *Server) toolCreateAgent(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
-	var args createAgentArgs
-	if err := json.Unmarshal(raw, &args); err != nil {
-		return nil, fmt.Errorf("invalid arguments: %w", err)
+// ─── list_channels ───────────────────────────────────────────────────────────
+
+func (s *Server) toolListChannels(raw json.RawMessage) (*toolsCallResult, error) {
+	var args struct {
+		Limit int `json:"limit"`
+	}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &args) //nolint:errcheck // optional args
+	}
+	if args.Limit <= 0 {
+		args.Limit = 50
 	}
 
-	if args.Name == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-	if args.Role == "" {
-		return nil, fmt.Errorf("role is required")
-	}
-	if !agent.IsValidAgentName(args.Name) {
-		return nil, fmt.Errorf("invalid agent name %q: use alphanumeric, hyphens, underscores", args.Name)
-	}
-
-	// Build bc agent create command
-	cmdArgs := []string{"agent", "create", args.Name, "--role", args.Role}
-	if args.Tool != "" {
-		cmdArgs = append(cmdArgs, "--tool", args.Tool)
-	}
-
-	//nolint:gosec // G204: arguments are validated above
-	out, err := exec.CommandContext(ctx, "bc", cmdArgs...).CombinedOutput()
-	if err != nil {
+	if s.chans == nil {
 		return &toolsCallResult{
-			Content: []ToolContent{textContent(fmt.Sprintf("failed to create agent: %s\n%s", err, out))},
+			Content: []ToolContent{textContent("channel store not available")},
 			IsError: true,
 		}, nil
 	}
 
+	channels := s.chans.List()
+	if len(channels) > args.Limit {
+		channels = channels[:args.Limit]
+	}
+
+	var sb strings.Builder
+	for _, ch := range channels {
+		members := len(ch.Members)
+		msgs := len(ch.History)
+		sb.WriteString(fmt.Sprintf("%-30s  members=%d  messages=%d\n", ch.Name, members, msgs))
+	}
+	if sb.Len() == 0 {
+		sb.WriteString("(no channels)")
+	}
+
 	return &toolsCallResult{
-		Content: []ToolContent{
-			textContent(fmt.Sprintf("Created agent %q with role %q\n%s",
-				args.Name, args.Role, strings.TrimSpace(string(out)))),
-		},
+		Content: []ToolContent{textContent(sb.String())},
+	}, nil
+}
+
+// ─── list_agents ─────────────────────────────────────────────────────────────
+
+func (s *Server) toolListAgents(raw json.RawMessage) (*toolsCallResult, error) {
+	var args struct {
+		Role string `json:"role"`
+	}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &args) //nolint:errcheck // optional args
+	}
+
+	if s.agents == nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("agent manager not available")},
+			IsError: true,
+		}, nil
+	}
+
+	agents := s.agents.ListAgents()
+	var sb strings.Builder
+	for _, ag := range agents {
+		if args.Role != "" && string(ag.Role) != args.Role {
+			continue
+		}
+		task := ag.Task
+		if task == "" {
+			task = "-"
+		}
+		sb.WriteString(fmt.Sprintf("%-20s  role=%-12s  state=%-8s  task=%s\n",
+			ag.Name, ag.Role, ag.State, task))
+	}
+	if sb.Len() == 0 {
+		sb.WriteString("(no agents)")
+	}
+
+	return &toolsCallResult{
+		Content: []ToolContent{textContent(sb.String())},
 	}, nil
 }
 
@@ -249,13 +302,6 @@ func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*too
 			textContent(fmt.Sprintf("Sent message to #%s from %s", args.Channel, sender)),
 		},
 	}, nil
-}
-
-// ─── report_status ────────────────────────────────────────────────────────────
-
-type reportStatusArgs struct {
-	Agent string `json:"agent"`
-	Task  string `json:"task"`
 }
 
 // ─── read_channel ───────────────────────────────────────────────────────────
@@ -417,93 +463,6 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 
 	return &toolsCallResult{
 		Content: []ToolContent{textContent(fmt.Sprintf("Uploaded %s (%d bytes) to %s", filename, len(data), args.Channel))},
-	}, nil
-}
-
-// ─── report_status ──────────────────────────────────────────────────────────
-
-func (s *Server) toolReportStatus(raw json.RawMessage) (*toolsCallResult, error) {
-	var args reportStatusArgs
-	if err := json.Unmarshal(raw, &args); err != nil {
-		return nil, fmt.Errorf("invalid arguments: %w", err)
-	}
-
-	if args.Agent == "" {
-		return nil, fmt.Errorf("agent is required")
-	}
-	if args.Task == "" {
-		return nil, fmt.Errorf("task is required")
-	}
-
-	ag := s.agents.GetAgent(args.Agent)
-	if ag == nil {
-		return &toolsCallResult{
-			Content: []ToolContent{textContent(fmt.Sprintf("agent %q not found", args.Agent))},
-			IsError: true,
-		}, nil
-	}
-
-	// Keep current state; only update the task description.
-	if err := s.agents.UpdateAgentState(args.Agent, ag.State, args.Task); err != nil {
-		return &toolsCallResult{
-			Content: []ToolContent{textContent(fmt.Sprintf("failed to update status: %s", err))},
-			IsError: true,
-		}, nil
-	}
-
-	return &toolsCallResult{
-		Content: []ToolContent{
-			textContent(fmt.Sprintf("Updated task for agent %q: %s", args.Agent, args.Task)),
-		},
-	}, nil
-}
-
-// ─── query_costs ──────────────────────────────────────────────────────────────
-
-type queryCostsArgs struct {
-	Agent string `json:"agent,omitempty"`
-}
-
-func (s *Server) toolQueryCosts(raw json.RawMessage) (*toolsCallResult, error) {
-	var args queryCostsArgs
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &args); err != nil {
-			return nil, fmt.Errorf("invalid arguments: %w", err)
-		}
-	}
-
-	if args.Agent != "" {
-		summaries, err := s.costs.SummaryByAgent(context.Background())
-		if err != nil {
-			return &toolsCallResult{
-				Content: []ToolContent{textContent(fmt.Sprintf("failed to query costs: %s", err))},
-				IsError: true,
-			}, nil
-		}
-		for _, a := range summaries {
-			if a.AgentID == args.Agent {
-				b, _ := json.MarshalIndent(a, "", "  ")
-				return &toolsCallResult{
-					Content: []ToolContent{textContent(string(b))},
-				}, nil
-			}
-		}
-		return &toolsCallResult{
-			Content: []ToolContent{textContent(fmt.Sprintf("no cost data for agent %q", args.Agent))},
-		}, nil
-	}
-
-	ws, err := s.costs.WorkspaceSummary(context.Background())
-	if err != nil {
-		return &toolsCallResult{
-			Content: []ToolContent{textContent(fmt.Sprintf("failed to query costs: %s", err))},
-			IsError: true,
-		}, nil
-	}
-
-	b, _ := json.MarshalIndent(ws, "", "  ")
-	return &toolsCallResult{
-		Content: []ToolContent{textContent(string(b))},
 	}, nil
 }
 
