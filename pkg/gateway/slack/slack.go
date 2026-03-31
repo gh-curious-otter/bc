@@ -249,12 +249,12 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 	if ev.User == a.botUserID || ev.User == "" {
 		return
 	}
-	if ev.SubType != "" {
+	if ev.SubType != "" && ev.SubType != "file_share" {
 		return
 	}
 
 	content := ev.Text
-	if content == "" {
+	if content == "" && ev.SubType != "file_share" {
 		return
 	}
 

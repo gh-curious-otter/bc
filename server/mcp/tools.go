@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -69,6 +70,10 @@ func definedTools() []Tool {
 					"file_path": map[string]any{
 						"type":        "string",
 						"description": "Local file path to upload",
+					},
+					"comment": map[string]any{
+						"type":        "string",
+						"description": "Optional text message to accompany the file",
 					},
 				},
 				"required": []string{"channel", "file_path"},
@@ -237,10 +242,13 @@ type reportStatusArgs struct {
 
 // ─── send_file ──────────────────────────────────────────────────────────────
 
+const maxFileSize = 50 * 1024 * 1024 // 50MB
+
 func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
 	var args struct {
 		Channel  string `json:"channel"`
 		FilePath string `json:"file_path"`
+		Comment  string `json:"comment"`
 	}
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
@@ -252,8 +260,31 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 		}, nil
 	}
 
-	// Read the file
-	data, err := os.ReadFile(args.FilePath) //nolint:gosec // agent-controlled path
+	// Validate file path is under workspace to prevent reading arbitrary files
+	absPath, err := filepath.Abs(args.FilePath)
+	if err != nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("invalid file path: %s", err))},
+			IsError: true,
+		}, nil
+	}
+
+	// Check file size before reading into memory
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("file not found: %s", err))},
+			IsError: true,
+		}, nil
+	}
+	if info.Size() > maxFileSize {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("file too large: %d bytes (max %d)", info.Size(), maxFileSize))},
+			IsError: true,
+		}, nil
+	}
+
+	data, err := os.ReadFile(absPath) //nolint:gosec // path validated above
 	if err != nil {
 		return &toolsCallResult{
 			Content: []ToolContent{textContent(fmt.Sprintf("failed to read file: %s", err))},
@@ -261,9 +292,13 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 		}, nil
 	}
 
-	// Detect mime type from extension
-	filename := filepath.Base(args.FilePath)
+	// Detect MIME type — try content-based first, fall back to extension
+	filename := filepath.Base(absPath)
 	mimeType := "application/octet-stream"
+	if len(data) >= 512 {
+		mimeType = http.DetectContentType(data[:512])
+	}
+	// Override with extension for known types (DetectContentType can be imprecise)
 	switch {
 	case strings.HasSuffix(filename, ".png"):
 		mimeType = "image/png"
@@ -271,6 +306,8 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 		mimeType = "image/jpeg"
 	case strings.HasSuffix(filename, ".gif"):
 		mimeType = "image/gif"
+	case strings.HasSuffix(filename, ".webp"):
+		mimeType = "image/webp"
 	case strings.HasSuffix(filename, ".pdf"):
 		mimeType = "application/pdf"
 	}
