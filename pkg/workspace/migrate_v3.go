@@ -43,18 +43,40 @@ func MigrateToGlobalState(rootDir string) (string, error) {
 		return "", fmt.Errorf("failed to read legacy dir: %w", err)
 	}
 
+	// Only migrate essential state files — skip agent worktrees and
+	// Claude session data (can be multi-GB). Agents will be recreated.
+	essentialFiles := map[string]bool{
+		"settings.json": true,
+		"bc.db":         true,
+		"state.db":      true,
+		"cron.db":       true,
+		"channels.db":   true,
+		"cost.db":       true,
+	}
+	essentialDirs := map[string]bool{
+		"roles": true,
+		"logs":  true,
+	}
+
 	for _, entry := range entries {
-		src := filepath.Join(legacyDir, entry.Name())
-		dst := filepath.Join(newDir, entry.Name())
+		name := entry.Name()
+		src := filepath.Join(legacyDir, name)
+		dst := filepath.Join(newDir, name)
 
 		if entry.IsDir() {
-			// Copy directory recursively
+			if !essentialDirs[name] {
+				log.Debug("migration: skipping directory", "name", name)
+				continue
+			}
 			if cpErr := copyDir(src, dst); cpErr != nil {
 				log.Warn("migration: failed to copy directory", "src", src, "error", cpErr)
 				continue
 			}
 		} else {
-			// Copy file
+			if !essentialFiles[name] {
+				log.Debug("migration: skipping file", "name", name)
+				continue
+			}
 			if cpErr := migrateFile(src, dst); cpErr != nil {
 				log.Warn("migration: failed to copy file", "src", src, "error", cpErr)
 				continue
