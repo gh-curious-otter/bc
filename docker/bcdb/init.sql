@@ -1,5 +1,15 @@
--- bc workspace schema — shared by SQLite and Postgres
--- All tables use standard SQL compatible with both backends
+-- bc unified database schema — relational + time-series in one database
+-- Uses TimescaleDB extension for hypertables (time-series metrics)
+-- All tables use standard SQL compatible with both SQLite and Postgres
+
+-- ============================================================================
+-- TimescaleDB extension (no-op if already enabled)
+-- ============================================================================
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+-- ============================================================================
+-- Relational tables (agents, channels, costs, events, cron, etc.)
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS agents (
     name          TEXT PRIMARY KEY,
@@ -139,7 +149,7 @@ CREATE TABLE IF NOT EXISTS daemons (
     stopped_at    TEXT
 );
 
--- Indexes
+-- Relational indexes
 CREATE INDEX IF NOT EXISTS idx_agents_state ON agents(state);
 CREATE INDEX IF NOT EXISTS idx_agents_role ON agents(role);
 CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id);
@@ -149,3 +159,71 @@ CREATE INDEX IF NOT EXISTS idx_cost_records_model ON cost_records(model);
 CREATE INDEX IF NOT EXISTS idx_cost_records_timestamp ON cost_records(timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_agent ON events(agent);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
+
+-- ============================================================================
+-- Time-series tables (TimescaleDB hypertables)
+-- ============================================================================
+
+-- System Metrics — bc-daemon, bc-db containers
+CREATE TABLE IF NOT EXISTS system_metrics (
+    time             TIMESTAMPTZ NOT NULL,
+    system_name      TEXT NOT NULL,
+    cpu_percent      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    mem_used_bytes   BIGINT NOT NULL DEFAULT 0,
+    mem_limit_bytes  BIGINT NOT NULL DEFAULT 0,
+    mem_percent      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    net_rx_bytes     BIGINT NOT NULL DEFAULT 0,
+    net_tx_bytes     BIGINT NOT NULL DEFAULT 0,
+    disk_read_bytes  BIGINT NOT NULL DEFAULT 0,
+    disk_write_bytes BIGINT NOT NULL DEFAULT 0
+);
+SELECT create_hypertable('system_metrics', 'time', if_not_exists => TRUE);
+
+-- Agent Metrics — per-agent container stats
+CREATE TABLE IF NOT EXISTS agent_metrics (
+    time             TIMESTAMPTZ NOT NULL,
+    agent_name       TEXT NOT NULL,
+    role             TEXT NOT NULL DEFAULT '',
+    tool             TEXT NOT NULL DEFAULT '',
+    runtime          TEXT NOT NULL DEFAULT 'docker',
+    state            TEXT NOT NULL DEFAULT '',
+    cpu_percent      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    mem_used_bytes   BIGINT NOT NULL DEFAULT 0,
+    mem_limit_bytes  BIGINT NOT NULL DEFAULT 0,
+    mem_percent      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    net_rx_bytes     BIGINT NOT NULL DEFAULT 0,
+    net_tx_bytes     BIGINT NOT NULL DEFAULT 0,
+    disk_read_bytes  BIGINT NOT NULL DEFAULT 0,
+    disk_write_bytes BIGINT NOT NULL DEFAULT 0
+);
+SELECT create_hypertable('agent_metrics', 'time', if_not_exists => TRUE);
+
+-- Token Metrics — per-agent token consumption from JSONL
+CREATE TABLE IF NOT EXISTS token_metrics (
+    time          TIMESTAMPTZ NOT NULL,
+    agent_name    TEXT NOT NULL DEFAULT '',
+    model         TEXT NOT NULL DEFAULT '',
+    input_tokens  BIGINT NOT NULL DEFAULT 0,
+    output_tokens BIGINT NOT NULL DEFAULT 0,
+    cache_read    BIGINT NOT NULL DEFAULT 0,
+    cache_create  BIGINT NOT NULL DEFAULT 0,
+    cost_usd      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    UNIQUE (time, agent_name, model)
+);
+SELECT create_hypertable('token_metrics', 'time', if_not_exists => TRUE);
+
+-- Channel Metrics — message/member/reaction counts
+CREATE TABLE IF NOT EXISTS channel_metrics (
+    time           TIMESTAMPTZ NOT NULL,
+    channel_name   TEXT NOT NULL,
+    message_count  BIGINT NOT NULL DEFAULT 0,
+    member_count   INT NOT NULL DEFAULT 0,
+    reaction_count BIGINT NOT NULL DEFAULT 0
+);
+SELECT create_hypertable('channel_metrics', 'time', if_not_exists => TRUE);
+
+-- Retention policies
+SELECT add_retention_policy('system_metrics',  INTERVAL '7 days',  if_not_exists => TRUE);
+SELECT add_retention_policy('agent_metrics',   INTERVAL '7 days',  if_not_exists => TRUE);
+SELECT add_retention_policy('token_metrics',   INTERVAL '30 days', if_not_exists => TRUE);
+SELECT add_retention_policy('channel_metrics', INTERVAL '30 days', if_not_exists => TRUE);
