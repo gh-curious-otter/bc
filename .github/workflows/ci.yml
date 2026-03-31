@@ -16,7 +16,7 @@ concurrency:
 
 env:
   GO_VERSION: '1.25.8'
-  BUN_VERSION: '1.2'
+  BUN_VERSION: '1.2.15'
 
 jobs:
   # ── Go: Lint ─────────────────────────────────────────────────────────

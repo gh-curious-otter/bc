@@ -36,7 +36,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Bun does not currently publish SHA256 checksums for its install script.
 # Mitigations: pinned BUN_INSTALL path, non-root user created after install.
 # TODO(#2616): pin Bun version and verify checksum when available.
-RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash && \
+RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local BUN_VERSION=1.2.15 bash && \
     ln -sf /usr/local/bin/bun /usr/local/bin/bunx && \
     ln -sf /usr/local/bin/bun /usr/local/bin/node && \
     ln -sf /usr/local/bin/bunx /usr/local/bin/npx
