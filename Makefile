@@ -172,7 +172,7 @@ stop-docker-playwright: ## Stop and remove Playwright container
 run-docker-playwright: stop-docker-playwright ## Run Playwright MCP container (VNC :6080, MCP :3000)
 	docker run -d --name bc-playwright \
 		--init --ipc=host \
-		-p 3000:3000 -p 6080:6080 \
+		-p 3100:3000 -p 6080:6080 \
 		-v bc-shared-tmp:/tmp/bc-shared \
 		-e DISPLAY=:99 \
 		--restart unless-stopped \
