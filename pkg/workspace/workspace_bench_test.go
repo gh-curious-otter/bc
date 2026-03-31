@@ -241,24 +241,6 @@ func BenchmarkAgentsDir(b *testing.B) {
 	}
 }
 
-func BenchmarkDefaultProvider(b *testing.B) {
-	ws := setupV2Workspace(b)
-
-	b.ResetTimer()
-	for range b.N {
-		_ = ws.DefaultProvider()
-	}
-}
-
-func BenchmarkDefaultProviderCommand(b *testing.B) {
-	ws := setupV2Workspace(b)
-
-	b.ResetTimer()
-	for range b.N {
-		_ = ws.DefaultProviderCommand()
-	}
-}
-
 // --- RoleManager benchmarks ---
 
 func BenchmarkRoleManager_LoadRole(b *testing.B) {

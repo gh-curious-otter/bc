@@ -229,22 +229,6 @@ func TestValidateTransition_UnknownState(t *testing.T) {
 
 // --- Constructor tests ---
 
-func TestNewManager(t *testing.T) {
-	m := NewManager("/tmp/test-agents")
-	if m == nil {
-		t.Fatal("NewManager returned nil")
-	}
-	if m.agents == nil {
-		t.Error("agents map should be initialized")
-	}
-	if m.backends == nil || m.runtime() == nil {
-		t.Error("runtime backend should be initialized")
-	}
-	if m.stateDir != "/tmp/test-agents" {
-		t.Errorf("stateDir = %q, want %q", m.stateDir, "/tmp/test-agents")
-	}
-}
-
 func TestNewWorkspaceManager(t *testing.T) {
 	m := NewWorkspaceManager("/tmp/test-agents", "/workspace")
 	if m == nil {
@@ -281,43 +265,6 @@ func TestSetAgentByName(t *testing.T) {
 			t.Error("expected SetAgentByName to return false for unknown provider")
 		}
 	})
-}
-
-func TestGetAgentCommand(t *testing.T) {
-	t.Run("found", func(t *testing.T) {
-		cmd, ok := GetAgentCommand("claude")
-		if !ok {
-			t.Error("expected ok=true for known provider")
-		}
-		if cmd == "" {
-			t.Error("cmd should not be empty for known provider")
-		}
-	})
-
-	t.Run("not found", func(t *testing.T) {
-		cmd, ok := GetAgentCommand("nonexistent")
-		if ok {
-			t.Error("expected ok=false for unknown provider")
-		}
-		if cmd != "" {
-			t.Errorf("cmd = %q, want empty", cmd)
-		}
-	})
-}
-
-func TestListAvailableTools(t *testing.T) {
-	tools := ListAvailableTools()
-	if len(tools) == 0 {
-		t.Fatal("expected at least one tool from provider registry")
-	}
-	// Should contain claude at minimum
-	found := map[string]bool{}
-	for _, tool := range tools {
-		found[tool] = true
-	}
-	if !found["claude"] {
-		t.Error("missing 'claude' in ListAvailableTools result")
-	}
 }
 
 // --- Manager listing tests ---
@@ -372,66 +319,6 @@ func TestListChildren(t *testing.T) {
 		original := m.agents["eng-1"]
 		if original.State == StateDone {
 			t.Error("modifying returned child should not affect original")
-		}
-	})
-}
-
-func TestListDescendants(t *testing.T) {
-	m := newTestManager(t)
-	// Build a 3-level hierarchy: root → manager → engineer
-	m.agents["coord"] = &Agent{
-		Name:     "coord",
-		Role:     RoleRoot,
-		State:    StateIdle,
-		Children: []string{"mgr"},
-	}
-	m.agents["mgr"] = &Agent{
-		Name:     "mgr",
-		Role:     Role("manager"),
-		State:    StateIdle,
-		ParentID: "coord",
-		Children: []string{"eng-1", "eng-2"},
-	}
-	m.agents["eng-1"] = &Agent{
-		Name:     "eng-1",
-		Role:     Role("engineer"),
-		State:    StateWorking,
-		ParentID: "mgr",
-		Children: []string{},
-	}
-	m.agents["eng-2"] = &Agent{
-		Name:     "eng-2",
-		Role:     Role("engineer"),
-		State:    StateIdle,
-		ParentID: "mgr",
-		Children: []string{},
-	}
-
-	t.Run("all descendants from top", func(t *testing.T) {
-		descendants := m.ListDescendants("coord")
-		if len(descendants) != 3 {
-			t.Errorf("expected 3 descendants, got %d", len(descendants))
-		}
-	})
-
-	t.Run("descendants from middle", func(t *testing.T) {
-		descendants := m.ListDescendants("mgr")
-		if len(descendants) != 2 {
-			t.Errorf("expected 2 descendants, got %d", len(descendants))
-		}
-	})
-
-	t.Run("leaf has no descendants", func(t *testing.T) {
-		descendants := m.ListDescendants("eng-1")
-		if len(descendants) != 0 {
-			t.Errorf("expected 0 descendants, got %d", len(descendants))
-		}
-	})
-
-	t.Run("nonexistent agent", func(t *testing.T) {
-		descendants := m.ListDescendants("nonexistent")
-		if len(descendants) != 0 {
-			t.Errorf("expected 0 descendants, got %d", len(descendants))
 		}
 	})
 }

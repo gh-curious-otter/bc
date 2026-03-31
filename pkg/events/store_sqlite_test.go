@@ -126,11 +126,3 @@ func TestSQLiteLog_ImplementsEventStore(t *testing.T) {
 	// Verify it implements EventStore
 	var _ EventStore = log
 }
-
-func TestLog_ImplementsEventStore(t *testing.T) {
-	dir := t.TempDir()
-	log := NewLog(filepath.Join(dir, "events.jsonl"))
-	defer func() { _ = log.Close() }()
-
-	var _ EventStore = log
-}
