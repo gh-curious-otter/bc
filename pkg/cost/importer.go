@@ -29,7 +29,9 @@ func NewImporter(store *Store, workspaceDir string) *Importer {
 // It is safe to call repeatedly — already-imported sessions are skipped.
 func (imp *Importer) ImportAll(ctx context.Context) (int, error) {
 	dirs := imp.claudeProjectsDirs()
+	log.Info("cost importer: scanning directories", "count", len(dirs), "workspace", imp.workspaceDir)
 	total := 0
+	totalFiles := 0
 	for _, dir := range dirs {
 		if _, err := os.Stat(dir); err != nil {
 			continue // not present — skip
@@ -39,6 +41,7 @@ func (imp *Importer) ImportAll(ctx context.Context) (int, error) {
 			log.Warn("cost importer: failed to scan dir", "dir", dir, "error", err)
 			continue
 		}
+		totalFiles += len(files)
 		for _, f := range files {
 			if err := ctx.Err(); err != nil {
 				return total, err
@@ -50,6 +53,9 @@ func (imp *Importer) ImportAll(ctx context.Context) (int, error) {
 			}
 			total += n
 		}
+	}
+	if totalFiles > 0 || total > 0 {
+		log.Info("cost importer: scan complete", "files_found", totalFiles, "records_imported", total)
 	}
 	return total, nil
 }
