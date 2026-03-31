@@ -16,7 +16,6 @@ import type {
   Demon,
   DemonRunLog,
   ProcessListResponse,
-  TeamsResponse,
   LogEntry,
   Role,
   RolesResponse,
@@ -86,7 +85,6 @@ const DEFAULT_TTLS: Record<string, number> = {
   'channel:history': 2000, // 2s - messages may arrive
   'cost:show': 10000, // 10s - aggregated data
   'role:list': 30000, // 30s - roles rarely change
-  'team:list': 10000, // 10s - team membership stable
   'process:list': 5000, // 5s - processes may change
   'demon:list': 10000, // 10s - demons stable
   logs: 2000, // 2s - logs update frequently
@@ -235,7 +233,6 @@ export async function execBc(args: string[]): Promise<string> {
       'agent',
       'process',
       'demon',
-      'team',
       'role',
       'worktree',
       'tool',
@@ -422,7 +419,6 @@ export async function getCostSummary(): Promise<CostSummary> {
       total_input_tokens: 0,
       total_output_tokens: 0,
       by_agent: {},
-      by_team: {},
       by_model: {},
       cache_hit_rate: 0,
       burn_rate: 0,
@@ -545,41 +541,6 @@ export async function getProcessLogs(name: string, lines?: number): Promise<stri
   return response.lines;
 }
 
-/**
- * Get list of teams
- * Note: bc team list returns text when empty, handle gracefully
- */
-export async function getTeams(): Promise<TeamsResponse> {
-  try {
-    // #1005: Use cached version to reduce polling overhead
-    return await execBcJsonCached<TeamsResponse>(['team', 'list']);
-  } catch {
-    return { teams: [] };
-  }
-}
-
-/**
- * Add a member to a team
- * @param teamName - Name of team
- * @param agentName - Name of agent to add
- */
-export async function addTeamMember(teamName: string, agentName: string): Promise<void> {
-  await execBc(['team', 'add', teamName, agentName]);
-  // #1595: Invalidate team list cache after modification
-  // Team list includes all teams, so we need to clear it
-  invalidateCacheKey('team:list');
-}
-
-/**
- * Remove a member from a team
- * @param teamName - Name of team
- * @param agentName - Name of agent to remove
- */
-export async function removeTeamMember(teamName: string, agentName: string): Promise<void> {
-  await execBc(['team', 'remove', teamName, agentName]);
-  // #1595: Invalidate team list cache after modification
-  invalidateCacheKey('team:list');
-}
 
 /**
  * Get event logs

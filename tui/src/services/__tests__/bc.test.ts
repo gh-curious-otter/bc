@@ -23,7 +23,6 @@ const {
   getChannelHistory,
   getCostSummary,
   getDemons,
-  getTeams,
   clearCache,
   _setSpawnForTesting,
 } = bc;
@@ -325,7 +324,6 @@ describe('Command wrapper functions - Cost and teams', () => {
       total_input_tokens: 1000,
       total_output_tokens: 500,
       by_agent: {},
-      by_team: {},
       by_model: {},
     };
 
@@ -360,43 +358,6 @@ describe('Command wrapper functions - Cost and teams', () => {
     expect(result.total_cost).toBe(0);
   });
 
-  it('getTeams fetches team list', async () => {
-    const mockProc = mockProcessorFactory();
-    mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown);
-
-    const teamsData = { teams: [{ name: 'frontend', members: ['eng-01', 'eng-02'] }] };
-
-    setTimeout(() => {
-      const stdoutCalls = (mockProc.stdout.on as ReturnType<typeof mock>).mock.calls;
-      stdoutCalls.forEach(([event, handler]: [string, (data: Buffer) => void]) => {
-        if (event === 'data') handler(Buffer.from(JSON.stringify(teamsData)));
-      });
-      const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
-      onCalls.forEach(([event, handler]: [string, (code: number) => void]) => {
-        if (event === 'close') handler(0);
-      });
-    }, 5);
-
-    const result = await getTeams();
-    expect(result).toEqual(teamsData);
-  });
-
-  it('getTeams returns empty array on failure', async () => {
-    const mockProc = mockProcessorFactory();
-    mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown);
-
-    setTimeout(() => {
-      const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
-      onCalls.forEach(([event, handler]: [string, (code: number) => void]) => {
-        if (event === 'close') handler(1);
-      });
-    }, 5);
-
-    const result = await getTeams();
-    expect(result).toEqual({ teams: [] });
-  });
 });
 
 describe('Demon operations', () => {
