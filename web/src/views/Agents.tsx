@@ -72,7 +72,8 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors focus:outline-none focus:ring-2 focus:ring-bc-accent"
+        className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+        aria-label="Create agent"
       >
         + Create Agent
       </button>
@@ -164,7 +165,7 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
         <button
           onClick={handleCreate}
           disabled={creating}
-          className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         >
           {creating ? "Creating..." : "Create"}
         </button>
@@ -230,16 +231,18 @@ function InlineAgentName({
   }
 
   return (
-    <span
-      className="font-medium cursor-pointer hover:text-bc-accent transition-colors"
+    <button
+      type="button"
+      className="font-medium cursor-pointer hover:text-bc-accent transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg rounded"
       onClick={(e) => {
         e.stopPropagation();
         setEditing(true);
       }}
       title="Click to rename"
+      aria-label={`Rename agent ${agent.name}`}
     >
       {agent.name}
-    </span>
+    </button>
   );
 }
 
@@ -278,7 +281,8 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
             act(() => api.deleteAgent(agent.name));
           }}
           disabled={busy}
-          className="px-1.5 py-0.5 text-xs rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50"
+          className="px-1.5 py-0.5 text-xs rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          aria-label={`Confirm delete agent ${agent.name}`}
         >
           {busy ? "..." : "Yes"}
         </button>
@@ -287,7 +291,8 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
             e.stopPropagation();
             setConfirming(null);
           }}
-          className="px-1.5 py-0.5 text-xs rounded bg-bc-border/50 text-bc-muted hover:text-bc-fg"
+          aria-label="Cancel delete"
+          className="px-1.5 py-0.5 text-xs rounded bg-bc-border/50 text-bc-muted hover:text-bc-fg focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         >
           No
         </button>
@@ -308,7 +313,8 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           }}
           disabled={busy}
           title="Start agent"
-          className="px-1.5 py-0.5 text-xs rounded bg-bc-success/20 text-bc-success hover:bg-bc-success/30 disabled:opacity-50"
+          aria-label={`Start agent ${agent.name}`}
+          className="px-1.5 py-0.5 text-xs rounded bg-bc-success/20 text-bc-success hover:bg-bc-success/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         >
           {busy ? "..." : "Start"}
         </button>
@@ -321,7 +327,8 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           }}
           disabled={busy}
           title="Stop agent"
-          className="px-1.5 py-0.5 text-xs rounded bg-bc-warning/20 text-bc-warning hover:bg-bc-warning/30 disabled:opacity-50"
+          aria-label={`Stop agent ${agent.name}`}
+          className="px-1.5 py-0.5 text-xs rounded bg-bc-warning/20 text-bc-warning hover:bg-bc-warning/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         >
           {busy ? "..." : "Stop"}
         </button>
@@ -332,7 +339,8 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           setConfirming("delete");
         }}
         title="Delete agent"
-        className="px-1.5 py-0.5 text-xs rounded bg-bc-error/10 text-bc-error/70 hover:bg-bc-error/20 hover:text-bc-error"
+        aria-label={`Delete agent ${agent.name}`}
+        className="px-1.5 py-0.5 text-xs rounded bg-bc-error/10 text-bc-error/70 hover:bg-bc-error/20 hover:text-bc-error focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
       >
         Del
       </button>
@@ -472,7 +480,7 @@ export function Agents() {
             <button
               onClick={handleStopAll}
               disabled={stoppingAll}
-              className="px-3 py-1.5 text-sm rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-bc-error"
+              className="px-3 py-1.5 text-sm rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-error focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
               aria-label="Stop all agents"
             >
               {stoppingAll ? "Stopping..." : "Stop All"}
@@ -524,7 +532,12 @@ export function Agents() {
                     onClick={() =>
                       navigate(`/agents/${encodeURIComponent(a.name)}`)
                     }
-                    className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface transition-colors duration-150"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") navigate(`/agents/${encodeURIComponent(a.name)}`);
+                    }}
+                    role="link"
+                    tabIndex={0}
+                    className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
                   >
                     <td className="px-4 py-2">
                       <InlineAgentName agent={a} onRenamed={refresh} />

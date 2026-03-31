@@ -166,10 +166,12 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
 
   return (
     <>
-      <div
-        className="group flex items-start gap-2 py-0.5 px-3 hover:bg-white/[0.02] cursor-pointer transition-colors"
+      <button
+        type="button"
+        className="group flex items-start gap-2 py-0.5 px-3 w-full text-left hover:bg-white/[0.02] cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setExpanded(!expanded)}
+        aria-label={`${expanded ? "Collapse" : "Expand"} tool ${node.toolName}`}
       >
         <span className="text-zinc-600 text-xs select-none mt-[3px] shrink-0">
           {depth > 0 ? "├─" : ""}
@@ -190,7 +192,7 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
             elapsed(node.startTime, node.endTime)
           )}
         </span>
-      </div>
+      </button>
 
       {node.error && (
         <div
@@ -246,7 +248,7 @@ const AgentCard = memo(function AgentCard({
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
       >
         <svg
           width="12" height="12" viewBox="0 0 12 12" fill="none"
