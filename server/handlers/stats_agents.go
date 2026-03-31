@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gh-curious-otter/bc/pkg/stats"
 )
@@ -15,6 +16,35 @@ func (h *StatsHandler) RegisterAgentStats(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/stats/net", h.agentNet)
 	mux.HandleFunc("/api/agents/stats/tokens", h.agentTokens)
 	mux.HandleFunc("/api/agents/stats/cost", h.agentCost)
+	mux.HandleFunc("/api/agents/stats/summary/", h.agentSummary)
+}
+
+// agentSummary returns a combined resource + token + cost summary for a single agent.
+// GET /api/agents/stats/summary/{name}?from=...&to=...&interval=...
+func (h *StatsHandler) agentSummary(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+
+	name := strings.TrimPrefix(r.URL.Path, "/api/agents/stats/summary/")
+	if name == "" {
+		httpError(w, "agent name required", http.StatusBadRequest)
+		return
+	}
+
+	if h.statsStore == nil {
+		httpError(w, "stats unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	sq := parseStatsQuery(r)
+	summary, err := h.statsStore.QueryAgentSummary(r.Context(), name, sq.TimeRange)
+	if err != nil {
+		httpInternalError(w, "query agent summary", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, summary)
 }
 
 // agentLatest returns the most recent metric sample for each agent.
