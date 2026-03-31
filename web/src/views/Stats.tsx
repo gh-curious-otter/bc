@@ -1,11 +1,11 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api/client";
 import type {
-  SystemStats, StatsSummary, CostSummary, ModelCostSummary,
+  SystemStats, StatsSummary, CostSummary, ModelCostSummary, AgentCostSummary,
   SystemMetricTS, AgentMetricTS, TokenMetricTS, ChannelMetricTS,
 } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -31,6 +31,7 @@ interface StatsData {
   summary: StatsSummary | null;
   costSummary: CostSummary | null;
   costByModel: ModelCostSummary[];
+  costByAgent: AgentCostSummary[];
   systemMetrics: SystemMetricTS[];
   agentMetrics: AgentMetricTS[];
   tokenMetrics: TokenMetricTS[];
@@ -166,6 +167,208 @@ function SystemCharts({ metrics, system }: { metrics: SystemMetricTS[]; system: 
           )}
         </Chart>
       </div>
+    </section>
+  );
+}
+
+// ── Per-Agent Cards ─────────────────────────────────────────────────────────
+
+interface AgentCard {
+  name: string;
+  role: string;
+  state: string;
+  cpu: number;
+  memMB: number;
+  memPct: number;
+  netRx: number;
+  netTx: number;
+  diskRead: number;
+  diskWrite: number;
+  tokens: number;
+  cost: number;
+}
+
+function AgentOverview({
+  metrics,
+  costByAgent,
+  tokenMetrics,
+  selectedAgent,
+  onSelectAgent,
+}: {
+  metrics: AgentMetricTS[];
+  costByAgent: AgentCostSummary[];
+  tokenMetrics: TokenMetricTS[];
+  selectedAgent: string | null;
+  onSelectAgent: (name: string | null) => void;
+}) {
+  // Build per-agent latest metrics
+  const latest = new Map<string, AgentMetricTS>();
+  for (const m of metrics) latest.set(m.agent_name, m);
+
+  // Build cost lookup
+  const costMap = new Map<string, AgentCostSummary>();
+  for (const c of costByAgent) costMap.set(c.agent_id, c);
+
+  // Build token totals per agent
+  const tokenMap = new Map<string, number>();
+  for (const t of tokenMetrics) {
+    tokenMap.set(t.agent_name, (tokenMap.get(t.agent_name) ?? 0) + t.input_tokens + t.output_tokens);
+  }
+
+  const agents: AgentCard[] = Array.from(latest.values())
+    .map((m) => ({
+      name: m.agent_name,
+      role: m.role,
+      state: m.state,
+      cpu: m.cpu_percent,
+      memMB: m.mem_used_bytes / 1024 / 1024,
+      memPct: m.mem_percent,
+      netRx: m.net_rx_bytes,
+      netTx: m.net_tx_bytes,
+      diskRead: m.disk_read_bytes,
+      diskWrite: m.disk_write_bytes,
+      tokens: tokenMap.get(m.agent_name) ?? 0,
+      cost: costMap.get(m.agent_name)?.total_cost_usd ?? 0,
+    }))
+    .sort((a, b) => b.cost - a.cost);
+
+  if (agents.length === 0) return null;
+
+  return (
+    <section>
+      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
+        Agents ({agents.length})
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {agents.map((a) => (
+          <button
+            key={a.name}
+            type="button"
+            onClick={() => onSelectAgent(selectedAgent === a.name ? null : a.name)}
+            className={`rounded border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${
+              selectedAgent === a.name
+                ? "border-bc-accent bg-bc-accent/5"
+                : "border-bc-border bg-bc-surface hover:border-bc-muted"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${a.state === "running" ? "bg-bc-success" : "bg-bc-muted"}`} />
+                <span className="text-sm font-medium truncate">{a.name}</span>
+              </div>
+              <span className="text-[10px] text-bc-muted">{a.role}</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2 text-xs">
+              <div>
+                <span className="text-bc-muted block">CPU</span>
+                <span className="font-mono" style={{ color: pctColor(a.cpu) }}>{a.cpu.toFixed(1)}%</span>
+              </div>
+              <div>
+                <span className="text-bc-muted block">Mem</span>
+                <span className="font-mono" style={{ color: pctColor(a.memPct) }}>{a.memMB.toFixed(0)}MB</span>
+              </div>
+              <div>
+                <span className="text-bc-muted block">Tokens</span>
+                <span className="font-mono">{a.tokens >= 1000 ? `${(a.tokens / 1000).toFixed(0)}k` : a.tokens}</span>
+              </div>
+              <div>
+                <span className="text-bc-muted block">Cost</span>
+                <span className="font-mono" style={{ color: C.orange }}>${a.cost.toFixed(2)}</span>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ── Agent Drill-Down ────────────────────────────────────────────────────────
+
+function AgentDrillDown({
+  agentName,
+  metrics,
+  tokenMetrics,
+  costByAgent,
+  onClose,
+}: {
+  agentName: string;
+  metrics: AgentMetricTS[];
+  tokenMetrics: TokenMetricTS[];
+  costByAgent: AgentCostSummary[];
+  onClose: () => void;
+}) {
+  const agentMetrics = metrics.filter((m) => m.agent_name === agentName);
+  const agentTokens = tokenMetrics.filter((m) => m.agent_name === agentName);
+  const agentCost = costByAgent.find((c) => c.agent_id === agentName);
+
+  // Latest snapshot
+  const latest = agentMetrics[agentMetrics.length - 1];
+
+  // Token totals
+  let totalInput = 0, totalOutput = 0;
+  for (const t of agentTokens) { totalInput += t.input_tokens; totalOutput += t.output_tokens; }
+
+  // Cost by model for this agent
+  const modelCosts = new Map<string, number>();
+  for (const t of agentTokens) {
+    if (t.cost_usd > 0) {
+      modelCosts.set(t.model, (modelCosts.get(t.model) ?? 0) + t.cost_usd);
+    }
+  }
+  const modelCostData = Array.from(modelCosts.entries())
+    .map(([model, cost], i) => ({ name: trunc(model || "unknown", 20), cost: parseFloat(cost.toFixed(4)), color: PIE_COLORS[i % PIE_COLORS.length] }))
+    .sort((a, b) => b.cost - a.cost);
+
+  return (
+    <section className="rounded border border-bc-accent bg-bc-surface p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold">{agentName}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs text-bc-muted hover:text-bc-text px-2 py-1 rounded border border-bc-border"
+        >
+          Close
+        </button>
+      </div>
+
+      {/* Resource snapshot */}
+      {latest && (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+          <Stat label="CPU" value={`${latest.cpu_percent.toFixed(1)}%`} accent={pctColor(latest.cpu_percent)} />
+          <Stat label="Memory" value={`${(latest.mem_used_bytes / 1024 / 1024).toFixed(0)} MB`} sub={`${latest.mem_percent.toFixed(1)}%`} accent={pctColor(latest.mem_percent)} />
+          <Stat label="Net RX" value={fmtBytes(latest.net_rx_bytes)} />
+          <Stat label="Net TX" value={fmtBytes(latest.net_tx_bytes)} />
+          <Stat label="Disk Read" value={fmtBytes(latest.disk_read_bytes)} />
+          <Stat label="Disk Write" value={fmtBytes(latest.disk_write_bytes)} />
+        </div>
+      )}
+
+      {/* Token & Cost */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <Stat label="Input Tokens" value={totalInput.toLocaleString()} accent={C.amber} />
+        <Stat label="Output Tokens" value={totalOutput.toLocaleString()} accent={C.purple} />
+        <Stat label="Total Cost" value={`$${(agentCost?.total_cost_usd ?? 0).toFixed(2)}`} accent={C.orange} />
+        <Stat label="Records" value={String(agentCost?.record_count ?? 0)} />
+      </div>
+
+      {/* Cost by model */}
+      {modelCostData.length > 0 && (
+        <Chart title="Cost by Model">
+          <ResponsiveContainer width="100%" height={Math.max(80, modelCostData.length * 28)}>
+            <BarChart layout="vertical" data={modelCostData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
+              <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `$${v}`} />
+              <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 9 }} {...TICK} width={120} />
+              <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(6)}`]} />
+              <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
+                {modelCostData.map((e, i) => <Cell key={i} fill={e.color} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </Chart>
+      )}
     </section>
   );
 }
@@ -396,8 +599,10 @@ function CostCharts({ costSummary, costByModel }: { costSummary: CostSummary | n
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export function Stats() {
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+
   const fetcher = useCallback(async (): Promise<StatsData> => {
-    const [r0, r1, r2, r3, r4, r5, r6, r7] = await Promise.allSettled([
+    const [r0, r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.allSettled([
       api.getStatsSystem(),
       api.getStatsSummary(),
       api.getCostSummary(),
@@ -406,6 +611,7 @@ export function Stats() {
       api.getAgentStats("cpu"),
       api.getAgentTokenStats(),
       api.getChannelStats("messages"),
+      api.getCostByAgent(),
     ]);
 
     return {
@@ -417,6 +623,7 @@ export function Stats() {
       agentMetrics: r5.status === "fulfilled" ? (r5.value ?? []) : [],
       tokenMetrics: r6.status === "fulfilled" ? (r6.value ?? []) : [],
       channelMetrics: r7.status === "fulfilled" ? (r7.value ?? []) : [],
+      costByAgent: r8.status === "fulfilled" ? (r8.value ?? []) : [],
     };
   }, []);
 
@@ -446,11 +653,34 @@ export function Stats() {
         </div>
       </section>
 
-      <SystemCharts metrics={data.systemMetrics} system={data.system} />
+      {/* Per-Agent Stats — Primary view */}
+      <AgentOverview
+        metrics={data.agentMetrics}
+        costByAgent={data.costByAgent}
+        tokenMetrics={data.tokenMetrics}
+        selectedAgent={selectedAgent}
+        onSelectAgent={setSelectedAgent}
+      />
+
+      {/* Agent Drill-Down */}
+      {selectedAgent && (
+        <AgentDrillDown
+          agentName={selectedAgent}
+          metrics={data.agentMetrics}
+          tokenMetrics={data.tokenMetrics}
+          costByAgent={data.costByAgent}
+          onClose={() => setSelectedAgent(null)}
+        />
+      )}
+
+      {/* Agent bar charts + state pie */}
       <AgentCharts metrics={data.agentMetrics} summary={data.summary} />
       <TokenCharts tokens={data.tokenMetrics} costSummary={data.costSummary} />
-      <ChannelCharts metrics={data.channelMetrics} />
       <CostCharts costSummary={data.costSummary} costByModel={data.costByModel} />
+      <ChannelCharts metrics={data.channelMetrics} />
+
+      {/* System Resources — moved to bottom */}
+      <SystemCharts metrics={data.systemMetrics} system={data.system} />
     </div>
   );
 }
