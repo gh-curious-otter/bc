@@ -150,7 +150,7 @@ export function Logs() {
           <select
             value={agentFilter}
             onChange={(e) => setAgentFilter(e.target.value)}
-            className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1 text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent"
+            className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
           >
             <option value="">All agents</option>
             {agents.map((a) => (

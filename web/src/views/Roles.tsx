@@ -301,7 +301,7 @@ export function Roles() {
         <EmptyState
           icon="@"
           title="No roles defined"
-          description="Define roles in .bc/roles/ to assign capabilities and prompts to agents."
+          description="Define roles to assign capabilities and prompts to agents."
         />
       ) : (
         <div className="grid gap-4">
@@ -364,7 +364,7 @@ function Pre({ label, text }: { label: string; text: string }) {
   return (
     <div className="space-y-1">
       <span className="text-xs text-bc-muted">{label}</span>
-      <pre className="text-xs bg-bc-bg rounded p-2 whitespace-pre-wrap text-bc-fg/80 border border-bc-border">
+      <pre className="text-xs bg-bc-bg rounded p-2 whitespace-pre-wrap text-bc-text/80 border border-bc-border">
         {text.trim()}
       </pre>
     </div>

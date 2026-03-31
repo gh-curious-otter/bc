@@ -134,6 +134,7 @@ export interface Role {
   Rules: Record<string, string>;
   Settings: Record<string, unknown>;
   Review: string;
+  CLITools?: string[];
 }
 
 export interface Tool {
@@ -254,17 +255,6 @@ export interface ChannelStats {
   top_senders: ChannelTopSender[];
 }
 
-export interface AgentStatsRecord {
-  collected_at: string;
-  agent_name: string;
-  cpu_pct: number;
-  mem_used_mb: number;
-  mem_limit_mb: number;
-  net_rx_mb: number;
-  net_tx_mb: number;
-  block_read_mb: number;
-  block_write_mb: number;
-}
 
 // TimescaleDB timeseries types
 export interface SystemMetricTS {
@@ -406,10 +396,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ message }),
     }),
-  getAgentDockerStats: (name: string, limit = 20) =>
-    request<AgentStatsRecord[]>(
-      `/agents/${encodeURIComponent(name)}/stats?${new URLSearchParams({ limit: String(limit) })}`,
-    ),
 
   listChannels: () => request<Channel[]>("/channels"),
   getChannelHistory: (

@@ -448,7 +448,7 @@ export function Cron() {
                         className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors focus:ring-2 focus:ring-bc-accent focus:outline-none ${
                           expandedJob === j.name
                             ? "bg-bc-accent/20 text-bc-accent"
-                            : "text-bc-muted hover:text-bc-fg hover:bg-bc-surface"
+                            : "text-bc-muted hover:text-bc-text hover:bg-bc-surface"
                         }`}
                         title={
                           expandedJob === j.name ? "Hide runs" : "Show runs"
