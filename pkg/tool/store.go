@@ -116,11 +116,14 @@ func (s *Store) Open() error {
 		}
 	}
 
-	if err := initSchema(database.DB); err != nil {
-		if db.SharedWrapped() == nil {
-			_ = database.Close()
+	// Skip schema init on Postgres — init.sql handles table creation.
+	if db.SharedDriver() != "postgres" {
+		if err := initSchema(database.DB); err != nil {
+			if db.SharedWrapped() == nil {
+				_ = database.Close()
+			}
+			return fmt.Errorf("failed to initialize schema: %w", err)
 		}
-		return fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
 	s.db = database
