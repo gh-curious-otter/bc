@@ -12,6 +12,10 @@ export DISPLAY=:99
 x11vnc -display :99 -forever -nopw -shared -rfbport 5900 2>/dev/null &
 websockify --web=/usr/share/novnc 6080 localhost:5900 2>/dev/null &
 
+# Shared volume for screenshots
+mkdir -p /tmp/bc-shared
+export PLAYWRIGHT_OUTPUT_DIR=/tmp/bc-shared
+
 # Playwright MCP server (headed — visible in VNC)
 # --host 0.0.0.0     : accept external connections
 # --allowed-hosts '*' : accept any Host header (Docker networking)
