@@ -202,9 +202,17 @@ function AgentOverview({
   selectedAgent: string | null;
   onSelectAgent: (name: string | null) => void;
 }) {
+  // Filter out infrastructure containers — only show actual agents
+  const INFRA_PREFIXES = ["bc-db", "bc-daemon", "bc-sql", "bc-stats", "bc-playwright", "bc-bcsql", "bc-bcstats"];
+  const isInfra = (name: string) =>
+    INFRA_PREFIXES.some((p) => name === p || name.startsWith(p + "-")) ||
+    name.length <= 3; // filter truncated/garbage entries like "ght"
+
   // Build per-agent latest metrics
   const latest = new Map<string, AgentMetricTS>();
-  for (const m of metrics) latest.set(m.agent_name, m);
+  for (const m of metrics) {
+    if (!isInfra(m.agent_name)) latest.set(m.agent_name, m);
+  }
 
   // Build cost lookup
   const costMap = new Map<string, AgentCostSummary>();
