@@ -200,8 +200,19 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 						log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
 						return
 					}
+					// Build mention set for O(1) lookup
+					hasMentions := len(mentionedAgents) > 0
+					mentionSet := make(map[string]bool, len(mentionedAgents))
+					for _, m := range mentionedAgents {
+						mentionSet[m] = true
+					}
+
 					for _, member := range chDTO.Members {
 						if member == "" || member == sender {
+							continue
+						}
+						// If @mentions exist, only deliver to mentioned agents
+						if hasMentions && !mentionSet[member] {
 							continue
 						}
 						if sendErr := svc.Agents.Send(context.Background(), member, msg); sendErr != nil {
