@@ -1,12 +1,23 @@
-# Playwright MCP server with pre-installed browsers
-# Extends playwright-visible to ensure browsers survive container restarts
-FROM playwright-visible
+# Playwright MCP server with pre-installed Chrome and VNC viewing
+FROM mcr.microsoft.com/playwright:v1.52.0-noble
 
-# Pre-install Chromium browser (the default for Playwright)
-# This bakes the browser into the image layer so restarts don't need to re-download
+# Install VNC server and noVNC for browser viewing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    x11vnc \
+    xvfb \
+    websockify \
+    novnc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Playwright MCP server and Chrome browser
+RUN npm install -g @anthropic-ai/claude-code@latest 2>/dev/null || true
+RUN npx -y @playwright/mcp@latest install-browser chrome-for-testing 2>/dev/null || true
+RUN npx playwright install-deps 2>/dev/null || true
 RUN npx playwright install chromium 2>/dev/null || true
 
-# Clean up stale X11 locks on startup
+# Expose ports: 3000 for MCP, 6080 for noVNC
+EXPOSE 3000 6080
+
 COPY docker/playwright-entrypoint.sh /playwright-entrypoint.sh
 RUN chmod +x /playwright-entrypoint.sh
 

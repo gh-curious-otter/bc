@@ -29,7 +29,7 @@
 .PHONY: release-local-bc release-local-bcd install-local-bc
 # Docker
 .PHONY: build-docker-daemon build-docker-sql build-docker-stats
-.PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-playwright
+.PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-playwright stop-docker-playwright run-docker-playwright
 # TS
 .PHONY: build-local-tui build-local-web build-local-landing
 .PHONY: test-ts test-tui test-web test-web-e2e test-landing
@@ -159,8 +159,19 @@ build-docker-agents: build-docker-agent-base ## Build all agent images
 		docker build -t $(REGISTRY)-agent-$$p:$(IMAGE_TAG) -f docker/Dockerfile.$$p . || exit 1; \
 	done
 
-build-docker-playwright: ## Build Playwright MCP Docker image (pre-installed browsers)
-	docker build -t $(REGISTRY)-playwright:$(IMAGE_TAG) -f docker/Dockerfile.playwright .
+build-docker-playwright: ## Build Playwright MCP Docker image
+	docker build -t bc-playwright:latest -f docker/Dockerfile.playwright .
+
+stop-docker-playwright: ## Stop and remove Playwright container
+	docker stop bc-playwright 2>/dev/null || true
+	docker rm bc-playwright 2>/dev/null || true
+
+run-docker-playwright: stop-docker-playwright ## Run Playwright MCP container
+	docker run -d --name bc-playwright \
+		-p 3100:3000 -p 6080:6080 \
+		-v bc-shared-tmp:/tmp/bc-shared \
+		--restart unless-stopped \
+		bc-playwright:latest
 
 # =============================================================================
 # Test
