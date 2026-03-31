@@ -10,7 +10,6 @@ export type WSEventType =
   | "channel.message"
   | "cost.updated"
   | "cost.budget_alert"
-  | "team.updated"
   | "connected";
 
 export interface WSEvent {
