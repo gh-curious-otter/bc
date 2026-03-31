@@ -70,6 +70,8 @@ func NewStore(workspacePath string) (*Store, error) {
 // initSchema creates the MCP server configs table.
 func (s *Store) initSchema() error {
 	ctx := context.Background()
+	// Use CURRENT_TIMESTAMP — works in both SQLite and Postgres
+	// (strftime is SQLite-only and breaks on Postgres)
 	schema := `
 		CREATE TABLE IF NOT EXISTS mcp_servers (
 			name        TEXT PRIMARY KEY,
@@ -79,7 +81,7 @@ func (s *Store) initSchema() error {
 			url         TEXT,
 			env         TEXT,
 			enabled     INTEGER NOT NULL DEFAULT 1,
-			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled);
 	`

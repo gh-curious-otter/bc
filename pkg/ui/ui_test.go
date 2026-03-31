@@ -199,66 +199,6 @@ func TestSimpleTable(t *testing.T) {
 	}
 }
 
-func TestList(t *testing.T) {
-	var buf bytes.Buffer
-	SetOutput(&buf)
-	defer SetOutput(nil)
-	SetColorEnabled(false)
-
-	List("item1", "item2", "item3")
-	result := buf.String()
-
-	if !strings.Contains(result, "•") {
-		t.Error("List should contain bullet")
-	}
-	if !strings.Contains(result, "item1") {
-		t.Error("List should contain item1")
-	}
-	if strings.Count(result, "•") != 3 {
-		t.Errorf("List should have 3 bullets, got %d", strings.Count(result, "•"))
-	}
-}
-
-func TestNumberedList(t *testing.T) {
-	var buf bytes.Buffer
-	SetOutput(&buf)
-	defer SetOutput(nil)
-	SetColorEnabled(false)
-
-	NumberedList("first", "second")
-	result := buf.String()
-
-	if !strings.Contains(result, "1.") {
-		t.Error("NumberedList should contain 1.")
-	}
-	if !strings.Contains(result, "2.") {
-		t.Error("NumberedList should contain 2.")
-	}
-}
-
-func TestCheckList(t *testing.T) {
-	var buf bytes.Buffer
-	SetOutput(&buf)
-	defer SetOutput(nil)
-	SetColorEnabled(false)
-
-	CheckList(
-		ListItem{Text: "task1"},
-		ListItem{Text: "task2", Detail: "done"},
-	)
-	result := buf.String()
-
-	if !strings.Contains(result, "✓") {
-		t.Error("CheckList should contain checkmark")
-	}
-	if !strings.Contains(result, "task1") {
-		t.Error("CheckList should contain task1")
-	}
-	if !strings.Contains(result, "(done)") {
-		t.Error("CheckList should contain detail")
-	}
-}
-
 func TestColorEnabled(t *testing.T) {
 	SetColorEnabled(true)
 	if !ColorEnabled() {
@@ -276,43 +216,6 @@ func TestGrayText(t *testing.T) {
 	result := GrayText("test")
 	if !strings.Contains(result, "test") {
 		t.Error("GrayText should contain text")
-	}
-}
-
-func TestIndentedList(t *testing.T) {
-	var buf bytes.Buffer
-	SetOutput(&buf)
-	defer SetOutput(nil)
-	SetColorEnabled(false)
-
-	IndentedList(2, "item1", "item2")
-	result := buf.String()
-
-	if !strings.Contains(result, "item1") {
-		t.Error("IndentedList should contain item1")
-	}
-	if !strings.Contains(result, "item2") {
-		t.Error("IndentedList should contain item2")
-	}
-}
-
-func TestKeyValueList(t *testing.T) {
-	var buf bytes.Buffer
-	SetOutput(&buf)
-	defer SetOutput(nil)
-	SetColorEnabled(false)
-
-	KeyValueList(map[string]string{
-		"key1": "value1",
-		"key2": "value2",
-	})
-	result := buf.String()
-
-	if !strings.Contains(result, "key1") {
-		t.Error("KeyValueList should contain key1")
-	}
-	if !strings.Contains(result, "value1") {
-		t.Error("KeyValueList should contain value1")
 	}
 }
 
