@@ -221,6 +221,7 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // Mounts:
 //   - workspace dir → /workspace (project code)
 //   - .bc/volumes/<agent>/.claude → /home/agent/.claude (persistent Claude state)
+//   - bc-shared-tmp → /tmp/bc-shared (shared volume for cross-container file exchange)
 //
 // Env vars:
 //   - From the env map (BC_AGENT_ID, BC_AGENT_ROLE, role secrets via bc env)
@@ -326,6 +327,10 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		_ = os.WriteFile(localClaudeJSON, []byte("{}"), 0600) //nolint:errcheck // best-effort
 	}
 	args = append(args, "-v", filepath.Join(hostAgentDir, "claude.json")+":/home/agent/.claude.json")
+
+	// Mount 4: Shared tmp volume for cross-container file exchange (e.g., Playwright screenshots).
+	// Uses a named Docker volume so all agent containers and the Playwright container share the same data.
+	args = append(args, "-v", "bc-shared-tmp:/tmp/bc-shared")
 
 	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.
