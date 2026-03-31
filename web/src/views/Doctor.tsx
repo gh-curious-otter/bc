@@ -8,11 +8,11 @@ import { EmptyState } from "../components/EmptyState";
 const severityIcon = (s: string) => {
   switch (s) {
     case "ok":
-      return <span className="text-green-400">&#10003;</span>;
+      return <span className="text-bc-success">&#10003;</span>;
     case "warn":
-      return <span className="text-yellow-400">&#9888;</span>;
+      return <span className="text-bc-warning">&#9888;</span>;
     case "error":
-      return <span className="text-red-400">&#10007;</span>;
+      return <span className="text-bc-error">&#10007;</span>;
     default:
       return <span className="text-bc-muted">?</span>;
   }
@@ -77,12 +77,12 @@ export function Doctor() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Doctor</h1>
         <div className="flex gap-4 text-sm">
-          <span className="text-green-400">{totalPassed} passed</span>
+          <span className="text-bc-success">{totalPassed} passed</span>
           {totalFailed > 0 && (
-            <span className="text-red-400">{totalFailed} failed</span>
+            <span className="text-bc-error">{totalFailed} failed</span>
           )}
           {totalWarnings > 0 && (
-            <span className="text-yellow-400">{totalWarnings} warnings</span>
+            <span className="text-bc-warning">{totalWarnings} warnings</span>
           )}
         </div>
       </div>
@@ -109,7 +109,7 @@ function FixButton({ fix }: { fix: string }) {
       <code className="text-xs text-bc-accent">{fix}</code>
       <button
         onClick={handleCopy}
-        className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors shrink-0"
+        className="text-xs px-2 py-0.5 rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 transition-colors shrink-0"
         title="Copy fix command to clipboard"
       >
         {copied ? "Copied!" : "Fix"}

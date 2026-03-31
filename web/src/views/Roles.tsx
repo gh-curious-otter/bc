@@ -70,7 +70,7 @@ function CreateRoleForm({ onCreated }: { onCreated: () => void }) {
           + New Role
         </button>
         {status.type === "success" && (
-          <span className="text-xs text-green-400">Role created</span>
+          <span className="text-xs text-bc-success">Role created</span>
         )}
       </div>
     );
@@ -170,10 +170,10 @@ function CreateRoleForm({ onCreated }: { onCreated: () => void }) {
           {status.type === "saving" ? "Creating..." : "Create Role"}
         </button>
         {status.type === "success" && (
-          <span className="text-xs text-green-400">Role created</span>
+          <span className="text-xs text-bc-success">Role created</span>
         )}
         {status.type === "error" && (
-          <span className="text-xs text-red-400">{status.message}</span>
+          <span className="text-xs text-bc-error">{status.message}</span>
         )}
       </div>
     </form>
@@ -208,7 +208,7 @@ function DeleteButton({
           type="button"
           onClick={handleDelete}
           disabled={deleting}
-          className="px-2 py-1 rounded bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+          className="px-2 py-1 rounded bg-bc-error text-bc-bg text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
           aria-label={`Confirm delete role ${name}`}
         >
           {deleting ? "Deleting..." : "Confirm"}
@@ -230,7 +230,7 @@ function DeleteButton({
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-red-400 hover:border-red-400/50 transition-colors"
+      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-error hover:border-bc-error/50 transition-colors"
       aria-label={`Delete role ${name}`}
     >
       Delete

@@ -124,7 +124,7 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
           Cancel
         </button>
         {status.type === "error" && (
-          <span className="text-xs text-red-400">{status.message}</span>
+          <span className="text-xs text-bc-error">{status.message}</span>
         )}
       </div>
     </div>
@@ -137,7 +137,7 @@ function RunDetail({ log }: { log: CronLogEntry }) {
       <div className="flex items-center gap-4 text-xs text-bc-muted mb-2">
         <span>Duration: {log.duration_ms}ms</span>
         <span
-          className={`font-medium ${log.status === "success" ? "text-green-400" : log.status === "failed" ? "text-red-400" : "text-yellow-400"}`}
+          className={`font-medium ${log.status === "success" ? "text-bc-success" : log.status === "failed" ? "text-bc-error" : "text-bc-warning"}`}
         >
           {log.status}
         </span>
@@ -171,7 +171,7 @@ function LiveLogs({ name }: { name: string }) {
   return (
     <div className="mt-2 rounded border border-bc-border bg-[#0a0a0f] p-3">
       <div className="flex items-center gap-2 text-xs text-bc-muted mb-2">
-        <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+        <span className="inline-block w-2 h-2 rounded-full bg-bc-success animate-pulse" />
         <span>Running — live output</span>
       </div>
       <pre className="text-xs text-bc-text/80 whitespace-pre-wrap max-h-64 overflow-y-auto font-mono">
@@ -228,7 +228,7 @@ function JobRuns({ name, running }: { name: string; running: boolean }) {
                     : "\u2014"}
                 </span>
                 <span
-                  className={`font-medium w-16 ${log.status === "success" ? "text-green-400" : log.status === "failed" ? "text-red-400" : "text-yellow-400"}`}
+                  className={`font-medium w-16 ${log.status === "success" ? "text-bc-success" : log.status === "failed" ? "text-bc-error" : "text-bc-warning"}`}
                 >
                   {log.status}
                 </span>
@@ -285,7 +285,7 @@ function JobActions({
           );
         }}
         disabled={busy !== null}
-        className={`${btnCls} ${job.enabled ? "bg-yellow-400/10 text-yellow-400 hover:bg-yellow-400/20" : "bg-green-400/10 text-green-400 hover:bg-green-400/20"}`}
+        className={`${btnCls} ${job.enabled ? "bg-bc-warning/10 text-bc-warning hover:bg-bc-warning/20" : "bg-bc-success/10 text-bc-success hover:bg-bc-success/20"}`}
       >
         {busy === "toggle" ? "..." : job.enabled ? "Disable" : "Enable"}
       </button>
@@ -310,7 +310,7 @@ function JobActions({
             act("delete", () => api.deleteCron(job.name));
         }}
         disabled={busy !== null}
-        className={`${btnCls} bg-red-400/10 text-red-400 hover:bg-red-400/20`}
+        className={`${btnCls} bg-bc-error/10 text-bc-error hover:bg-bc-error/20`}
       >
         {busy === "delete" ? "..." : "Delete"}
       </button>
@@ -415,7 +415,7 @@ export function Cron() {
                     <td className="px-4 py-2">
                       <span
                         className={
-                          j.running ? "text-blue-400" : j.enabled ? "text-green-400" : "text-bc-muted"
+                          j.running ? "text-blue-400" : j.enabled ? "text-bc-success" : "text-bc-muted"
                         }
                       >
                         {j.running ? "running" : j.enabled ? "enabled" : "disabled"}

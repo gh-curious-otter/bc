@@ -172,7 +172,7 @@ export function Logs() {
         <span className="text-sm text-bc-muted">
           {allLogs.length} events
           {streamedLogs.length > 0 && (
-            <span className="ml-2 text-green-500">
+            <span className="ml-2 text-bc-success">
               +{streamedLogs.length} live
             </span>
           )}

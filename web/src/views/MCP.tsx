@@ -168,7 +168,7 @@ function RegisterForm({ onRegistered }: { onRegistered: () => void }) {
           Cancel
         </button>
         {status.type === "error" && (
-          <span className="text-xs text-red-400">{status.message}</span>
+          <span className="text-xs text-bc-error">{status.message}</span>
         )}
       </div>
     </div>
@@ -192,7 +192,7 @@ function ToggleSwitch({
       onClick={onToggle}
       disabled={disabled}
       className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-bc-accent disabled:opacity-50 ${
-        enabled ? "bg-green-500" : "bg-bc-border"
+        enabled ? "bg-bc-success" : "bg-bc-border"
       }`}
     >
       <span
@@ -324,7 +324,7 @@ export function MCP() {
           type="button"
           onClick={() => handleRemove(s)}
           disabled={!!actionLoading[s.name]}
-          className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors"
+          className="text-xs text-bc-error hover:text-bc-error/80 disabled:opacity-50 transition-colors"
         >
           Remove
         </button>

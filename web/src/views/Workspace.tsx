@@ -99,7 +99,7 @@ export function Workspace() {
           <button
             onClick={handleDown}
             disabled={actionBusy !== null}
-            className="px-3 py-1.5 text-sm rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+            className="px-3 py-1.5 text-sm rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-bc-error"
             aria-label="Stop all agents"
           >
             {actionBusy === "down" ? "Stopping..." : "Stop All Agents"}
@@ -107,7 +107,7 @@ export function Workspace() {
         </div>
       </div>
 
-      {actionError && <p className="text-xs text-red-400">{actionError}</p>}
+      {actionError && <p className="text-xs text-bc-error">{actionError}</p>}
 
       <div className="grid grid-cols-2 gap-4">
         {Object.entries(status).map(([key, value]) => (
