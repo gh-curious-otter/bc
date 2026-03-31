@@ -19,7 +19,6 @@
 - **CLI-First**: Every feature is accessible and scriptable through the `bc` command line.
 - **Agent Agnostic**: Works with any AI agent that can run in a terminal (Claude Code, Cursor, Codex, Gemini).
 - **Organic Growth**: Start with a single `root` agent and grow your team conversationally.
-- **Persistent Memory**: Agents learn from experiences and accumulate knowledge over time.
 - **Isolated Workspaces**: Each agent operates in its own `git worktree` for conflict-free development.
 
 ## Why bc?
@@ -31,7 +30,6 @@
 | Inter-agent communication | ✅ | ❌ |
 | Git worktree isolation | ✅ | ❌ |
 | Cost tracking per agent | ✅ | Limited |
-| Persistent agent memory | ✅ | Session-only |
 | TUI dashboard | ✅ | Varies |
 
 ## Supported AI Agents
@@ -233,17 +231,6 @@ bc down
 | `bc process logs <name>` | Show process logs |
 | `bc process attach <name>` | Attach to process |
 
-### Memory
-
-| Command | Description |
-|---------|-------------|
-| `bc memory show [agent]` | Show agent memory |
-| `bc memory list` | List all agent memories |
-| `bc memory record <desc>` | Record an experience |
-| `bc memory learn <cat> <text>` | Add a learning |
-| `bc memory forget <topic>` | Remove a learning topic |
-| `bc memory search <query>` | Search memories |
-| `bc memory prune` | Remove old entries |
 | `bc memory clear [agent]` | Clear agent memory |
 | `bc memory export [agent]` | Export memory to JSON |
 | `bc memory import <file>` | Import memories from file |
