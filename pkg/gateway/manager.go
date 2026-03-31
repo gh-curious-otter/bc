@@ -123,6 +123,27 @@ func (m *Manager) Send(ctx context.Context, bcChannel, sender, content string) (
 	return true, nil
 }
 
+// SendFile uploads a file to a gateway channel. Returns false if the channel
+// is not a gateway channel or the adapter doesn't support file uploads.
+func (m *Manager) SendFile(ctx context.Context, bcChannel, sender, filename string, data []byte, mimeType string) (bool, error) {
+	m.mu.RLock()
+	route, ok := m.channelMap[bcChannel]
+	m.mu.RUnlock()
+	if !ok {
+		return false, nil
+	}
+
+	fs, ok := route.Adapter.(FileSender)
+	if !ok {
+		return true, fmt.Errorf("gateway %s does not support file uploads", bcChannel)
+	}
+
+	if err := fs.SendFile(ctx, route.ChannelID, sender, filename, data, mimeType); err != nil {
+		return true, fmt.Errorf("gateway send file to %s: %w", bcChannel, err)
+	}
+	return true, nil
+}
+
 // IsGatewayChannel returns true if the channel name belongs to an external gateway.
 func (m *Manager) IsGatewayChannel(name string) bool {
 	m.mu.RLock()

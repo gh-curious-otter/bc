@@ -2,6 +2,7 @@
 package slackgw
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -30,6 +31,7 @@ type Adapter struct {
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)
+var _ gateway.FileSender = (*Adapter)(nil)
 
 // New creates a new Slack adapter using Socket Mode.
 func New(botToken, appToken string) *Adapter {
@@ -97,6 +99,28 @@ func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) e
 	}
 
 	log.Info("slack: sent message", "channel_id", channelID, "sender", sender)
+	return nil
+}
+
+// SendFile uploads a file to a Slack channel.
+func (a *Adapter) SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error {
+	if a.api == nil {
+		return fmt.Errorf("slack: not connected")
+	}
+
+	_, err := a.api.UploadFileContext(ctx, slack.UploadFileParameters{
+		Filename:       filename,
+		Reader:         bytes.NewReader(data),
+		FileSize:       len(data),
+		Channel:        channelID,
+		Title:          fmt.Sprintf("%s: %s", sender, filename),
+		InitialComment: fmt.Sprintf("Shared by %s", sender),
+	})
+	if err != nil {
+		return fmt.Errorf("slack: file upload failed: %w", err)
+	}
+
+	log.Info("slack: uploaded file", "channel_id", channelID, "sender", sender, "filename", filename)
 	return nil
 }
 
@@ -220,8 +244,12 @@ func (a *Adapter) handleEventsAPI(event slackevents.EventsAPIEvent) {
 
 // handleMessageEvent processes a single message event.
 func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
-	// Skip bot messages and message edits/deletes
-	if ev.User == a.botUserID || ev.User == "" || ev.SubType != "" {
+	// Skip bot messages and message edits/deletes.
+	// Allow file_share subtype for image sharing.
+	if ev.User == a.botUserID || ev.User == "" {
+		return
+	}
+	if ev.SubType != "" {
 		return
 	}
 
