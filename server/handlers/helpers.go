@@ -138,7 +138,7 @@ func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 // path (known SSE routes) and by Accept header (generic text/event-stream).
 func isSSERequest(r *http.Request) bool {
 	// Known SSE/streaming paths
-	if r.URL.Path == "/api/events" || strings.HasPrefix(r.URL.Path, "/mcp/") {
+	if r.URL.Path == "/api/events" || strings.HasPrefix(r.URL.Path, "/_mcp/") {
 		return true
 	}
 	// /api/agents/{name}/output is an SSE stream

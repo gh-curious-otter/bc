@@ -258,7 +258,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if mcpErr != nil {
 			log.Warn("MCP server unavailable", "error", mcpErr)
 		} else {
-			servermcp.MountOn(mux, mcpSrv, "/mcp")
+			servermcp.MountOn(mux, mcpSrv, "/_mcp")
 		}
 	}
 
