@@ -29,7 +29,7 @@
 .PHONY: release-local-bc release-local-bcd install-local-bc
 # Docker
 .PHONY: build-docker-daemon build-docker-sql build-docker-stats
-.PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-playwright stop-docker-playwright run-docker-playwright
+.PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-agent-infra build-docker-playwright stop-docker-playwright run-docker-playwright
 # TS
 .PHONY: build-local-tui build-local-web build-local-landing
 .PHONY: test-ts test-tui test-web test-web-e2e test-landing
@@ -161,6 +161,9 @@ build-docker-agents: build-docker-agent-base ## Build all agent images
 		echo "Building $(REGISTRY)-agent-$$p..."; \
 		docker build -t $(REGISTRY)-agent-$$p:$(IMAGE_TAG) -f docker/Dockerfile.$$p . || exit 1; \
 	done
+
+build-docker-agent-infra: build-docker-agent ## Build infra agent image (extends claude)
+	docker build -t $(REGISTRY)-agent-infra:$(IMAGE_TAG) -f docker/Dockerfile.infra .
 
 build-docker-playwright: ## Build Playwright MCP Docker image (separate from main build)
 	docker build -t bc-playwright:latest -f docker/Dockerfile.playwright .
