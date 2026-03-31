@@ -35,8 +35,7 @@ type Client struct {
 	HTTPClient *http.Client
 	Agents     *AgentsClient
 	Channels   *ChannelsClient
-	Workspaces *WorkspacesClient
-	Events     *EventsClient
+	Events *EventsClient
 	Costs      *CostsClient
 	Cron       *CronClient
 	MCP        *MCPClient
@@ -65,7 +64,6 @@ func New(addr string) *Client {
 
 	c.Agents = &AgentsClient{client: c}
 	c.Channels = &ChannelsClient{client: c}
-	c.Workspaces = &WorkspacesClient{client: c}
 	c.Events = &EventsClient{client: c}
 	c.Costs = &CostsClient{client: c}
 	c.Cron = &CronClient{client: c}
