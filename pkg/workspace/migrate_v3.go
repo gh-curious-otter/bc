@@ -1,0 +1,151 @@
+package workspace
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
+	"github.com/gh-curious-otter/bc/pkg/log"
+)
+
+// MigrateToGlobalState moves workspace state from <project>/.bc/ to
+// ~/.bc/workspaces/<id>/. Leaves a .bc-migrated marker in the old location.
+// Returns the new state directory path.
+func MigrateToGlobalState(rootDir string) (string, error) {
+	absRoot, err := filepath.Abs(rootDir)
+	if err != nil {
+		return "", err
+	}
+
+	legacyDir := filepath.Join(absRoot, ".bc")
+	if _, statErr := os.Stat(legacyDir); statErr != nil {
+		return "", fmt.Errorf("no legacy .bc/ directory found in %s", absRoot)
+	}
+
+	newDir, err := GlobalStateDir(absRoot)
+	if err != nil {
+		return "", err
+	}
+
+	if err := EnsureBCHome(); err != nil {
+		return "", err
+	}
+
+	// Create new state directory
+	if err := os.MkdirAll(newDir, 0750); err != nil {
+		return "", fmt.Errorf("failed to create %s: %w", newDir, err)
+	}
+
+	// Copy files from legacy to new location
+	entries, err := os.ReadDir(legacyDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to read legacy dir: %w", err)
+	}
+
+	for _, entry := range entries {
+		src := filepath.Join(legacyDir, entry.Name())
+		dst := filepath.Join(newDir, entry.Name())
+
+		if entry.IsDir() {
+			// Copy directory recursively
+			if cpErr := copyDir(src, dst); cpErr != nil {
+				log.Warn("migration: failed to copy directory", "src", src, "error", cpErr)
+				continue
+			}
+		} else {
+			// Copy file
+			if cpErr := migrateFile(src, dst); cpErr != nil {
+				log.Warn("migration: failed to copy file", "src", src, "error", cpErr)
+				continue
+			}
+		}
+	}
+
+	// Write .bc-migrated marker in the old location
+	marker := filepath.Join(legacyDir, ".bc-migrated")
+	markerContent := fmt.Sprintf("Workspace state migrated to: %s\n", newDir)
+	_ = os.WriteFile(marker, []byte(markerContent), 0644) //nolint:gosec
+
+	log.Info("migrated workspace state", "from", legacyDir, "to", newDir)
+	return newDir, nil
+}
+
+// NeedsMigration returns true if the workspace has legacy .bc/ state
+// that hasn't been migrated to ~/.bc/workspaces/<id>/ yet.
+func NeedsMigration(rootDir string) bool {
+	absRoot, err := filepath.Abs(rootDir)
+	if err != nil {
+		return false
+	}
+
+	legacyDir := filepath.Join(absRoot, ".bc")
+	legacySettings := filepath.Join(legacyDir, "settings.json")
+
+	// Legacy exists?
+	if _, err := os.Stat(legacySettings); err != nil {
+		return false
+	}
+
+	// Already migrated?
+	if _, err := os.Stat(filepath.Join(legacyDir, ".bc-migrated")); err == nil {
+		return false
+	}
+
+	// Global dir already has settings?
+	globalDir, gErr := GlobalStateDir(absRoot)
+	if gErr != nil {
+		return false
+	}
+	if _, err := os.Stat(filepath.Join(globalDir, "settings.json")); err == nil {
+		return false // already migrated
+	}
+
+	return true
+}
+
+func migrateFile(src, dst string) error {
+	in, err := os.Open(src) //nolint:gosec
+	if err != nil {
+		return err
+	}
+	defer in.Close() //nolint:errcheck
+
+	out, err := os.Create(dst) //nolint:gosec
+	if err != nil {
+		return err
+	}
+	defer out.Close() //nolint:errcheck
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
+}
+
+func copyDir(src, dst string) error {
+	if err := os.MkdirAll(dst, 0750); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			if err := migrateFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

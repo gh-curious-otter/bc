@@ -118,12 +118,26 @@ func Load(rootDir string) (*Workspace, error) {
 	// Load settings.json — check global dir first, then legacy .bc/
 	jsonPath := filepath.Join(stateDir, "settings.json")
 	if _, statErr := os.Stat(jsonPath); statErr != nil {
-		// Try legacy path
+		// Try legacy path — auto-migrate if found
 		legacyDir := filepath.Join(absRoot, ".bc")
 		legacyPath := filepath.Join(legacyDir, "settings.json")
 		if _, legacyErr := os.Stat(legacyPath); legacyErr == nil {
-			stateDir = legacyDir
-			jsonPath = legacyPath
+			// Auto-migrate legacy .bc/ to ~/.bc/workspaces/<id>/
+			if NeedsMigration(absRoot) {
+				log.Info("migrating workspace state to ~/.bc/", "from", legacyDir)
+				newDir, migrateErr := MigrateToGlobalState(absRoot)
+				if migrateErr == nil {
+					stateDir = newDir
+					jsonPath = filepath.Join(newDir, "settings.json")
+				} else {
+					log.Warn("migration failed, using legacy path", "error", migrateErr)
+					stateDir = legacyDir
+					jsonPath = legacyPath
+				}
+			} else {
+				stateDir = legacyDir
+				jsonPath = legacyPath
+			}
 		} else {
 			// Check for v1 workspace
 			if _, v1Err := os.Stat(filepath.Join(legacyDir, "config.json")); v1Err == nil {
