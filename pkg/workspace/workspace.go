@@ -92,6 +92,12 @@ func Init(rootDir string) (*Workspace, error) {
 	}
 	_ = closeStore // store stays open for workspace lifetime
 
+	// Register in global registry so Find()/IsWorkspace() work without .bc/ marker.
+	if reg, regErr := LoadRegistry(); regErr == nil {
+		reg.Register(absRoot, cfg.User.Name)
+		_ = reg.Save() //nolint:errcheck // best-effort
+	}
+
 	return &Workspace{
 		RootDir:     absRoot,
 		stateDir:    stateDir,
@@ -173,12 +179,30 @@ func Load(rootDir string) (*Workspace, error) {
 }
 
 // Find searches for a workspace starting from dir and going up.
+// It checks the registry first (for .bc/-free workspaces), then
+// falls back to the legacy .bc/ directory walk.
 func Find(dir string) (*Workspace, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
 	}
 
+	// Registry-first: check if any registered workspace matches this dir or a parent.
+	if reg, regErr := LoadRegistry(); regErr == nil {
+		current := absDir
+		for {
+			if entry := reg.Find(current); entry != nil {
+				return Load(current)
+			}
+			parent := filepath.Dir(current)
+			if parent == current {
+				break
+			}
+			current = parent
+		}
+	}
+
+	// Legacy fallback: walk up looking for .bc/ directory marker.
 	current := absDir
 	for {
 		stateDir := filepath.Join(current, ".bc")
@@ -252,10 +276,24 @@ func (w *Workspace) EnsureDirs() error {
 }
 
 // IsWorkspace checks if a directory is a workspace.
+// Checks legacy .bc/ directory and global state dir (~/.bc/workspaces/<id>/).
 func IsWorkspace(dir string) bool {
+	// Check legacy .bc/ marker
 	stateDir := filepath.Join(dir, ".bc")
-	_, err := os.Stat(stateDir)
-	return err == nil
+	if _, err := os.Stat(stateDir); err == nil {
+		return true
+	}
+	// Check global state dir exists on disk
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	if globalDir, gErr := GlobalStateDir(absDir); gErr == nil {
+		if _, statErr := os.Stat(globalDir); statErr == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // GetRole returns a role by name, loading it if necessary.

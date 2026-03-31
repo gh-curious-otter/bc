@@ -221,7 +221,7 @@ func DefaultConfig() Config {
 			},
 		},
 		Logs: LogsConfig{
-			Path:     ".bc/logs",
+			Path:     "",       // empty = StateDir/logs (supports ~/.bc/ layout)
 			MaxBytes: 10485760, // 10MB
 		},
 		UI: UIConfig{
