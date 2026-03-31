@@ -133,15 +133,24 @@ func (r *Registry) Touch(path string) {
 }
 
 // Prune removes entries where the workspace no longer exists on disk.
+// Checks for .bc/ dir in project root OR state dir in ~/.bc/workspaces/<id>/.
 func (r *Registry) Prune() int {
 	pruned := 0
 	valid := make([]RegistryEntry, 0, len(r.Workspaces))
 	for _, w := range r.Workspaces {
-		if IsWorkspace(w.Path) {
+		// Check legacy .bc/ marker
+		if _, err := os.Stat(filepath.Join(w.Path, ".bc")); err == nil {
 			valid = append(valid, w)
-		} else {
-			pruned++
+			continue
 		}
+		// Check global state dir exists
+		if stateDir, err := GlobalStateDir(w.Path); err == nil {
+			if _, statErr := os.Stat(stateDir); statErr == nil {
+				valid = append(valid, w)
+				continue
+			}
+		}
+		pruned++
 	}
 	r.Workspaces = valid
 	return pruned

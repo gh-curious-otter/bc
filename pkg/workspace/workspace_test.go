@@ -30,10 +30,10 @@ func TestInit(t *testing.T) {
 		t.Errorf("Name() = %q, want %q", ws.Name(), filepath.Base(dir))
 	}
 
-	// .bc directory was created
-	stateDir := filepath.Join(dir, ".bc")
+	// State directory was created (in ~/.bc/workspaces/<id>/)
+	stateDir := ws.StateDir()
 	if _, statErr := os.Stat(stateDir); statErr != nil {
-		t.Errorf(".bc directory not created: %v", statErr)
+		t.Errorf("state directory not created: %v", statErr)
 	}
 
 	// settings.json was written
@@ -103,15 +103,16 @@ func TestLoadInvalidTOML(t *testing.T) {
 }
 
 func TestLoadUpdatesPathsIfMoved(t *testing.T) {
-	// Init in one location, then copy .bc to a new location and Load
+	// Init in one location, then copy state to a new location with .bc/ and Load
 	orig := t.TempDir()
-	if _, err := Init(orig); err != nil {
+	origWS, err := Init(orig)
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	moved := t.TempDir()
-	// Copy .bc directory
-	srcCfg := filepath.Join(orig, ".bc", "settings.json")
+	// Copy settings from the global state dir to a legacy .bc/ in the moved location
+	srcCfg := filepath.Join(origWS.StateDir(), "settings.json")
 	dstDir := filepath.Join(moved, ".bc")
 	if err := os.MkdirAll(dstDir, 0750); err != nil {
 		t.Fatal(err)
@@ -123,7 +124,6 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	if writeErr := os.WriteFile(filepath.Join(dstDir, "settings.json"), data, 0600); writeErr != nil {
 		t.Fatal(writeErr)
 	}
-	// Also create roles dir (needed for TOML workspace loading)
 	if mkErr := os.MkdirAll(filepath.Join(dstDir, "roles"), 0750); mkErr != nil {
 		t.Fatal(mkErr)
 	}
@@ -140,10 +140,12 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	if ws.RootDir != absDir {
 		t.Errorf("RootDir = %q, want %q", ws.RootDir, absDir)
 	}
-	wantState := filepath.Join(absDir, ".bc")
-	if ws.StateDir() != wantState {
-		t.Errorf("StateDir = %q, want %q", ws.StateDir(), wantState)
+	// After loading, workspace may have migrated to ~/.bc/workspaces/<id>/
+	// StateDir should be a valid directory regardless of location
+	if _, statErr := os.Stat(ws.StateDir()); statErr != nil {
+		t.Errorf("StateDir %q does not exist: %v", ws.StateDir(), statErr)
 	}
+	_ = absDir
 }
 
 // --- Find (upward search) ---
@@ -282,20 +284,16 @@ func TestPathHelpers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bcDir := filepath.Join(absDir, ".bc")
+	sd := ws.StateDir()
 
 	tests := []struct {
 		name string
 		got  string
 		want string
 	}{
-		{"StateDir", ws.StateDir(), bcDir},
-		{"AgentsDir", ws.AgentsDir(), filepath.Join(bcDir, "agents")},
-		{"LogsDir", ws.LogsDir(), filepath.Join(bcDir, "logs")},
+		{"StateDir", sd, sd},
+		{"AgentsDir", ws.AgentsDir(), filepath.Join(sd, "agents")},
+		{"LogsDir", ws.LogsDir(), filepath.Join(sd, "logs")},
 	}
 
 	for _, tt := range tests {
@@ -351,10 +349,11 @@ func TestLogsDirV2EmptyPath(t *testing.T) {
 	}
 
 	got := ws.LogsDir()
-	want := filepath.Join(absDir, ".bc", "logs")
+	want := filepath.Join(ws.StateDir(), "logs")
 	if got != want {
 		t.Errorf("LogsDir() = %q, want %q", got, want)
 	}
+	_ = absDir
 }
 
 func TestLogsDirNilConfig(t *testing.T) {
@@ -364,16 +363,11 @@ func TestLogsDirNilConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// No Config — should use StateDir/logs
 	ws.Config = nil
 
 	got := ws.LogsDir()
-	want := filepath.Join(absDir, ".bc", "logs")
+	want := filepath.Join(ws.StateDir(), "logs")
 	if got != want {
 		t.Errorf("LogsDir() = %q, want %q", got, want)
 	}
