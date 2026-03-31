@@ -59,6 +59,20 @@ const MAX_NODES = 50;
 const AUTO_COLLAPSE_MS = 30_000;
 const FLUSH_INTERVAL = 150;
 
+/* ── Tool Icons ────────────────────────────────────────────────────── */
+
+function toolIcon(name: string): string {
+  if (name.startsWith("mcp__playwright")) return "🎭";
+  if (name.startsWith("mcp__bc")) return "⚡";
+  if (name.startsWith("mcp__")) return "🔌";
+  if (name === "Bash" || name === "BashOutput") return "⌨";
+  if (name === "Read" || name === "Write" || name === "Edit") return "📄";
+  if (name === "Glob" || name === "Grep") return "🔍";
+  if (name === "Agent") return "🤖";
+  if (name === "WebFetch" || name === "WebSearch") return "🌐";
+  return "⚙";
+}
+
 /* ── Helpers ───────────────────────────────────────────────────────── */
 
 let _nodeId = 0;
@@ -66,11 +80,50 @@ function nextId(): string {
   return `n-${++_nodeId}-${Date.now()}`;
 }
 
+/** Redact known secret patterns from displayed strings (defense-in-depth). */
+const SECRET_PATTERNS = [
+  /github_pat_[A-Za-z0-9_]{20,}/g,
+  /ghp_[A-Za-z0-9]{36,}/g,
+  /gho_[A-Za-z0-9]{36,}/g,
+  /ghs_[A-Za-z0-9]{36,}/g,
+  /ghu_[A-Za-z0-9]{36,}/g,
+  /xoxb-[A-Za-z0-9-]+/g,
+  /xoxp-[A-Za-z0-9-]+/g,
+  /sk-[A-Za-z0-9]{20,}/g,
+  /AKIA[A-Z0-9]{16}/g,
+  /Bearer\s+[A-Za-z0-9._\-/+=]{20,}/g,
+  /(?:password|secret|token|key|auth|credential|api_key)["'=:\s]+["']?[A-Za-z0-9._\-/+=]{8,}["']?/gi,
+];
+
+function redactSecrets(text: string): string {
+  let result = text;
+  for (const pattern of SECRET_PATTERNS) {
+    result = result.replace(pattern, "***");
+  }
+  return result;
+}
+
+function redactValue(value: unknown): unknown {
+  if (typeof value === "string") return redactSecrets(value);
+  if (Array.isArray(value)) return value.map(redactValue);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = redactValue(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 function summarizeArgs(evt: HookEvent): string {
-  if (evt.command) return evt.command.length > 80 ? evt.command.slice(0, 77) + "..." : evt.command;
+  if (evt.command) {
+    const s = evt.command.length > 80 ? evt.command.slice(0, 77) + "..." : evt.command;
+    return redactSecrets(s);
+  }
   if (evt.tool_input && typeof evt.tool_input === "object") {
     const s = JSON.stringify(evt.tool_input);
-    return s.length > 80 ? s.slice(0, 77) + "..." : s;
+    return redactSecrets(s.length > 80 ? s.slice(0, 77) + "..." : s);
   }
   return "";
 }
@@ -177,12 +230,13 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
           {depth > 0 ? "├─" : ""}
         </span>
         <ToolDot status={node.status} />
+        <span className="text-[12px] mr-0.5" aria-hidden="true">{toolIcon(node.toolName)}</span>
         <span className="font-mono text-[13px] text-zinc-300 font-medium">
           {node.toolName}
         </span>
         {node.args && (
           <span className="text-[12px] text-zinc-500 truncate max-w-[400px] font-mono">
-            {node.args}
+            {redactSecrets(node.args)}
           </span>
         )}
         <span className="ml-auto text-[11px] text-zinc-600 tabular-nums shrink-0 font-mono">
@@ -199,7 +253,7 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
           className="text-[11px] text-bc-error/80 font-mono px-3 py-0.5"
           style={{ paddingLeft: `${indent + 40}px` }}
         >
-          {node.error.length > 120 ? node.error.slice(0, 117) + "..." : node.error}
+          {redactSecrets(node.error.length > 120 ? node.error.slice(0, 117) + "..." : node.error)}
         </div>
       )}
 
@@ -209,7 +263,7 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
           style={{ marginLeft: `${indent + 12}px` }}
         >
           <pre className="whitespace-pre-wrap break-all">
-            {JSON.stringify(node.fullInput, null, 2)}
+            {JSON.stringify(redactValue(node.fullInput), null, 2)}
           </pre>
         </div>
       )}
@@ -220,7 +274,7 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
           style={{ marginLeft: `${indent + 12}px` }}
         >
           <pre className="whitespace-pre-wrap break-all">
-            {JSON.stringify(node.fullOutput, null, 2)}
+            {JSON.stringify(redactValue(node.fullOutput), null, 2)}
           </pre>
         </div>
       )}
