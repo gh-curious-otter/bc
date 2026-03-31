@@ -73,9 +73,16 @@ func (imp *Importer) claudeProjectsDirs() []string {
 			if !e.IsDir() {
 				continue
 			}
-			authProjects := filepath.Join(agentsDir, e.Name(), "auth", ".claude", "projects")
-			if _, err := os.Stat(authProjects); err == nil {
-				dirs = append(dirs, authProjects)
+			// Check both paths: current layout and legacy
+			for _, subpath := range []string{
+				filepath.Join("claude", "projects"),          // current
+				filepath.Join("auth", ".claude", "projects"), // legacy Docker layout
+			} {
+				p := filepath.Join(agentsDir, e.Name(), subpath)
+				if _, err := os.Stat(p); err == nil {
+					dirs = append(dirs, p)
+					break
+				}
 			}
 		}
 	}
