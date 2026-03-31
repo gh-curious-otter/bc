@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -56,9 +57,37 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 
 	ctx := cmd.Context()
-	id := wsID(ws.RootDir)
 
 	fmt.Printf("Starting bc in %s\n\n", ws.RootDir)
+
+	// Use docker compose if docker-compose.yml exists
+	composePath := ws.RootDir + "/docker-compose.yml"
+	if fileExists(composePath) {
+		fmt.Println("  Starting via docker compose...")
+		c := exec.CommandContext(ctx, "docker", "compose", "-f", composePath, "up", "-d") //nolint:gosec
+		c.Dir = ws.RootDir
+		c.Stdout = cmd.OutOrStdout()
+		c.Stderr = cmd.ErrOrStderr()
+		if runErr := c.Run(); runErr != nil {
+			return fmt.Errorf("docker compose up failed: %w", runErr)
+		}
+
+		// Wait for bcd to be ready
+		fmt.Print("  Waiting for bcd... ")
+		bcdURL := fmt.Sprintf("http://127.0.0.1:%s/health", upPort)
+		if waitErr := waitHTTP(ctx, bcdURL, 30*time.Second); waitErr != nil {
+			fmt.Println(ui.YellowText("not responding"))
+		} else {
+			fmt.Println(ui.GreenText("ready"))
+		}
+
+		fmt.Printf("\n  %s bc workspace ready\n", ui.GreenText("ok"))
+		fmt.Printf("  bcd:      http://127.0.0.1:%s\n", upPort)
+		return nil
+	}
+
+	// Fallback: start containers individually
+	id := wsID(ws.RootDir)
 
 	// 1. bc-sql — persistent volume for Postgres data
 	if err := dockerRun(ctx, "bc-sql", []string{
@@ -205,4 +234,9 @@ func waitHTTP(ctx context.Context, addr string, timeout time.Duration) error {
 func wsID(path string) string {
 	h := sha256.Sum256([]byte(path))
 	return fmt.Sprintf("%x", h[:3])
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
