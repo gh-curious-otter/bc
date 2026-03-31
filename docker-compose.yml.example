@@ -85,20 +85,20 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.playwright
-    image: bc-playwright:latest
     container_name: bc-playwright
     ports:
-      - "3100:3100"
+      - "3100:3000"
+      - "6080:6080"
     volumes:
       - shared-tmp:/tmp/bc-shared
     networks:
       - bc-net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:3100/sse"]
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/sse"]
       interval: 30s
       timeout: 5s
-      start_period: 15s
+      start_period: 30s
       retries: 3
 
 networks:
