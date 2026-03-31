@@ -1,4 +1,4 @@
-# Local development stack: bcd server + bcdb Postgres
+# Local development stack: bcd server + bcdb Postgres + Playwright MCP
 # Usage: docker-compose up
 #
 # Prerequisites: build images first
@@ -31,6 +31,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/workspace
+      - shared-tmp:/tmp/bc-shared
     depends_on:
       bcdb:
         condition: service_healthy
@@ -41,5 +42,14 @@ services:
       start_period: 10s
       retries: 3
 
+  playwright:
+    image: playwright-visible
+    ports:
+      - "3100:3100"
+    volumes:
+      - shared-tmp:/tmp/bc-shared
+    restart: unless-stopped
+
 volumes:
   bcdb-data:
+  shared-tmp:
