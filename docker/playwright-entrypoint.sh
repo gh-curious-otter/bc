@@ -17,6 +17,11 @@ mkdir -p /tmp/bc-shared
 chmod 777 /tmp/bc-shared
 export PLAYWRIGHT_OUTPUT_DIR=/tmp/bc-shared
 
+# Symlink default MCP output dir to shared volume
+# Playwright MCP saves to /.playwright-mcp/ by default, ignoring --output-dir
+rm -rf /.playwright-mcp
+ln -sf /tmp/bc-shared /.playwright-mcp
+
 # Playwright MCP server (headed — visible in VNC)
 # --host 0.0.0.0     : accept external connections
 # --allowed-hosts '*' : accept any Host header (Docker networking)
