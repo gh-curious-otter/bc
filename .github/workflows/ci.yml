@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  security-events: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -150,3 +151,26 @@ jobs:
 
       - name: Verify binary runs
         run: ./bin/bc version
+
+  # ── Container Scan (main only) ──────────────────────────────────────
+  scan:
+    name: Container Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+      - name: Build bcd image
+        run: docker build -t bc-daemon:latest -f docker/Dockerfile.bcd .
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947e7b4b18e97b232c4 # v0.29.0
+        with:
+          image-ref: bc-daemon:latest
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
