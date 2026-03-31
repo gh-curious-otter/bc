@@ -294,22 +294,48 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Ensure host.docker.internal resolves on Linux (macOS/Windows get this automatically)
 	args = append(args, "--add-host=host.docker.internal:host-gateway")
 
-	// Mount 1: Project workspace — mount the full workspace root so git
-	// worktrees can access the shared .git directory. Set the container's
-	// working directory to the worktree subdirectory if dir is a subpath.
+	// Mount 1: Project workspace.
+	// For agent worktrees: mount only the worktree directory as /workspace
+	// to prevent agents from modifying the main branch or other agents' files.
+	// The main repo's .git directory is mounted read-only at /workspace/.git-main
+	// and a generated .git file overrides the worktree's gitdir pointer to use
+	// the container-internal path.
+	// For the project root itself (e.g., bcd daemon): mount the full root.
 	hostRoot := b.hostWorkspacePath
 	if hostRoot == "" {
 		hostRoot = b.workspacePath
 	}
 	containerWorkdir := "/workspace"
+
 	if dir != b.workspacePath {
-		// dir is a worktree subpath — compute the container-relative path
+		// Agent worktree — mount only the worktree, not the project root.
 		rel, relErr := filepath.Rel(b.workspacePath, dir)
-		if relErr == nil && !strings.HasPrefix(rel, "..") {
-			containerWorkdir = "/workspace/" + rel
+		if relErr != nil || strings.HasPrefix(rel, "..") {
+			return fmt.Errorf("worktree %q is not under workspace %q", dir, b.workspacePath)
 		}
+		hostWorktree := filepath.Join(hostRoot, rel)
+		args = append(args, "-v", hostWorktree+":/workspace", "-w", containerWorkdir)
+
+		// Mount the main repo's .git directory read-only so git worktree
+		// operations (log, diff, status, commit) still work inside the container.
+		args = append(args, "-v", filepath.Join(hostRoot, ".git")+":/workspace/.git-main:ro")
+
+		// Generate a .git override file that points to the container-internal path.
+		// Git worktrees use a .git *file* (not directory) containing a gitdir pointer.
+		// We create a host-side file and mount it at /workspace/.git to redirect
+		// git to /workspace/.git-main/worktrees/<wt-name>.
+		wtName := filepath.Base(dir)
+		gitOverridePath := filepath.Join(b.workspacePath, ".bc", "agents", name, "git-worktree-override")
+		gitOverrideContent := fmt.Sprintf("gitdir: /workspace/.git-main/worktrees/%s\n", wtName)
+		if writeErr := os.WriteFile(gitOverridePath, []byte(gitOverrideContent), 0600); writeErr != nil {
+			return fmt.Errorf("failed to write .git override for agent %s: %w", name, writeErr)
+		}
+		hostGitOverride := filepath.Join(hostRoot, ".bc", "agents", name, "git-worktree-override")
+		args = append(args, "-v", hostGitOverride+":/workspace/.git:ro")
+	} else {
+		// Project root (e.g., bcd daemon) — mount the full workspace.
+		args = append(args, "-v", hostRoot+":/workspace", "-w", containerWorkdir)
 	}
-	args = append(args, "-v", hostRoot+":/workspace", "-w", containerWorkdir)
 
 	// Mount 2: Persistent Claude state (~/.claude/ dir)
 	// Use local (container) path for mkdir, host path for -v mount.
