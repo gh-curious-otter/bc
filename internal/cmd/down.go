@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -46,10 +48,27 @@ func runDown(cmd *cobra.Command, _ []string) error {
 	}
 
 	ctx := cmd.Context()
-	id := wsID(ws.RootDir)
-	daemonName := fmt.Sprintf("bc-%s-daemon", id)
 
 	fmt.Printf("Stopping bc in %s\n\n", ws.RootDir)
+
+	// Use docker compose if docker-compose.yml exists
+	composePath := filepath.Join(ws.RootDir, "docker-compose.yml")
+	if _, statErr := os.Stat(composePath); statErr == nil {
+		fmt.Println("  Stopping via docker compose...")
+		c := exec.CommandContext(ctx, "docker", "compose", "-f", composePath, "down") //nolint:gosec
+		c.Dir = ws.RootDir
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		if runErr := c.Run(); runErr != nil {
+			return fmt.Errorf("docker compose down failed: %w", runErr)
+		}
+		fmt.Println(ui.GreenText("  bc services stopped via docker compose"))
+		return nil
+	}
+
+	// Fallback: stop individual containers
+	id := wsID(ws.RootDir)
+	daemonName := fmt.Sprintf("bc-%s-daemon", id)
 
 	var stopped int
 	for _, name := range []string{daemonName, "bc-stats", "bc-sql"} {
