@@ -3,7 +3,6 @@ package workspace
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -353,40 +352,6 @@ func TestRole_Description(t *testing.T) {
 	})
 }
 
-func TestFormatRoleFile(t *testing.T) {
-	role := &Role{
-		Metadata: RoleMetadata{
-			Name:       "test",
-			MCPServers: []string{"bc", "github"},
-			Secrets:    []string{"TOKEN"},
-		},
-		Prompt: "# Test Role\n\nTest content.",
-	}
-
-	content, err := FormatRoleFile(role)
-	if err != nil {
-		t.Fatalf("FormatRoleFile failed: %v", err)
-	}
-
-	// Should be parseable
-	parsed, err := ParseRoleFile([]byte(content))
-	if err != nil {
-		t.Fatalf("Failed to parse formatted content: %v", err)
-	}
-
-	if parsed.Metadata.Name != role.Metadata.Name {
-		t.Errorf("Round-trip Name = %q, want %q", parsed.Metadata.Name, role.Metadata.Name)
-	}
-
-	if len(parsed.Metadata.MCPServers) != 2 {
-		t.Errorf("Round-trip MCPServers len = %d, want 2", len(parsed.Metadata.MCPServers))
-	}
-
-	if len(parsed.Metadata.Secrets) != 1 {
-		t.Errorf("Round-trip Secrets len = %d, want 1", len(parsed.Metadata.Secrets))
-	}
-}
-
 func TestDefaultRootRole_Parseable(t *testing.T) {
 	role, err := ParseRoleFile([]byte(DefaultRootRole))
 	if err != nil {
@@ -505,32 +470,6 @@ func TestParseRoleFile_CRLFLineEndings(t *testing.T) {
 
 	if role.Metadata.Name != "crlf" {
 		t.Errorf("Name = %q, want %q", role.Metadata.Name, "crlf")
-	}
-}
-
-func TestFormatRoleFile_PromptEndsWithNewline(t *testing.T) {
-	role := &Role{
-		Metadata: RoleMetadata{Name: "test"},
-		Prompt:   "Content ending with newline.\n",
-	}
-
-	content, err := FormatRoleFile(role)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Should not double up the trailing newline
-	if strings.HasSuffix(content, "\n\n\n") {
-		t.Error("FormatRoleFile should not add extra trailing newlines")
-	}
-
-	// Should be round-trippable
-	parsed, err := ParseRoleFile([]byte(content))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if parsed.Metadata.Name != "test" {
-		t.Errorf("round-trip name = %q, want test", parsed.Metadata.Name)
 	}
 }
 
