@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -267,34 +266,15 @@ func init() {
 	rootCmd.AddCommand(workspaceCmd)
 }
 
-func runWorkspaceUp(cmd *cobra.Command, _ []string) error {
-	ws, err := requireWorkspace()
-	if err != nil {
+func runWorkspaceUp(_ *cobra.Command, _ []string) error {
+	if _, err := requireWorkspace(); err != nil {
 		return err
 	}
 
-	port, _ := cmd.Flags().GetString("port")
-
-	// Use docker compose if docker-compose.yml exists
-	composePath := filepath.Join(ws.RootDir, "docker-compose.yml")
-	if _, statErr := os.Stat(composePath); statErr == nil {
-		fmt.Println("Starting bc via docker compose...")
-		args := []string{"compose", "-f", composePath, "up", "-d"}
-		c := exec.CommandContext(cmd.Context(), "docker", args...) //nolint:gosec
-		c.Dir = ws.RootDir
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		if runErr := c.Run(); runErr != nil {
-			return fmt.Errorf("docker compose up failed: %w", runErr)
-		}
-		fmt.Println(ui.GreenText("bc services started via docker compose"))
-		return nil
-	}
-
-	// Fallback: start bcd directly
-	fmt.Printf("Starting bcd on port %s...\n", port)
-	_ = ws
-	return fmt.Errorf("no docker-compose.yml found. Create one or start bcd manually: bcd --addr 0.0.0.0:%s", port)
+	// Roster was removed from settings. bc up starts infrastructure containers
+	// individually via the up command (internal/cmd/up.go).
+	fmt.Println("Use 'bc up --port <port>' to start bc infrastructure.")
+	return nil
 }
 
 func runWorkspaceList(cmd *cobra.Command, args []string) error {
