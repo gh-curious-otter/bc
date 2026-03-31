@@ -1,5 +1,6 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useRef } from "react";
 import { Virtuoso } from "react-virtuoso";
+import type { VirtuosoHandle } from "react-virtuoso";
 import type { ChannelMessage } from "../../api/client";
 import { MessageContent } from "../MessageContent";
 import { AgentAvatar, RoleBadge } from "./AgentAvatar";
@@ -22,13 +23,21 @@ export function MessageList({
   agentRoles,
   onPeekAgent,
   atBottomChange,
+  onLoadMore,
+  hasMore,
+  loadingMore,
 }: {
   messages: ChannelMessage[];
   channelName: string;
   agentRoles: Record<string, string>;
   onPeekAgent: (name: string) => void;
   atBottomChange?: (atBottom: boolean) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 }) {
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+
   const items = useMemo(() => {
     const groups = groupMessages(messages);
     const result: ListItem[] = [];
@@ -47,6 +56,12 @@ export function MessageList({
     }
     return result;
   }, [messages]);
+
+  const handleStartReached = useCallback(() => {
+    if (onLoadMore && hasMore && !loadingMore) {
+      onLoadMore();
+    }
+  }, [onLoadMore, hasMore, loadingMore]);
 
   const renderItem = useCallback(
     (_index: number, item: ListItem) => {
@@ -114,14 +129,32 @@ export function MessageList({
 
   return (
     <Virtuoso
+      ref={virtuosoRef}
       data={items}
       itemContent={renderItem}
       followOutput="smooth"
       initialTopMostItemIndex={items.length > 0 ? items.length - 1 : 0}
       atBottomStateChange={atBottomChange}
+      startReached={handleStartReached}
       className="flex-1"
       style={{ height: "100%" }}
       increaseViewportBy={200}
+      components={{
+        Header: () =>
+          loadingMore ? (
+            <div className="flex justify-center py-3">
+              <span className="text-xs text-bc-muted animate-pulse">
+                Loading older messages...
+              </span>
+            </div>
+          ) : hasMore === false ? (
+            <div className="flex justify-center py-3">
+              <span className="text-xs text-bc-muted">
+                Beginning of conversation
+              </span>
+            </div>
+          ) : null,
+      }}
     />
   );
 }

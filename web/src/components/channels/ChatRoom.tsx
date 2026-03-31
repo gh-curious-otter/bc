@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../../api/client";
 import type { Channel, ChannelMessage } from "../../api/client";
 import { useWebSocket } from "../../hooks/useWebSocket";
@@ -6,6 +6,9 @@ import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { MessageComposer } from "./MessageComposer";
 import { MemberPanel } from "./MemberPanel";
+
+const INITIAL_LOAD = 30;
+const PAGE_SIZE = 30;
 
 export function ChatRoom({
   channelName,
@@ -24,7 +27,10 @@ export function ChatRoom({
   const [senderName, setSenderName] = useState("web");
   const [showMembers, setShowMembers] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const { subscribe } = useWebSocket();
+  const channelRef = useRef(channelName);
 
   // Fetch workspace nickname once to use as sender identity
   useEffect(() => {
@@ -38,18 +44,55 @@ export function ChatRoom({
     })();
   }, []);
 
-  // Fetch full history on channel change
+  // Fetch initial messages (most recent) on channel change
   useEffect(() => {
+    channelRef.current = channelName;
     setMessages([]);
+    setHasMore(true);
     void (async () => {
       try {
-        const msgs = await api.getChannelHistory(channelName, 500);
-        setMessages(msgs ?? []);
+        const msgs = await api.getChannelHistory(channelName, INITIAL_LOAD);
+        if (channelRef.current !== channelName) return;
+        const sorted = (msgs ?? []).sort((a, b) => a.id - b.id);
+        setMessages(sorted);
+        setHasMore(sorted.length >= INITIAL_LOAD);
       } catch {
         setMessages([]);
       }
     })();
   }, [channelName]);
+
+  // Load older messages when user scrolls to top
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    const firstMsg = messages[0];
+    if (!firstMsg) return;
+    setLoadingMore(true);
+    try {
+      const older = await api.getChannelHistory(
+        channelName,
+        PAGE_SIZE,
+        firstMsg.id,
+      );
+      if (channelRef.current !== channelName) return;
+      const sorted = (older ?? []).sort((a, b) => a.id - b.id);
+      if (sorted.length < PAGE_SIZE) {
+        setHasMore(false);
+      }
+      if (sorted.length > 0) {
+        setMessages((prev) => {
+          // Deduplicate
+          const existingIds = new Set(prev.map((m) => m.id));
+          const newMsgs = sorted.filter((m) => !existingIds.has(m.id));
+          return [...newMsgs, ...prev];
+        });
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [channelName, loadingMore, hasMore, messages]);
 
   // Live messages via SSE — deduplicate by ID
   useEffect(() => {
@@ -109,13 +152,15 @@ export function ChatRoom({
               agentRoles={agentRoles}
               onPeekAgent={onPeekAgent}
               atBottomChange={setIsAtBottom}
+              onLoadMore={loadMore}
+              hasMore={hasMore}
+              loadingMore={loadingMore}
             />
           </div>
           {!isAtBottom && messages.length > 0 && (
             <button
               type="button"
               onClick={() => {
-                // Virtuoso handles scroll via followOutput, trigger by adding a dummy state change
                 setIsAtBottom(true);
               }}
               className="absolute bottom-4 right-4 bg-bc-accent text-bc-bg rounded-full px-3 py-1.5 text-xs font-medium shadow-lg hover:opacity-90 transition-opacity z-10"
