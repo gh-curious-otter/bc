@@ -131,13 +131,20 @@ export interface EventLogEntry {
   created_at: string;
 }
 
+export interface DoctorItem {
+  name: string;
+  message: string;
+  fix: string;
+  severity: string; // "ok" | "warn" | "error"
+}
+
 export interface DoctorCategory {
-  Name: string;
-  Items: { Name: string; Message: string; Fix: string; Severity: number }[];
+  name: string;
+  items: DoctorItem[];
 }
 
 export interface DoctorReport {
-  Categories: DoctorCategory[];
+  categories: DoctorCategory[];
 }
 
 export interface CronJob {
