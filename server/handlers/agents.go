@@ -15,6 +15,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/events"
 	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/stats"
 	"github.com/gh-curious-otter/bc/pkg/token"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 	"github.com/gh-curious-otter/bc/server/ws"
@@ -22,18 +23,24 @@ import (
 
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
-	svc      *agent.AgentService
-	costs    *cost.Store
-	ws       *workspace.Workspace
-	hub      *ws.Hub
-	events   events.EventStore
-	terminal *TerminalHandler
+	svc        *agent.AgentService
+	costs      *cost.Store
+	ws         *workspace.Workspace
+	hub        *ws.Hub
+	events     events.EventStore
+	terminal   *TerminalHandler
+	statsStore *stats.Store
 }
 
 // NewAgentHandler creates an AgentHandler.
 // costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
 	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub}
+}
+
+// SetStatsStore sets the stats store for resource metrics enrichment.
+func (h *AgentHandler) SetStatsStore(s *stats.Store) {
+	h.statsStore = s
 }
 
 // SetEventStore sets the event store for persisting hook events.
@@ -60,24 +67,37 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 }
 
 type agentDTO struct {
-	CreatedAt    time.Time  `json:"created_at"`
-	StartedAt    time.Time  `json:"started_at,omitempty"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-	StoppedAt    *time.Time `json:"stopped_at,omitempty"`
-	ID           string     `json:"id,omitempty"`
-	Name         string     `json:"name"`
-	Role         string     `json:"role"`
-	State        string     `json:"state"`
-	Task         string     `json:"task,omitempty"`
-	Team         string     `json:"team,omitempty"`
-	Tool         string     `json:"tool,omitempty"`
-	Session      string     `json:"session,omitempty"`
-	SessionID    string     `json:"session_id,omitempty"`
-	ParentID     string     `json:"parent_id,omitempty"`
-	Children     []string   `json:"children,omitempty"`
-	MCPServers   []string   `json:"mcp_servers,omitempty"`
-	TotalCostUSD float64    `json:"total_cost_usd"`
-	TotalTokens  int64      `json:"total_tokens"`
+	CreatedAt    time.Time        `json:"created_at"`
+	StartedAt    time.Time        `json:"started_at,omitempty"`
+	UpdatedAt    time.Time        `json:"updated_at"`
+	StoppedAt    *time.Time       `json:"stopped_at,omitempty"`
+	ID           string           `json:"id,omitempty"`
+	Name         string           `json:"name"`
+	Role         string           `json:"role"`
+	State        string           `json:"state"`
+	Task         string           `json:"task,omitempty"`
+	Team         string           `json:"team,omitempty"`
+	Tool         string           `json:"tool,omitempty"`
+	Session      string           `json:"session,omitempty"`
+	SessionID    string           `json:"session_id,omitempty"`
+	ParentID     string           `json:"parent_id,omitempty"`
+	Children     []string         `json:"children,omitempty"`
+	MCPServers   []string         `json:"mcp_servers,omitempty"`
+	Stats        *agentStatsDTO   `json:"stats,omitempty"`
+	TotalCostUSD float64          `json:"total_cost_usd"`
+	TotalTokens  int64            `json:"total_tokens"`
+}
+
+// agentStatsDTO holds resource metrics included when ?include=stats is set.
+type agentStatsDTO struct {
+	CPUPercent     float64 `json:"cpu_percent"`
+	MemUsedBytes   int64   `json:"mem_used_bytes"`
+	MemLimitBytes  int64   `json:"mem_limit_bytes"`
+	MemPercent     float64 `json:"mem_percent"`
+	NetRxBytes     int64   `json:"net_rx_bytes"`
+	NetTxBytes     int64   `json:"net_tx_bytes"`
+	DiskReadBytes  int64   `json:"disk_read_bytes"`
+	DiskWriteBytes int64   `json:"disk_write_bytes"`
 }
 
 func toDTO(a *agent.Agent) agentDTO {
@@ -151,6 +171,31 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 				for i := range dtos {
 					if total, ok := tokenMap[dtos[i].Name]; ok && total > 0 {
 						dtos[i].TotalTokens = total
+					}
+				}
+			}
+		}
+
+		// Enrich with resource metrics when ?include=stats is set.
+		if r.URL.Query().Get("include") == "stats" && h.statsStore != nil {
+			latest, statsErr := h.statsStore.QueryLatestAgentMetrics(r.Context())
+			if statsErr == nil {
+				metricsMap := make(map[string]*stats.AgentMetric, len(latest))
+				for i := range latest {
+					metricsMap[latest[i].AgentName] = &latest[i]
+				}
+				for i := range dtos {
+					if m, ok := metricsMap[dtos[i].Name]; ok {
+						dtos[i].Stats = &agentStatsDTO{
+							CPUPercent:     m.CPUPercent,
+							MemUsedBytes:   m.MemUsedBytes,
+							MemLimitBytes:  m.MemLimitBytes,
+							MemPercent:     m.MemPercent,
+							NetRxBytes:     m.NetRxBytes,
+							NetTxBytes:     m.NetTxBytes,
+							DiskReadBytes:  m.DiskReadBytes,
+							DiskWriteBytes: m.DiskWriteBytes,
+						}
 					}
 				}
 			}
