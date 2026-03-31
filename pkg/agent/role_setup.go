@@ -181,6 +181,22 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 		cfg.MCPServers[name] = entry
 	}
 
+	// Always ensure the bc MCP server is included with agent-scoped URL.
+	// This is required for send_message, report_status, and other bc tools.
+	if _, hasBc := cfg.MCPServers["bc"]; !hasBc {
+		bcDef, bcErr := mcpStore.Get("bc")
+		if bcErr == nil && bcDef != nil {
+			bcURL := bcDef.URL
+			if isDocker && bcURL != "" {
+				bcURL = rewriteDockerURL(bcURL)
+			}
+			if bcURL != "" && strings.Contains(bcURL, "/mcp/sse") {
+				bcURL = strings.Replace(bcURL, "/mcp/sse", "/mcp/"+agentName+"/sse", 1)
+			}
+			cfg.MCPServers["bc"] = mcpServerEntry{URL: bcURL, Type: "sse"}
+		}
+	}
+
 	return writeJSONFile(targetDir, ".mcp.json", cfg)
 }
 
