@@ -4,7 +4,7 @@
 #
 # POSTGRES_PASSWORD must be set at runtime:
 #   docker run -e POSTGRES_PASSWORD=secret bc-bcdb:latest
-#   Or via docker-compose.yml / .env file
+#   Or via .env file (see .env.example)
 
 FROM postgres:17.4
 
