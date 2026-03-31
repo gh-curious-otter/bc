@@ -429,7 +429,7 @@ func TestSSE_E2E_ToolsList(t *testing.T) {
 	}
 	decodeResult(t, resp, &result)
 
-	wantNames := []string{"create_agent", "send_message", "send_file", "read_channel", "report_status", "query_costs"}
+	wantNames := []string{"send_message", "send_file", "whoami", "list_channels", "read_channel", "list_agents"}
 	got := make(map[string]bool)
 	for _, tool := range result.Tools {
 		got[tool.Name] = true
@@ -444,7 +444,7 @@ func TestSSE_E2E_ToolsList(t *testing.T) {
 	}
 }
 
-func TestSSE_E2E_ToolsCall_QueryCosts(t *testing.T) {
+func TestSSE_E2E_ToolsCall_ListChannels(t *testing.T) {
 	srv := newTestServer(t)
 	broker := mcp.NewSSEBroker()
 
@@ -462,7 +462,7 @@ func TestSSE_E2E_ToolsCall_QueryCosts(t *testing.T) {
 	messageURL := ts.URL + ev.Data
 
 	postRPC(t, messageURL, 1, "tools/call", map[string]any{
-		"name":      "query_costs",
+		"name":      "list_channels",
 		"arguments": map[string]any{},
 	})
 
@@ -476,10 +476,10 @@ func TestSSE_E2E_ToolsCall_QueryCosts(t *testing.T) {
 	decodeResult(t, resp, &result)
 
 	if result.IsError {
-		t.Error("query_costs returned isError=true")
+		t.Error("list_channels returned isError=true")
 	}
 	if len(result.Content) == 0 {
-		t.Error("query_costs returned no content")
+		t.Error("list_channels returned no content")
 	}
 }
 
