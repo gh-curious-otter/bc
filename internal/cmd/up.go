@@ -20,7 +20,7 @@ import (
 var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start bc services",
-	Long: `Start bc-sql, bc-stats, bc-<id>-daemon, and playwright-visible in Docker.
+	Long: `Start bc-sql, bc-stats, bc-<id>-daemon, and bc-playwright in Docker.
 
 Examples:
   bc up
@@ -130,8 +130,8 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		fmt.Println(ui.GreenText("ready"))
 	}
 
-	// 6. playwright-visible — Playwright MCP server with Chromium + noVNC
-	if err := dockerRun(ctx, "playwright-visible", []string{
+	// 6. bc-playwright — Playwright MCP server with Chromium + noVNC
+	if err := dockerRun(ctx, "bc-playwright", []string{
 		"-p", "3100:3000",
 		"-p", "6080:6080",
 		"-v", sharedVolume + ":/tmp/bc-shared",
