@@ -438,7 +438,7 @@ type dockerStatsEntry struct {
 
 // runStatsCollector periodically samples system and agent metrics into TimescaleDB.
 // It shells out to `docker stats --no-stream` every 30s, classifies containers as
-// system (bc-sql, bc-stats, *-daemon) or agent (bc-*-agent-*), and records resource
+// system (bc-db, *-daemon) or agent (bc-*-agent-*), and records resource
 // usage. Channel metrics come from the channel service.
 func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService, channels *bcchannel.ChannelService, ws *bcworkspace.Workspace) {
 	ticker := time.NewTicker(30 * time.Second)
@@ -611,9 +611,9 @@ func collectDockerStats(ctx context.Context) []dockerStatsEntry {
 	return entries
 }
 
-// isSystemContainer returns true for bc-sql, bc-stats, or *-daemon containers.
+// isSystemContainer returns true for bc-db or *-daemon containers.
 func isSystemContainer(name string) bool {
-	if name == "bc-sql" || name == "bc-stats" {
+	if name == "bc-db" {
 		return true
 	}
 	return strings.Contains(name, "-daemon")

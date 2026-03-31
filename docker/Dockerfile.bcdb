@@ -1,0 +1,13 @@
+# bcdb — unified TimescaleDB for bc workspace (relational + time-series)
+# Usage: docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
+
+FROM timescale/timescaledb:2.19.1-pg17
+
+ENV POSTGRES_USER=bc \
+    POSTGRES_DB=bc
+
+COPY docker/bcdb/init.sql /docker-entrypoint-initdb.d/01-init.sql
+
+EXPOSE 5432
+HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=3 \
+    CMD pg_isready -U bc -d bc

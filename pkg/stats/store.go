@@ -12,8 +12,8 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
-// DefaultStatsDSN is the connection string for the bcstats TimescaleDB container.
-const DefaultStatsDSN = "postgres://bc:bc@localhost:5433/bcstats"
+// DefaultStatsDSN is the connection string for the unified bc-db TimescaleDB container.
+const DefaultStatsDSN = "postgres://bc:bc@localhost:5432/bc"
 
 // StatsDSN returns the TimescaleDB connection string.
 func StatsDSN() string {
@@ -72,7 +72,7 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 	}
 
 	stmts := []string{
-		// System metrics — bc-daemon, bc-sql, bc-stats containers
+		// System metrics — bc-daemon, bc-db containers
 		`CREATE TABLE IF NOT EXISTS system_metrics (
 			time            TIMESTAMPTZ NOT NULL,
 			system_name     TEXT NOT NULL,

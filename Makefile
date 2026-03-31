@@ -2,7 +2,7 @@
 #
 # Structure:
 #   build-local-*    Host machine binaries (Go, TS)
-#   build-docker-*   Docker images (bcd, sql, stats, agents)
+#   build-docker-*   Docker images (bcd, db, agents)
 #   test-*           Tests
 #   lint-*           Linters
 #   check-*          Quality gates (lint + test)
@@ -28,7 +28,7 @@
 .PHONY: build-local-bc build-local-bcd test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
 .PHONY: release-local-bc release-local-bcd install-local-bc
 # Docker
-.PHONY: build-docker-daemon build-docker-sql build-docker-stats
+.PHONY: build-docker-daemon build-docker-db
 .PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-agent-infra build-docker-playwright stop-docker-playwright run-docker-playwright
 # TS
 .PHONY: build-local-tui build-local-web build-local-landing
@@ -140,12 +140,6 @@ build-docker-daemon: ## Build bcd Docker image
 
 build-docker-db: ## Build bc-db (unified TimescaleDB) Docker image
 	docker build -t $(REGISTRY)-bcdb:$(IMAGE_TAG) -f docker/Dockerfile.bcdb .
-
-build-docker-sql: ## Build bc-sql (legacy, use build-docker-db instead)
-	docker build -t $(REGISTRY)-bcsql:$(IMAGE_TAG) -f docker/Dockerfile.bcsql .
-
-build-docker-stats: ## Build bc-stats (legacy, use build-docker-db instead)
-	docker build -t $(REGISTRY)-bcstats:$(IMAGE_TAG) -f docker/Dockerfile.bcstats .
 
 build-docker-agent-base: ## Build agent base image
 	docker build -t $(REGISTRY)-agent-base:$(IMAGE_TAG) -f docker/Dockerfile.base .
@@ -274,8 +268,7 @@ ci-local: ## Full CI pipeline locally
 ci-docker: ## Build all Docker images
 	@printf "\n$(_BOLD)bc Docker CI$(_RESET)\n\n"
 	@FAIL=0; \
-	printf "$(_CYAN)[docker]$(_RESET) sql\n";      $(MAKE) --no-print-directory build-docker-sql       || FAIL=1; \
-	printf "$(_CYAN)[docker]$(_RESET) stats\n";    $(MAKE) --no-print-directory build-docker-stats     || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) db\n";       $(MAKE) --no-print-directory build-docker-db         || FAIL=1; \
 	printf "$(_CYAN)[docker]$(_RESET) bcd\n";      $(MAKE) --no-print-directory build-docker-daemon       || FAIL=1; \
 	printf "$(_CYAN)[docker]$(_RESET) agents\n";   $(MAKE) --no-print-directory build-docker-agents    || FAIL=1; \
 	printf "\n"; \
