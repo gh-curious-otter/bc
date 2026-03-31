@@ -611,9 +611,9 @@ func collectDockerStats(ctx context.Context) []dockerStatsEntry {
 	return entries
 }
 
-// isSystemContainer returns true for bc-db or *-daemon containers.
+// isSystemContainer returns true for bc-db, bc-playwright, or *-daemon containers.
 func isSystemContainer(name string) bool {
-	if name == "bc-db" {
+	if name == "bc-db" || name == "bc-playwright" {
 		return true
 	}
 	return strings.Contains(name, "-daemon")
