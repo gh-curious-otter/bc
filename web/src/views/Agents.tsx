@@ -89,7 +89,7 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
             setOpen(false);
             setError(null);
           }}
-          className="text-bc-muted hover:text-bc-fg text-sm"
+          className="text-bc-muted hover:text-bc-text text-sm"
         >
           Cancel
         </button>
@@ -105,7 +105,7 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="auto-generated"
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg placeholder:text-bc-muted/50 focus:outline-none focus:ring-1 focus:ring-bc-accent"
+            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text placeholder:text-bc-muted/50 focus:outline-none focus:ring-1 focus:ring-bc-accent"
           />
         </div>
 
@@ -114,7 +114,7 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
           <select
             value={form.role}
             onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent"
+            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
           >
             <option value="">Select role...</option>
             {roles.map((r) => (
@@ -130,7 +130,7 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
           <select
             value={form.tool}
             onChange={(e) => setForm((f) => ({ ...f, tool: e.target.value }))}
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent"
+            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
           >
             <option value="">Default</option>
             <option value="claude">claude</option>
@@ -150,7 +150,7 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
             onChange={(e) =>
               setForm((f) => ({ ...f, runtime: e.target.value }))
             }
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent"
+            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
           >
             <option value="">Default</option>
             <option value="tmux">tmux</option>
@@ -224,7 +224,7 @@ function InlineAgentName({
         disabled={saving}
         autoFocus
         onClick={(e) => e.stopPropagation()}
-        className="px-1 py-0.5 text-sm font-medium rounded border border-bc-accent bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent w-32"
+        className="px-1 py-0.5 text-sm font-medium rounded border border-bc-accent bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent w-32"
         aria-label="Rename agent"
       />
     );
@@ -292,7 +292,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
             setConfirming(null);
           }}
           aria-label="Cancel delete"
-          className="px-1.5 py-0.5 text-xs rounded bg-bc-border/50 text-bc-muted hover:text-bc-fg focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          className="px-1.5 py-0.5 text-xs rounded bg-bc-border/50 text-bc-muted hover:text-bc-text focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         >
           No
         </button>
@@ -580,9 +580,26 @@ export function Agents() {
                       </span>
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
-                      <span className="text-bc-muted">
-                        {a.mcp_servers?.length || 0}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {(a.mcp_servers ?? []).length === 0 ? (
+                          <span className="text-bc-muted">u2014</span>
+                        ) : (a.mcp_servers ?? []).length <= 3 ? (
+                          (a.mcp_servers ?? []).map((s) => (
+                            <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
+                              {s.replace(/^mcp__/, "")}
+                            </span>
+                          ))
+                        ) : (
+                          <>
+                            {(a.mcp_servers ?? []).slice(0, 2).map((s) => (
+                              <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
+                                {s.replace(/^mcp__/, "")}
+                              </span>
+                            ))}
+                            <span className="text-[10px] text-bc-muted">+{(a.mcp_servers ?? []).length - 2}</span>
+                          </>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2">
                       <AgentActions agent={a} onDone={refresh} />
@@ -593,7 +610,7 @@ export function Agents() {
                         className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors focus:ring-2 focus:ring-bc-accent focus:outline-none ${
                           peekAgent === a.name
                             ? "bg-bc-accent/20 text-bc-accent"
-                            : "text-bc-muted hover:text-bc-fg hover:bg-bc-surface"
+                            : "text-bc-muted hover:text-bc-text hover:bg-bc-surface"
                         }`}
                         title={
                           peekAgent === a.name ? "Hide output" : "Peek output"

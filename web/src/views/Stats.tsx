@@ -203,7 +203,7 @@ function AgentOverview({
   onSelectAgent: (name: string | null) => void;
 }) {
   // Filter out infrastructure containers — only show actual agents
-  const INFRA_PREFIXES = ["bc-db", "bc-daemon", "bc-sql", "bc-stats", "bc-playwright", "bc-bcsql", "bc-bcstats"];
+  const INFRA_PREFIXES = ["bc-db", "bc-daemon", "bc-playwright"];
   const isInfra = (name: string) =>
     INFRA_PREFIXES.some((p) => name === p || name.startsWith(p + "-")) ||
     name.length <= 3; // filter truncated/garbage entries like "ght"

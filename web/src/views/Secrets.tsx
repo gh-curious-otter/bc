@@ -135,7 +135,7 @@ function EditSecretButton({
           }}
           placeholder="new value"
           autoFocus
-          className="px-2 py-1 text-xs rounded border border-bc-border bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent w-36"
+          className="px-2 py-1 text-xs rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent w-36"
           aria-label={`New value for ${name}`}
         />
         <button
