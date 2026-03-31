@@ -248,7 +248,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewEventHandler(svc.EventLog).Register(mux)
 	}
 	if svc.Gateway != nil {
-		handlers.NewGatewayHandler(svc.Gateway, svc.WS).Register(mux)
+		gh := handlers.NewGatewayHandler(svc.Gateway, svc.WS)
+		if svc.Channels != nil {
+			gh.SetChannelService(svc.Channels)
+		}
+		gh.Register(mux)
 	}
 	if svc.WS != nil {
 		handlers.NewRolesHandler(svc.WS).Register(mux)
