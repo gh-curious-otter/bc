@@ -68,8 +68,10 @@ type UpdateChannelReq struct {
 type HistoryOpts struct {
 	Since  *time.Time `json:"since,omitempty"`
 	Agent  string     `json:"agent,omitempty"`
+	Order  string     `json:"order,omitempty"`  // "asc" (default) or "desc"
 	Limit  int        `json:"limit,omitempty"`
 	Offset int        `json:"offset,omitempty"`
+	Before int        `json:"before,omitempty"` // cursor: messages before this ID
 }
 
 // ChannelService encapsulates channel business logic, wrapping the Store.
@@ -252,18 +254,37 @@ func (s *ChannelService) History(_ context.Context, ch string, opts HistoryOpts)
 		}
 	}
 
-	// Apply limit (take last N messages)
+	// Cursor-based pagination: filter entries before the given ID
+	if opts.Before > 0 && opts.Before <= len(filtered) {
+		filtered = filtered[:opts.Before-1]
+	}
+
+	// Apply limit (take last N messages for asc, first N for desc)
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 50
 	}
 	if len(filtered) > limit {
-		filtered = filtered[len(filtered)-limit:]
+		if opts.Order == "desc" {
+			// desc: take newest N (end of slice), then reverse
+			filtered = filtered[len(filtered)-limit:]
+		} else {
+			// asc: take last N
+			filtered = filtered[len(filtered)-limit:]
+		}
+	}
+
+	// Reverse for descending order
+	if opts.Order == "desc" {
+		for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
+			filtered[i], filtered[j] = filtered[j], filtered[i]
+		}
 	}
 
 	dtos := make([]MessageDTO, 0, len(filtered))
-	for _, entry := range filtered {
+	for i, entry := range filtered {
 		dtos = append(dtos, MessageDTO{
+			ID:        int64(i + 1),
 			Channel:   ch,
 			Sender:    entry.Sender,
 			Content:   entry.Message,

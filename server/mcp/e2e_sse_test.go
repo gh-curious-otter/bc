@@ -429,7 +429,7 @@ func TestSSE_E2E_ToolsList(t *testing.T) {
 	}
 	decodeResult(t, resp, &result)
 
-	wantNames := []string{"create_agent", "send_message", "report_status", "query_costs"}
+	wantNames := []string{"create_agent", "send_message", "send_file", "read_channel", "report_status", "query_costs"}
 	got := make(map[string]bool)
 	for _, tool := range result.Tools {
 		got[tool.Name] = true
