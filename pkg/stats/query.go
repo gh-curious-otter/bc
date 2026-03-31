@@ -245,6 +245,141 @@ func (s *Store) queryChannel(ctx context.Context, f ChannelFilter, tr TimeRange)
 	return result, rows.Err()
 }
 
+// AgentSummary combines resource metrics and token/cost totals for a single agent.
+type AgentSummary struct {
+	AgentName string `json:"agent_name"`
+	Role      string `json:"role"`
+	Tool      string `json:"tool"`
+	Runtime   string `json:"runtime"`
+	State     string `json:"state"`
+
+	// Resource metrics (latest sample)
+	CPU    CPUSummary    `json:"cpu"`
+	Memory MemorySummary `json:"memory"`
+	Disk   DiskSummary   `json:"disk"`
+	Net    NetSummary    `json:"network"`
+
+	// Token and cost totals (over period)
+	Tokens TokenSummary        `json:"tokens"`
+	Cost   CostSummary         `json:"cost"`
+	Models []ModelCostBreakdown `json:"models,omitempty"`
+}
+
+// CPUSummary holds aggregated CPU metrics.
+type CPUSummary struct {
+	AvgPercent float64 `json:"avg_percent"`
+	MaxPercent float64 `json:"max_percent"`
+}
+
+// MemorySummary holds aggregated memory metrics.
+type MemorySummary struct {
+	AvgBytes   int64   `json:"avg_bytes"`
+	MaxBytes   int64   `json:"max_bytes"`
+	AvgPercent float64 `json:"avg_percent"`
+}
+
+// DiskSummary holds aggregated disk I/O metrics.
+type DiskSummary struct {
+	ReadBytes  int64 `json:"read_bytes"`
+	WriteBytes int64 `json:"write_bytes"`
+}
+
+// NetSummary holds aggregated network metrics.
+type NetSummary struct {
+	RxBytes int64 `json:"rx_bytes"`
+	TxBytes int64 `json:"tx_bytes"`
+}
+
+// TokenSummary holds aggregated token usage.
+type TokenSummary struct {
+	Input       int64 `json:"input"`
+	Output      int64 `json:"output"`
+	CacheRead   int64 `json:"cache_read"`
+	CacheCreate int64 `json:"cache_create"`
+}
+
+// CostSummary holds aggregated cost data.
+type CostSummary struct {
+	TotalUSD float64 `json:"total_usd"`
+}
+
+// ModelCostBreakdown shows cost per model.
+type ModelCostBreakdown struct {
+	Model        string  `json:"model"`
+	CostUSD      float64 `json:"cost_usd"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+}
+
+// QueryAgentSummary returns a combined resource + token + cost summary for a single agent.
+// It runs two queries: one for resource metrics (avg/max over period) and one for token totals.
+func (s *Store) QueryAgentSummary(ctx context.Context, agentName string, tr TimeRange) (*AgentSummary, error) {
+	summary := &AgentSummary{AgentName: agentName}
+
+	// Query resource metrics (aggregated over period)
+	resQuery := `SELECT
+		COALESCE(MAX(role), ''), COALESCE(MAX(tool), ''), COALESCE(MAX(runtime), ''), COALESCE(MAX(state), ''),
+		COALESCE(AVG(cpu_percent), 0), COALESCE(MAX(cpu_percent), 0),
+		COALESCE(AVG(mem_used_bytes)::BIGINT, 0), COALESCE(MAX(mem_used_bytes)::BIGINT, 0), COALESCE(AVG(mem_percent), 0),
+		COALESCE(AVG(net_rx_bytes)::BIGINT, 0), COALESCE(AVG(net_tx_bytes)::BIGINT, 0),
+		COALESCE(AVG(disk_read_bytes)::BIGINT, 0), COALESCE(AVG(disk_write_bytes)::BIGINT, 0)
+	FROM agent_metrics
+	WHERE agent_name = $1 AND time >= $2 AND time < $3`
+
+	err := s.db.QueryRowContext(ctx, resQuery, agentName, tr.From, tr.To).Scan(
+		&summary.Role, &summary.Tool, &summary.Runtime, &summary.State,
+		&summary.CPU.AvgPercent, &summary.CPU.MaxPercent,
+		&summary.Memory.AvgBytes, &summary.Memory.MaxBytes, &summary.Memory.AvgPercent,
+		&summary.Net.RxBytes, &summary.Net.TxBytes,
+		&summary.Disk.ReadBytes, &summary.Disk.WriteBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query agent resource summary: %w", err)
+	}
+
+	// Query token totals (aggregated over period)
+	tokenQuery := `SELECT
+		COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0),
+		COALESCE(SUM(cache_read), 0), COALESCE(SUM(cache_create), 0),
+		COALESCE(SUM(cost_usd), 0)
+	FROM token_metrics
+	WHERE agent_name = $1 AND time >= $2 AND time < $3`
+
+	err = s.db.QueryRowContext(ctx, tokenQuery, agentName, tr.From, tr.To).Scan(
+		&summary.Tokens.Input, &summary.Tokens.Output,
+		&summary.Tokens.CacheRead, &summary.Tokens.CacheCreate,
+		&summary.Cost.TotalUSD,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query agent token summary: %w", err)
+	}
+
+	// Query per-model cost breakdown
+	modelQuery := `SELECT model, SUM(cost_usd), SUM(input_tokens), SUM(output_tokens)
+	FROM token_metrics
+	WHERE agent_name = $1 AND time >= $2 AND time < $3
+	GROUP BY model ORDER BY SUM(cost_usd) DESC`
+
+	rows, err := s.db.QueryContext(ctx, modelQuery, agentName, tr.From, tr.To)
+	if err != nil {
+		return nil, fmt.Errorf("query agent model breakdown: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+
+	for rows.Next() {
+		var m ModelCostBreakdown
+		if err := rows.Scan(&m.Model, &m.CostUSD, &m.InputTokens, &m.OutputTokens); err != nil {
+			return nil, fmt.Errorf("scan model breakdown: %w", err)
+		}
+		summary.Models = append(summary.Models, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return summary, nil
+}
+
 // QueryLatestAgentMetrics returns the most recent metric sample for each agent.
 // Used by the agents list table to show current CPU/Mem without N+1 queries.
 func (s *Store) QueryLatestAgentMetrics(ctx context.Context) ([]AgentMetric, error) {
