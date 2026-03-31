@@ -28,6 +28,7 @@ import (
 
 	bcagent "github.com/gh-curious-otter/bc/pkg/agent"
 	bcchannel "github.com/gh-curious-otter/bc/pkg/channel"
+	bcdb "github.com/gh-curious-otter/bc/pkg/db"
 	bccontainer "github.com/gh-curious-otter/bc/pkg/container"
 	bccost "github.com/gh-curious-otter/bc/pkg/cost"
 	bccron "github.com/gh-curious-otter/bc/pkg/cron"
@@ -84,7 +85,17 @@ func run(addr, wsRoot, corsOrigin string) error {
 		}
 	}
 
-	pidPath := filepath.Join(ws.RootDir, ".bc", "bcd.pid")
+	// Set up shared database connection for all stores.
+	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDB(ws.RootDir)
+	if dbErr != nil {
+		log.Warn("failed to open shared workspace db", "error", dbErr)
+	} else {
+		bcdb.SetShared(sharedDB, sharedDriver)
+		defer bcdb.CloseShared() //nolint:errcheck
+		log.Info("shared database ready", "driver", sharedDriver)
+	}
+
+	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
 	if err := writePID(pidPath); err != nil {
 		log.Warn("failed to write PID file", "path", pidPath, "error", err)
 	}

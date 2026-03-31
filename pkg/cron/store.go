@@ -19,10 +19,20 @@ type Store struct {
 	path string
 }
 
-// Open opens (or creates) the cron database for the given workspace.
+// Open opens (or creates) the cron store for the given workspace.
+// Uses the shared bc.db connection if available, falls back to cron.db.
 func Open(workspacePath string) (*Store, error) {
-	path := filepath.Join(workspacePath, ".bc", "cron.db")
+	// Try shared database first
+	if shared := db.SharedWrapped(); shared != nil {
+		s := &Store{db: shared}
+		if err := s.initSchema(); err != nil {
+			return nil, fmt.Errorf("init cron schema on shared db: %w", err)
+		}
+		return s, nil
+	}
 
+	// Fallback: open own database
+	path := filepath.Join(workspacePath, ".bc", "cron.db")
 	database, err := db.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open cron database: %w", err)

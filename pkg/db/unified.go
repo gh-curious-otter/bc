@@ -37,6 +37,17 @@ func Shared() *sql.DB {
 	return sharedDB
 }
 
+// SharedWrapped returns the shared database as a *DB wrapper.
+// Returns nil if no shared connection is set.
+func SharedWrapped() *DB {
+	sharedMu.RLock()
+	defer sharedMu.RUnlock()
+	if sharedDB == nil {
+		return nil
+	}
+	return &DB{DB: sharedDB}
+}
+
 // SharedDriver returns "sqlite" or "postgres".
 func SharedDriver() string {
 	sharedMu.RLock()

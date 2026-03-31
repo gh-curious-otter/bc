@@ -42,7 +42,17 @@ type Store struct {
 }
 
 // NewStore creates a new MCP store for the given workspace path.
+// Uses shared bc.db if available, falls back to mcp.db.
 func NewStore(workspacePath string) (*Store, error) {
+	// Try shared database first
+	if shared := db.SharedWrapped(); shared != nil {
+		s := &Store{db: shared}
+		if err := s.initSchema(); err != nil {
+			return nil, fmt.Errorf("init mcp schema on shared db: %w", err)
+		}
+		return s, nil
+	}
+
 	dbPath := filepath.Join(workspacePath, ".bc", "mcp.db")
 	d, err := db.Open(dbPath)
 	if err != nil {
