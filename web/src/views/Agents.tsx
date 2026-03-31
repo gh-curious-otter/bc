@@ -158,7 +158,7 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
         </div>
       </div>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-bc-error">{error}</p>}
 
       <div className="flex justify-end">
         <button
@@ -271,14 +271,14 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
         className="inline-flex items-center gap-1"
         onClick={(e) => e.stopPropagation()}
       >
-        <span className="text-xs text-red-400 mr-1">Delete?</span>
+        <span className="text-xs text-bc-error mr-1">Delete?</span>
         <button
           onClick={(e) => {
             e.stopPropagation();
             act(() => api.deleteAgent(agent.name));
           }}
           disabled={busy}
-          className="px-1.5 py-0.5 text-xs rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-50"
+          className="px-1.5 py-0.5 text-xs rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50"
         >
           {busy ? "..." : "Yes"}
         </button>
@@ -332,7 +332,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           setConfirming("delete");
         }}
         title="Delete agent"
-        className="px-1.5 py-0.5 text-xs rounded bg-red-500/10 text-red-400/70 hover:bg-red-500/20 hover:text-red-400"
+        className="px-1.5 py-0.5 text-xs rounded bg-bc-error/10 text-bc-error/70 hover:bg-bc-error/20 hover:text-bc-error"
       >
         Del
       </button>
@@ -472,7 +472,7 @@ export function Agents() {
             <button
               onClick={handleStopAll}
               disabled={stoppingAll}
-              className="px-3 py-1.5 text-sm rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+              className="px-3 py-1.5 text-sm rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-bc-error"
               aria-label="Stop all agents"
             >
               {stoppingAll ? "Stopping..." : "Stop All"}

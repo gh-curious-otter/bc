@@ -130,7 +130,7 @@ function StateDot({ state }: { state: string }) {
   if (state === "stuck")
     return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />;
   if (state === "error" || state === "stopped")
-    return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-500/60" />;
+    return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-bc-error/60" />;
   return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-zinc-500/40" />;
 }
 
@@ -143,8 +143,8 @@ function ToolDot({ status }: { status: ToolNode["status"] }) {
       </span>
     );
   if (status === "failed")
-    return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-red-500" />;
-  return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-emerald-500" />;
+    return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-bc-error" />;
+  return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-bc-success" />;
 }
 
 /* ── Elapsed Timer ─────────────────────────────────────────────────── */
@@ -194,7 +194,7 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
 
       {node.error && (
         <div
-          className="text-[11px] text-red-400/80 font-mono px-3 py-0.5"
+          className="text-[11px] text-bc-error/80 font-mono px-3 py-0.5"
           style={{ paddingLeft: `${indent + 40}px` }}
         >
           {node.error.length > 120 ? node.error.slice(0, 117) + "..." : node.error}
@@ -214,7 +214,7 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
 
       {expanded && node.fullOutput && (
         <div
-          className="text-[11px] text-emerald-600 font-mono px-3 py-1 bg-zinc-900/50 mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
+          className="text-[11px] text-bc-success font-mono px-3 py-1 bg-zinc-900/50 mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
           style={{ marginLeft: `${indent + 12}px` }}
         >
           <pre className="whitespace-pre-wrap break-all">
@@ -590,7 +590,7 @@ export function Dashboard() {
             label="Online"
             value={String(activeAgents.length)}
             sub={`${data.agents.length} total`}
-            accent="text-emerald-400"
+            accent="text-bc-success"
           />
           <SummaryCard
             label="Working"

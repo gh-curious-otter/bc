@@ -180,17 +180,17 @@ function GatewaysSection({ config }: { config: SettingsConfig }) {
   return (
     <Section title="Gateways">
       <Field label="Telegram">
-        <span className={`text-sm ${gw.telegram?.enabled ? "text-green-400" : "text-bc-muted"}`}>
+        <span className={`text-sm ${gw.telegram?.enabled ? "text-bc-success" : "text-bc-muted"}`}>
           {gw.telegram?.enabled ? "enabled" : "disabled"}
         </span>
       </Field>
       <Field label="Discord">
-        <span className={`text-sm ${gw.discord?.enabled ? "text-green-400" : "text-bc-muted"}`}>
+        <span className={`text-sm ${gw.discord?.enabled ? "text-bc-success" : "text-bc-muted"}`}>
           {gw.discord?.enabled ? "enabled" : "disabled"}
         </span>
       </Field>
       <Field label="Slack">
-        <span className={`text-sm ${gw.slack?.enabled ? "text-green-400" : "text-bc-muted"}`}>
+        <span className={`text-sm ${gw.slack?.enabled ? "text-bc-success" : "text-bc-muted"}`}>
           {gw.slack?.enabled ? "enabled" : "disabled"}
         </span>
       </Field>

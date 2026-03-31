@@ -39,9 +39,9 @@ function CostCard({
 }
 
 function progressColor(pct: number): string {
-  if (pct >= 80) return "bg-red-500";
-  if (pct >= 50) return "bg-yellow-500";
-  return "bg-emerald-500";
+  if (pct >= 80) return "bg-bc-error";
+  if (pct >= 50) return "bg-bc-warning";
+  return "bg-bc-success";
 }
 
 function AgentBreakdown({
@@ -328,10 +328,10 @@ function AddBudgetForm({ onCreated }: { onCreated: () => void }) {
           {status.type === "saving" ? "Adding..." : "Add Budget"}
         </button>
         {status.type === "success" && (
-          <span className="text-xs text-green-400">Budget added</span>
+          <span className="text-xs text-bc-success">Budget added</span>
         )}
         {status.type === "error" && (
-          <span className="text-xs text-red-400">{status.message}</span>
+          <span className="text-xs text-bc-error">{status.message}</span>
         )}
       </div>
     </form>
@@ -366,7 +366,7 @@ function BudgetDeleteButton({
           type="button"
           onClick={handleDelete}
           disabled={deleting}
-          className="px-2 py-1 rounded bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+          className="px-2 py-1 rounded bg-bc-error text-bc-bg text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
         >
           {deleting ? "Deleting..." : "Confirm"}
         </button>
@@ -386,7 +386,7 @@ function BudgetDeleteButton({
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-red-400 hover:border-red-400/50 transition-colors"
+      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-error hover:border-bc-error/50 transition-colors"
     >
       Delete
     </button>
@@ -425,7 +425,7 @@ function BudgetList({
                   {b.period}
                 </span>
                 {b.hard_stop && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
+                  <span className="text-xs px-2 py-0.5 rounded bg-bc-error/20 text-bc-error">
                     Hard Stop
                   </span>
                 )}

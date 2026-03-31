@@ -27,7 +27,7 @@ function ToggleSwitch({
       }}
       className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-bc-accent/50 ${
         loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-      } ${enabled ? "bg-green-500" : "bg-bc-border"}`}
+      } ${enabled ? "bg-bc-success" : "bg-bc-border"}`}
     >
       <span
         className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
@@ -51,7 +51,7 @@ function DeleteConfirmButton({
   if (confirming) {
     return (
       <span className="inline-flex gap-1.5 items-center">
-        <span className="text-xs text-red-400">Delete {name}?</span>
+        <span className="text-xs text-bc-error">Delete {name}?</span>
         <button
           type="button"
           disabled={deleting}
@@ -60,7 +60,7 @@ function DeleteConfirmButton({
             setDeleting(true);
             onDelete();
           }}
-          className="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-50"
+          className="text-xs px-1.5 py-0.5 rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50"
         >
           {deleting ? "..." : "Yes"}
         </button>
@@ -85,7 +85,7 @@ function DeleteConfirmButton({
         e.stopPropagation();
         setConfirming(true);
       }}
-      className="text-xs px-2 py-0.5 rounded bg-bc-border/30 text-bc-muted hover:bg-red-500/20 hover:text-red-400 transition-colors"
+      className="text-xs px-2 py-0.5 rounded bg-bc-border/30 text-bc-muted hover:bg-bc-error/20 hover:text-bc-error transition-colors"
     >
       Delete
     </button>
