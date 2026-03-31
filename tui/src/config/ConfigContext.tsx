@@ -18,7 +18,6 @@ const DEFAULT_PERFORMANCE_CONFIG: PerformanceConfig = {
   poll_interval_costs: 5000,
   poll_interval_status: 2000,
   poll_interval_logs: 3000,
-  poll_interval_teams: 10000,
   poll_interval_demons: 5000,
   poll_interval_dashboard: 30000, // Dashboard aggregates data, uses slower interval
   cache_ttl_tmux: 2000,

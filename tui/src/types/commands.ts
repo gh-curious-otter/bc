@@ -154,14 +154,6 @@ export const COMMAND_REGISTRY: CommandCategory[] = [
         usage: 'bc role create <role-name>',
         readOnly: false,
       },
-      {
-        name: 'team list',
-        category: 'Configuration',
-        description: 'List agent teams',
-        usage: 'bc team list',
-        readOnly: true,
-        flags: ['--json'],
-      },
     ],
   },
   {
