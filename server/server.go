@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/attachment"
 	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/cron"
@@ -251,6 +252,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
 		handlers.NewSettingsHandler(svc.WS).Register(mux)
+
+		// File upload/download for channel attachments
+		fileStore := attachment.NewStore(svc.WS.StateDir())
+		handlers.NewFileHandler(fileStore).Register(mux)
 	}
 
 	// Stats endpoints (always registered; nil-safe internally)
