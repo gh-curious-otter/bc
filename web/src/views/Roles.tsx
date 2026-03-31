@@ -64,7 +64,7 @@ function CreateRoleForm({ onCreated }: { onCreated: () => void }) {
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 transition-opacity"
+          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
           aria-label="Create new role"
         >
           + New Role
@@ -88,7 +88,7 @@ function CreateRoleForm({ onCreated }: { onCreated: () => void }) {
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="text-xs text-bc-muted hover:text-bc-text transition-colors"
+          className="text-xs text-bc-muted hover:text-bc-text transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg rounded"
           aria-label="Cancel creating role"
         >
           Cancel
@@ -165,7 +165,7 @@ function CreateRoleForm({ onCreated }: { onCreated: () => void }) {
         <button
           type="submit"
           disabled={status.type === "saving" || !name.trim()}
-          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         >
           {status.type === "saving" ? "Creating..." : "Create Role"}
         </button>
@@ -208,7 +208,7 @@ function DeleteButton({
           type="button"
           onClick={handleDelete}
           disabled={deleting}
-          className="px-2 py-1 rounded bg-bc-error text-bc-bg text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+          className="px-2 py-1 rounded bg-bc-error text-bc-bg text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
           aria-label={`Confirm delete role ${name}`}
         >
           {deleting ? "Deleting..." : "Confirm"}
@@ -217,7 +217,7 @@ function DeleteButton({
           type="button"
           onClick={() => setConfirming(false)}
           disabled={deleting}
-          className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors"
+          className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
           aria-label="Cancel delete"
         >
           Cancel
@@ -230,7 +230,7 @@ function DeleteButton({
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-error hover:border-bc-error/50 transition-colors"
+      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-error hover:border-bc-error/50 transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
       aria-label={`Delete role ${name}`}
     >
       Delete
@@ -391,7 +391,7 @@ function RoleCard({
   return (
     <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-3">
       <div
-        className="flex items-center justify-between cursor-pointer"
+        className="flex items-center justify-between cursor-pointer focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg rounded"
         onClick={() => setExpanded(!expanded)}
         role="button"
         tabIndex={0}

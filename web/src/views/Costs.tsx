@@ -323,7 +323,7 @@ function AddBudgetForm({ onCreated }: { onCreated: () => void }) {
             !limitUsd ||
             parseFloat(limitUsd) <= 0
           }
-          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         >
           {status.type === "saving" ? "Adding..." : "Add Budget"}
         </button>
@@ -366,7 +366,8 @@ function BudgetDeleteButton({
           type="button"
           onClick={handleDelete}
           disabled={deleting}
-          className="px-2 py-1 rounded bg-bc-error text-bc-bg text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+          className="px-2 py-1 rounded bg-bc-error text-bc-bg text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          aria-label={`Confirm delete budget ${scope}`}
         >
           {deleting ? "Deleting..." : "Confirm"}
         </button>
@@ -374,7 +375,8 @@ function BudgetDeleteButton({
           type="button"
           onClick={() => setConfirming(false)}
           disabled={deleting}
-          className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors"
+          className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          aria-label="Cancel delete"
         >
           Cancel
         </button>
@@ -386,7 +388,8 @@ function BudgetDeleteButton({
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-error hover:border-bc-error/50 transition-colors"
+      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-error hover:border-bc-error/50 transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+      aria-label={`Delete budget ${scope}`}
     >
       Delete
     </button>

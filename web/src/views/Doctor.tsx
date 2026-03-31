@@ -109,8 +109,9 @@ function FixButton({ fix }: { fix: string }) {
       <code className="text-xs text-bc-accent">{fix}</code>
       <button
         onClick={handleCopy}
-        className="text-xs px-2 py-0.5 rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 transition-colors shrink-0"
+        className="text-xs px-2 py-0.5 rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         title="Copy fix command to clipboard"
+        aria-label="Copy fix command to clipboard"
       >
         {copied ? "Copied!" : "Fix"}
       </button>

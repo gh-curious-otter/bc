@@ -52,7 +52,8 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 transition-opacity"
+        className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+        aria-label="Create new cron job"
       >
         + New Job
       </button>
@@ -109,7 +110,7 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
             !schedule.trim() ||
             !command.trim()
           }
-          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         >
           {status.type === "saving" ? "Creating..." : "Create"}
         </button>
@@ -119,7 +120,7 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
             reset();
             setOpen(false);
           }}
-          className="px-4 py-2 rounded border border-bc-border text-bc-muted text-sm hover:text-bc-text transition-colors"
+          className="px-4 py-2 rounded border border-bc-border text-bc-muted text-sm hover:text-bc-text transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         >
           Cancel
         </button>
@@ -285,7 +286,8 @@ function JobActions({
           );
         }}
         disabled={busy !== null}
-        className={`${btnCls} ${job.enabled ? "bg-bc-warning/10 text-bc-warning hover:bg-bc-warning/20" : "bg-bc-success/10 text-bc-success hover:bg-bc-success/20"}`}
+        aria-label={job.enabled ? `Disable cron job ${job.name}` : `Enable cron job ${job.name}`}
+        className={`${btnCls} focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg ${job.enabled ? "bg-bc-warning/10 text-bc-warning hover:bg-bc-warning/20" : "bg-bc-success/10 text-bc-success hover:bg-bc-success/20"}`}
       >
         {busy === "toggle" ? "..." : job.enabled ? "Disable" : "Enable"}
       </button>
@@ -297,7 +299,8 @@ function JobActions({
             act("run", () => api.runCron(job.name));
           }}
           disabled={busy !== null}
-          className={`${btnCls} bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20`}
+          aria-label={`Run cron job ${job.name} now`}
+          className={`${btnCls} bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg`}
         >
           {busy === "run" ? "..." : "Run"}
         </button>
@@ -310,7 +313,8 @@ function JobActions({
             act("delete", () => api.deleteCron(job.name));
         }}
         disabled={busy !== null}
-        className={`${btnCls} bg-bc-error/10 text-bc-error hover:bg-bc-error/20`}
+        aria-label={`Delete cron job ${job.name}`}
+        className={`${btnCls} bg-bc-error/10 text-bc-error hover:bg-bc-error/20 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg`}
       >
         {busy === "delete" ? "..." : "Delete"}
       </button>
