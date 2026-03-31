@@ -791,10 +791,10 @@ func TestInitV2Format(t *testing.T) {
 		t.Error("Config is nil")
 	}
 
-	// Check settings.json was created
-	tomlPath := filepath.Join(dir, ".bc", "settings.json")
-	if _, err := os.Stat(tomlPath); err != nil {
-		t.Errorf("settings.json not created: %v", err)
+	// Check settings.json was created in the state directory
+	settingsPath := filepath.Join(ws.StateDir(), "settings.json")
+	if _, err := os.Stat(settingsPath); err != nil {
+		t.Errorf("settings.json not created at %s: %v", settingsPath, err)
 	}
 
 	// Check RoleManager is initialized with a store

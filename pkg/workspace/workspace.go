@@ -40,19 +40,27 @@ import (
 
 // Workspace represents an active workspace.
 type Workspace struct {
-	Config      *Config      // TOML config
+	Config      *Config      // JSON config
 	RoleManager *RoleManager // Role file manager
-	RootDir     string
+	RootDir     string       // Project root directory
+	stateDir    string       // State directory (~/.bc/workspaces/<id>/ or legacy .bc/)
 }
 
-// Init initializes a new workspace with TOML config.
+// Init initializes a new workspace. State is stored under ~/.bc/workspaces/<id>/.
 func Init(rootDir string) (*Workspace, error) {
 	absRoot, err := filepath.Abs(rootDir)
 	if err != nil {
 		return nil, err
 	}
 
-	stateDir := filepath.Join(absRoot, ".bc")
+	if err := EnsureBCHome(); err != nil {
+		return nil, err
+	}
+
+	stateDir, err := GlobalStateDir(absRoot)
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine state directory: %w", err)
+	}
 
 	dirs := []string{
 		stateDir,
@@ -86,6 +94,7 @@ func Init(rootDir string) (*Workspace, error) {
 
 	return &Workspace{
 		RootDir:     absRoot,
+		stateDir:    stateDir,
 		Config:      &cfg,
 		RoleManager: rm,
 	}, nil
@@ -100,16 +109,28 @@ func Load(rootDir string) (*Workspace, error) {
 		return nil, err
 	}
 
-	stateDir := filepath.Join(absRoot, ".bc")
+	// Try global state dir first (~/.bc/workspaces/<id>/)
+	stateDir, stateDirErr := GlobalStateDir(absRoot)
+	if stateDirErr != nil {
+		stateDir = filepath.Join(absRoot, ".bc") // fallback to legacy
+	}
 
-	// Load settings.json.
+	// Load settings.json — check global dir first, then legacy .bc/
 	jsonPath := filepath.Join(stateDir, "settings.json")
 	if _, statErr := os.Stat(jsonPath); statErr != nil {
-		// Check for v1 workspace.
-		if _, v1Err := os.Stat(filepath.Join(stateDir, "config.json")); v1Err == nil {
-			return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
+		// Try legacy path
+		legacyDir := filepath.Join(absRoot, ".bc")
+		legacyPath := filepath.Join(legacyDir, "settings.json")
+		if _, legacyErr := os.Stat(legacyPath); legacyErr == nil {
+			stateDir = legacyDir
+			jsonPath = legacyPath
+		} else {
+			// Check for v1 workspace
+			if _, v1Err := os.Stat(filepath.Join(legacyDir, "config.json")); v1Err == nil {
+				return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
+			}
+			return nil, fmt.Errorf("not a bc workspace (no settings.json found in %s or %s)", stateDir, legacyDir)
 		}
-		return nil, fmt.Errorf("not a bc workspace (no .bc/settings.json found in %s)", absRoot)
 	}
 
 	cfg, loadErr := LoadConfig(jsonPath)
@@ -131,6 +152,7 @@ func Load(rootDir string) (*Workspace, error) {
 
 	return &Workspace{
 		RootDir:     absRoot,
+		stateDir:    stateDir,
 		Config:      cfg,
 		RoleManager: rm,
 	}, nil
@@ -164,8 +186,12 @@ func (w *Workspace) Save() error {
 	return w.Config.Save(configPath)
 }
 
-// StateDir returns the state directory path (.bc/).
+// StateDir returns the state directory path.
+// Uses the resolved state dir (global ~/.bc/workspaces/<id>/ or legacy .bc/).
 func (w *Workspace) StateDir() string {
+	if w.stateDir != "" {
+		return w.stateDir
+	}
 	return filepath.Join(w.RootDir, ".bc")
 }
 
