@@ -1,0 +1,13 @@
+# Playwright MCP server with pre-installed browsers
+# Extends playwright-visible to ensure browsers survive container restarts
+FROM playwright-visible
+
+# Pre-install Chromium browser (the default for Playwright)
+# This bakes the browser into the image layer so restarts don't need to re-download
+RUN npx playwright install chromium 2>/dev/null || true
+
+# Clean up stale X11 locks on startup
+COPY docker/playwright-entrypoint.sh /playwright-entrypoint.sh
+RUN chmod +x /playwright-entrypoint.sh
+
+ENTRYPOINT ["/playwright-entrypoint.sh"]
