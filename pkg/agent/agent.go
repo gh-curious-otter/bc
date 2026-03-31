@@ -2221,6 +2221,16 @@ func (m *Manager) QueryAgentStats(agentName string, limit int) ([]*AgentStatsRec
 	return m.store.QueryStats(agentName, limit)
 }
 
+// RecordAgentStats persists a single AgentStatsRecord to the SQLite store.
+// This is used by the background container metrics collector to save Docker
+// resource samples so the /api/agents/{name}/stats endpoint returns real data.
+func (m *Manager) RecordAgentStats(rec *AgentStatsRecord) error {
+	if m.store == nil {
+		return fmt.Errorf("no store available")
+	}
+	return m.store.SaveStats(rec)
+}
+
 // Close closes the SQLite store. Call when done with the manager.
 func (m *Manager) Close() error {
 	if m.store != nil {
