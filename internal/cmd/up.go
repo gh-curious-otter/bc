@@ -132,6 +132,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 
 	// 6. playwright-visible — Playwright MCP server with Chromium + noVNC
 	if err := dockerRun(ctx, "playwright-visible", []string{
+		"-p", "3100:3100",
 		"-p", "6080:6080",
 		"-v", sharedVolume + ":/tmp/bc-shared",
 		"-e", "DISPLAY=:99",
