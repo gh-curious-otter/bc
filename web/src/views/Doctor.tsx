@@ -65,17 +65,19 @@ export function Doctor() {
   }
   if (!report) return null;
 
-  const totalPassed = report.Categories.reduce(
+  const categories = report.Categories ?? [];
+
+  const totalPassed = categories.reduce(
     (n: number, c: DoctorCategory) =>
       n + c.Items.filter((i) => i.Severity === 0).length,
     0,
   );
-  const totalFailed = report.Categories.reduce(
+  const totalFailed = categories.reduce(
     (n: number, c: DoctorCategory) =>
       n + c.Items.filter((i) => i.Severity === 2).length,
     0,
   );
-  const totalWarnings = report.Categories.reduce(
+  const totalWarnings = categories.reduce(
     (n: number, c: DoctorCategory) =>
       n + c.Items.filter((i) => i.Severity === 1).length,
     0,
@@ -96,7 +98,7 @@ export function Doctor() {
         </div>
       </div>
 
-      {report.Categories.map((cat: DoctorCategory) => (
+      {categories.map((cat: DoctorCategory) => (
         <CategorySection key={cat.Name} category={cat} />
       ))}
     </div>
