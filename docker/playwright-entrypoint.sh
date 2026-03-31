@@ -18,6 +18,7 @@ websockify --web=/usr/share/novnc 6080 localhost:5900 2>/dev/null &
 # --port 3000         : SSE transport port
 # --no-sandbox        : required in Docker
 exec npx -y @playwright/mcp \
+  --browser chromium \
   --host 0.0.0.0 \
   --port 3000 \
   --allowed-hosts '*' \
