@@ -59,8 +59,9 @@ func (h *Hub) Stop() {
 }
 
 // Publish implements agent.EventPublisher.
+// Data is redacted before broadcast to prevent secrets from leaking to the UI.
 func (h *Hub) Publish(eventType string, data map[string]any) {
-	evt := Event{Type: eventType, Data: data}
+	evt := Event{Type: eventType, Data: RedactMap(data)}
 	msg, err := json.Marshal(evt)
 	if err != nil {
 		return
