@@ -92,8 +92,8 @@ networks:
 
 volumes:
   bc-sql-data:
-    name: bc-sql-data
+    external: true
   bc-stats-data:
-    name: bc-stats-data
+    external: true
   shared-tmp:
     name: bc-shared-tmp
