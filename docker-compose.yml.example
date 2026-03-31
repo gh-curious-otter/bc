@@ -86,11 +86,18 @@ services:
     container_name: bc-playwright
     ports:
       - "3100:3100"
+    entrypoint: ["/bin/sh", "-c", "rm -f /tmp/.X*-lock /tmp/.X11-unix/X* 2>/dev/null; exec /entrypoint.sh"]
     volumes:
       - shared-tmp:/tmp/bc-shared
     networks:
       - bc-net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3100/sse"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
 
 networks:
   bc-net:
