@@ -40,6 +40,24 @@ func definedTools() []Tool {
 			},
 		},
 		{
+			Name:        "read_channel",
+			Description: "Read recent messages from a bc channel",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"channel": map[string]any{
+						"type":        "string",
+						"description": "Channel name to read from",
+					},
+					"limit": map[string]any{
+						"type":        "number",
+						"description": "Number of messages to return (default 20, max 100)",
+					},
+				},
+				"required": []string{"channel"},
+			},
+		},
+		{
 			Name:        "send_message",
 			Description: "Send a message to a bc channel",
 			InputSchema: map[string]any{
@@ -238,6 +256,63 @@ func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*too
 type reportStatusArgs struct {
 	Agent string `json:"agent"`
 	Task  string `json:"task"`
+}
+
+// ─── read_channel ───────────────────────────────────────────────────────────
+
+func (s *Server) toolReadChannel(raw json.RawMessage) (*toolsCallResult, error) {
+	var args struct {
+		Channel string `json:"channel"`
+		Limit   int    `json:"limit"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if args.Channel == "" {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("channel is required")},
+			IsError: true,
+		}, nil
+	}
+	if args.Limit <= 0 {
+		args.Limit = 20
+	}
+	if args.Limit > 100 {
+		args.Limit = 100
+	}
+
+	if s.chans == nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("channel store not available")},
+			IsError: true,
+		}, nil
+	}
+
+	history, err := s.chans.GetHistory(args.Channel)
+	if err != nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("failed to read channel: %s", err))},
+			IsError: true,
+		}, nil
+	}
+
+	// Take last N entries (newest)
+	if len(history) > args.Limit {
+		history = history[len(history)-args.Limit:]
+	}
+
+	// Format as readable text
+	var sb strings.Builder
+	for _, entry := range history {
+		sb.WriteString(fmt.Sprintf("[%s] %s: %s\n", entry.Time.Format("15:04:05"), entry.Sender, entry.Message))
+	}
+	if sb.Len() == 0 {
+		sb.WriteString("(no messages)")
+	}
+
+	return &toolsCallResult{
+		Content: []ToolContent{textContent(sb.String())},
+	}, nil
 }
 
 // ─── send_file ──────────────────────────────────────────────────────────────

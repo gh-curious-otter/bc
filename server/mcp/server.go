@@ -315,6 +315,8 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) Response {
 		result, err = s.toolSendMessage(ctx, p.Arguments)
 	case "send_file":
 		result, err = s.toolSendFile(ctx, p.Arguments)
+	case "read_channel":
+		result, err = s.toolReadChannel(p.Arguments)
 	case "report_status":
 		result, err = s.toolReportStatus(p.Arguments)
 	case "query_costs":

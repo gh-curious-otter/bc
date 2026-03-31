@@ -137,7 +137,7 @@ func (h *ChannelHandler) history(w http.ResponseWriter, r *http.Request, name st
 		return
 	}
 	q := r.URL.Query()
-	opts := channel.HistoryOpts{Limit: 50}
+	opts := channel.HistoryOpts{Limit: 20}
 	if s := q.Get("limit"); s != "" {
 		if n, err := strconv.Atoi(s); err == nil && n > 0 {
 			opts.Limit = n
@@ -150,6 +150,14 @@ func (h *ChannelHandler) history(w http.ResponseWriter, r *http.Request, name st
 		}
 	}
 	opts.Offset = clampInt(opts.Offset, 0, 100000)
+	if q.Get("order") == "desc" {
+		opts.Order = "desc"
+	}
+	if s := q.Get("before"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			opts.Before = n // cursor: messages before this ID
+		}
+	}
 	msgs, err := h.svc.History(r.Context(), name, opts)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
