@@ -10,8 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     novnc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Playwright MCP server globally so npx doesn't re-download
+# Install Playwright MCP server globally
 RUN npm install -g @playwright/mcp@latest
+
+# Install Chrome for Testing (required by Playwright MCP --browser chrome)
+RUN npx playwright install chrome
+RUN npx playwright install chromium
 
 # Expose ports: 3000 for MCP, 6080 for noVNC
 EXPOSE 3000 6080
