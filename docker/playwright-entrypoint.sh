@@ -17,6 +17,12 @@ mkdir -p /tmp/bc-shared
 chmod 777 /tmp/bc-shared
 export PLAYWRIGHT_OUTPUT_DIR=/tmp/bc-shared
 
+# Symlink Playwright MCP default output dir to shared volume
+# Playwright MCP restricts file access to /.playwright-mcp/, so symlink it
+# to the shared volume so all containers can access screenshots
+rm -rf /.playwright-mcp 2>/dev/null
+ln -s /tmp/bc-shared /.playwright-mcp
+
 # Playwright MCP server (headed — visible in VNC)
 # --host 0.0.0.0     : accept external connections
 # --allowed-hosts '*' : accept any Host header (Docker networking)
