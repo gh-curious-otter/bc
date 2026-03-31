@@ -48,13 +48,20 @@ type Metadata struct {
 
 // Store manages attachment file storage on the local filesystem.
 type Store struct {
-	dir string // base directory for attachments
+	dir        string   // base directory for attachments
+	sharedDirs []string // additional directories to search for files (e.g., /tmp/bc-shared)
 }
 
 // NewStore creates an attachment store rooted at the given directory.
 func NewStore(stateDir string) *Store {
 	dir := filepath.Join(stateDir, "attachments")
 	return &Store{dir: dir}
+}
+
+// AddSharedDir adds a directory to search when looking up files by name.
+// Files in shared dirs are served by filename (not by hex ID).
+func (s *Store) AddSharedDir(dir string) {
+	s.sharedDirs = append(s.sharedDirs, dir)
 }
 
 // Save stores file data and returns metadata. The filename is sanitized.
@@ -102,45 +109,57 @@ func (s *Store) Save(data []byte, filename, channel, sender string) (*Metadata, 
 }
 
 // Get returns the file data and metadata for the given attachment ID.
+// It first checks the attachments directory by hex ID, then searches
+// shared directories by filename (for Playwright screenshots, etc.).
 func (s *Store) Get(id string) ([]byte, *Metadata, error) {
-	if !isValidID(id) {
-		return nil, nil, fmt.Errorf("invalid attachment ID")
+	// Try hex ID lookup in attachments dir
+	if isValidID(id) {
+		attachDir := filepath.Join(s.dir, id)
+		entries, err := os.ReadDir(attachDir)
+		if err == nil && len(entries) > 0 {
+			filename := entries[0].Name()
+			filePath := filepath.Join(attachDir, filename)
+			data, readErr := os.ReadFile(filePath) //nolint:gosec // path constructed from validated ID
+			if readErr == nil {
+				info, _ := entries[0].Info()
+				var modTime time.Time
+				if info != nil {
+					modTime = info.ModTime()
+				}
+				return data, &Metadata{
+					ID:        id,
+					Filename:  filename,
+					MIMEType:  detectMIME(data, filename),
+					Size:      int64(len(data)),
+					CreatedAt: modTime,
+				}, nil
+			}
+		}
 	}
 
-	attachDir := filepath.Join(s.dir, id)
-	entries, err := os.ReadDir(attachDir)
-	if err != nil {
-		return nil, nil, fmt.Errorf("attachment not found: %s", id)
+	// Fall through: search shared directories by filename
+	safeName := sanitizeFilename(id)
+	for _, dir := range s.sharedDirs {
+		filePath := filepath.Join(dir, safeName)
+		data, err := os.ReadFile(filePath) //nolint:gosec // searched in controlled shared dirs
+		if err != nil {
+			continue
+		}
+		info, _ := os.Stat(filePath)
+		var modTime time.Time
+		if info != nil {
+			modTime = info.ModTime()
+		}
+		return data, &Metadata{
+			ID:        safeName,
+			Filename:  safeName,
+			MIMEType:  detectMIME(data, safeName),
+			Size:      int64(len(data)),
+			CreatedAt: modTime,
+		}, nil
 	}
 
-	if len(entries) == 0 {
-		return nil, nil, fmt.Errorf("attachment empty: %s", id)
-	}
-
-	// First file in the directory is the attachment
-	filename := entries[0].Name()
-	filePath := filepath.Join(attachDir, filename)
-
-	data, err := os.ReadFile(filePath) //nolint:gosec // path constructed from validated ID
-	if err != nil {
-		return nil, nil, fmt.Errorf("read attachment: %w", err)
-	}
-
-	info, _ := entries[0].Info()
-	var modTime time.Time
-	if info != nil {
-		modTime = info.ModTime()
-	}
-
-	mimeType := detectMIME(data, filename)
-
-	return data, &Metadata{
-		ID:        id,
-		Filename:  filename,
-		MIMEType:  mimeType,
-		Size:      int64(len(data)),
-		CreatedAt: modTime,
-	}, nil
+	return nil, nil, fmt.Errorf("attachment not found: %s", id)
 }
 
 // Delete removes an attachment by ID.
