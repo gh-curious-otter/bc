@@ -58,13 +58,19 @@ RUN curl -fsSL https://claude.ai/install.sh | bash && \
 
 COPY --from=go /bcd /usr/local/bin/bcd
 
+# Workspace architecture: project source is mounted at /workspace, while
+# workspace state lives under BC_HOME (default ~/.bc/). The BC_STATE_DIR
+# env var can override the per-workspace state path at runtime.
+ENV BC_HOME=/home/agent/.bc
+
 # Runs as root because bcd needs access to the Docker socket
 # (/var/run/docker.sock) to manage agent containers.
 EXPOSE 9374
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:9374/health
 
-RUN git config --global --add safe.directory /workspace
+RUN git config --global --add safe.directory /workspace && \
+    git config --global --add safe.directory /home/agent/.bc
 
 WORKDIR /workspace
 ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _bc_init 'sleep infinity' && exec bcd \"$@\"", "--"]
