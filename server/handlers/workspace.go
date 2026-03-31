@@ -48,13 +48,49 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 	if h.ws.Config != nil {
 		nickname = h.ws.Config.User.Name
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	// Enrich with config details
+	result := map[string]any{
 		"name":          h.ws.Name(),
 		"nickname":      nickname,
+		"root_dir":      h.ws.RootDir,
+		"state_dir":     h.ws.StateDir(),
 		"agent_count":   len(agents),
 		"running_count": runningCount,
 		"is_healthy":    true,
-	})
+	}
+
+	if h.ws.Config != nil {
+		cfg := h.ws.Config
+		result["server"] = map[string]any{
+			"host": cfg.Server.Host,
+			"port": cfg.Server.Port,
+		}
+		result["runtime"] = map[string]any{
+			"default": cfg.Runtime.Default,
+		}
+		result["storage"] = map[string]any{
+			"sqlite_path": cfg.Storage.SQLite.Path,
+		}
+
+		// Gateway status
+		gateways := map[string]bool{}
+		if cfg.Gateways.Slack != nil {
+			gateways["slack"] = cfg.Gateways.Slack.Enabled
+		}
+		if cfg.Gateways.Telegram != nil {
+			gateways["telegram"] = cfg.Gateways.Telegram.Enabled
+		}
+		if cfg.Gateways.Discord != nil {
+			gateways["discord"] = cfg.Gateways.Discord.Enabled
+		}
+		if len(gateways) > 0 {
+			result["gateways"] = gateways
+		}
+
+		result["version"] = cfg.Version
+	}
+
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
