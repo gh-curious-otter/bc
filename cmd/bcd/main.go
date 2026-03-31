@@ -108,7 +108,7 @@ func run(addr, wsRoot, corsOrigin string) error {
 	go hub.Run()
 	defer hub.Stop()
 
-	agentMgr, agentErr := newAgentManager(ws)
+	agentMgr, containerBackend, agentErr := newAgentManager(ws)
 	if agentErr != nil {
 		return fmt.Errorf("agent manager: %w", agentErr)
 	}
@@ -120,6 +120,14 @@ func run(addr, wsRoot, corsOrigin string) error {
 		agentMgr.SetRoleManager(ws.RoleManager)
 	}
 	agentSvc := bcagent.NewAgentService(agentMgr, hub, nil)
+
+	// Background container metrics collector: periodically samples Docker
+	// resource usage via the container.Backend API and persists records into
+	// the SQLite agent_stats table. This feeds the /api/agents/{name}/stats
+	// endpoint so the dashboard shows real CPU/memory/disk/IO per agent.
+	if containerBackend != nil {
+		go runContainerStatsCollector(ctx, containerBackend, agentMgr)
+	}
 
 	var channelSvc *bcchannel.ChannelService
 	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {
@@ -325,7 +333,7 @@ func run(addr, wsRoot, corsOrigin string) error {
 	return srv.Start(ctx)
 }
 
-func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, error) {
+func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, error) {
 	var wsCfg bcworkspace.DockerRuntimeConfig
 	if ws.Config != nil {
 		wsCfg = ws.Config.Runtime.Docker
@@ -334,9 +342,10 @@ func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, error) {
 	be, err := bccontainer.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
 	if err != nil {
 		log.Warn("Docker not available — agents will use tmux runtime only", "error", err)
-		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir), nil
+		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir), nil, nil
 	}
-	return bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker"), nil
+	mgr := bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
+	return mgr, be, nil
 }
 
 func writePID(path string) error {
@@ -556,6 +565,49 @@ func extractAgentName(containerName string) string {
 		return containerName[10:]
 	}
 	return containerName
+}
+
+// runContainerStatsCollector periodically samples Docker container resource
+// metrics via the container.Backend API (Docker socket) and persists them
+// into the SQLite agent_stats table. This feeds GET /api/agents/{name}/stats
+// so the dashboard shows real CPU/memory/disk/IO per agent without requiring
+// the optional TimescaleDB stats store.
+func runContainerStatsCollector(ctx context.Context, be *bccontainer.Backend, mgr *bcagent.Manager) {
+	const interval = 30 * time.Second
+	const bytesToMB = 1024 * 1024
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			allStats, err := be.AllStats(ctx)
+			if err != nil {
+				log.Debug("container stats collection failed", "error", err)
+				continue
+			}
+			for _, cs := range allStats {
+				agentName := extractAgentName(cs.Name)
+				rec := &bcagent.AgentStatsRecord{
+					AgentName:    agentName,
+					CollectedAt:  time.Now().UTC(),
+					CPUPct:       cs.CPUPercent,
+					MemUsedMB:    float64(cs.MemoryUsed) / bytesToMB,
+					MemLimitMB:   float64(cs.MemoryLimit) / bytesToMB,
+					NetRxMB:      float64(cs.NetRx) / bytesToMB,
+					NetTxMB:      float64(cs.NetTx) / bytesToMB,
+					BlockReadMB:  float64(cs.DiskRead) / bytesToMB,
+					BlockWriteMB: float64(cs.DiskWrite) / bytesToMB,
+				}
+				if err := mgr.RecordAgentStats(rec); err != nil {
+					log.Debug("failed to record container stats", "agent", agentName, "error", err)
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // parsePercent parses a percentage string like "5.00%" into a float64.
