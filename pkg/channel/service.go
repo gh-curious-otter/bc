@@ -35,6 +35,7 @@ type ChannelDTO struct {
 	Name         string    `json:"name"`
 	Description  string    `json:"description,omitempty"`
 	Type         string    `json:"type"`
+	Platform     string    `json:"platform"` // "bc", "slack", "telegram", "discord"
 	Members      []string  `json:"members"`
 	MemberCount  int       `json:"member_count"`
 	MessageCount int       `json:"message_count"`
@@ -351,9 +352,17 @@ func channelToDTO(ch *Channel) ChannelDTO {
 	if members == nil {
 		members = []string{}
 	}
+	platform := "bc"
+	for _, prefix := range []string{"slack:", "telegram:", "discord:"} {
+		if strings.HasPrefix(ch.Name, prefix) {
+			platform = strings.TrimSuffix(prefix, ":")
+			break
+		}
+	}
 	return ChannelDTO{
 		Name:         ch.Name,
 		Description:  ch.Description,
+		Platform:     platform,
 		Members:      members,
 		MemberCount:  len(members),
 		MessageCount: len(ch.History),
