@@ -87,7 +87,7 @@ version: ## Show version info
 
 build: build-local build-docker ## Build everything (local + docker)
 build-local: build-local-go build-local-ts ## Build local binaries (go + ts)
-build-docker: build-docker-db build-docker-daemon ## Build Docker images (db, bcd)
+build-docker: build-docker-db build-docker-daemon build-docker-playwright ## Build Docker images (db, bcd, playwright)
 
 test: test-go test-ts ## Run all tests
 lint: lint-go lint-ts ## Run all linters
