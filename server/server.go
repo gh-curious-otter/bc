@@ -244,6 +244,8 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	if svc.Tools != nil {
 		handlers.NewToolHandler(svc.Tools).Register(mux)
 	}
+	// Unified tools endpoint (MCP + CLI) — always registered
+	handlers.NewUnifiedToolsHandler(svc.MCP, svc.Tools, svc.Agents, svc.WS).Register(mux)
 	if svc.EventLog != nil {
 		handlers.NewEventHandler(svc.EventLog).Register(mux)
 	}
