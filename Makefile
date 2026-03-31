@@ -23,9 +23,9 @@
 
 .PHONY: help version
 # Top-level
-.PHONY: build build-local build-docker test lint fmt vet check clean deps gen release install
+.PHONY: build build-local build-docker test lint fmt vet check clean deps release install
 # Go
-.PHONY: build-local-bc build-local-bcd test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go gen-go
+.PHONY: build-local-bc build-local-bcd test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
 .PHONY: release-local-bc release-local-bcd install-local-bc
 # Docker
 .PHONY: build-docker-daemon build-docker-sql build-docker-stats
@@ -36,7 +36,7 @@
 .PHONY: lint-ts lint-tui lint-web lint-landing
 .PHONY: fmt-ts fmt-tui fmt-web fmt-landing
 .PHONY: vet-ts vet-tui vet-web vet-landing
-.PHONY: coverage-ts bench-ts deps-ts check-ts scan-ts gen-ts
+.PHONY: coverage-ts bench-ts deps-ts check-ts scan-ts
 .PHONY: run-bc run-web run-landing run-tui
 # CI
 .PHONY: ci-local ci-docker
@@ -61,8 +61,6 @@ AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
 
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)
-
-COVERAGE_THRESHOLD ?= 75
 
 _CYAN  := \033[36m
 _GREEN := \033[32m
@@ -97,7 +95,6 @@ fmt: fmt-go fmt-ts ## Format all code
 vet: vet-go vet-ts ## Vet all code
 check: check-go check-ts ## Full quality gate
 deps: deps-go deps-ts ## Install all dependencies
-gen: gen-go gen-ts ## Run all code generation
 release: release-local-bc release-local-bcd ## Build release binaries (stripped)
 install: install-local-bc ## Install bc to $GOPATH/bin
 clean: clean-local ## Remove all build artifacts
@@ -108,12 +105,12 @@ clean: clean-local ## Remove all build artifacts
 
 build-local-go: build-local-bc build-local-bcd ## Build all Go binaries
 
-build-local-bc: gen-go ## Build bc CLI
+build-local-bc: ## Build bc CLI
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
 
-build-local-bcd: gen-go build-local-web ## Build bcd server (embeds web UI)
+build-local-bcd: build-local-web ## Build bcd server (embeds web UI)
 	@mkdir -p $(BUILD_DIR)
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bcd ./cmd/bcd
 
@@ -232,7 +229,7 @@ vet-landing: ; cd landing && bunx tsc --noEmit
 # Check & CI
 # =============================================================================
 
-check-go: gen-go vet-go lint-go test-go ## Go quality gate
+check-go: vet-go lint-go test-go ## Go quality gate
 check-ts: vet-ts lint-ts test-ts ## TS quality gate
 
 ci-local: ## Full CI pipeline locally
@@ -264,12 +261,12 @@ ci-docker: ## Build all Docker images
 # Release
 # =============================================================================
 
-release-local-bc: gen-go ## Build optimized bc binary
+release-local-bc: ## Build optimized bc binary
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
 
-release-local-bcd: gen-go build-local-web ## Build optimized bcd binary
+release-local-bcd: build-local-web ## Build optimized bcd binary
 	@mkdir -p $(BUILD_DIR)
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bcd ./cmd/bcd
 
@@ -289,7 +286,7 @@ run-landing: ## Run landing dev server
 run-tui: build-local-tui ## Run TUI dev mode
 	cd tui && bun run dev
 
-build-landing-prod: gen-docs ## Production build for landing page (Cloudflare Pages)
+build-landing-prod: ## Production build for landing page (Cloudflare Pages)
 	cd landing && bun install && bun run build
 
 # =============================================================================
@@ -322,16 +319,6 @@ scan-ts: ## TS dependency audit
 	cd tui && bun audit || true
 	cd web && bun audit || true
 	cd landing && bun audit || true
-
-# =============================================================================
-# Code generation
-# =============================================================================
-
-gen-go: ## Generate Go code (no-op)
-	@true
-
-gen-ts: ## Generate TS code (no-op)
-	@true
 
 # =============================================================================
 # Clean
