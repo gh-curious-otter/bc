@@ -16,6 +16,13 @@ RUN curl -fsSL https://claude.ai/install.sh | bash && \
     chmod +x /usr/local/bin/claude && \
     rm -rf /root/.local/share/claude /root/.claude
 
+# Install GitHub CLI
+RUN (type gh > /dev/null 2>&1) || \
+    (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
+     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+     apt-get update && apt-get install -y --no-install-recommends gh && \
+     rm -rf /var/lib/apt/lists/*)
+
 # Pre-install official plugin marketplace so agents can install plugins at runtime.
 # The marketplace is a git repo — cloned at build time so docker exec claude plugin
 # install works without network access to claude.ai.
