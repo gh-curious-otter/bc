@@ -105,6 +105,9 @@ func run(addr, wsRoot, corsOrigin string) error {
 		log.Warn("failed to load agent state", "error", err)
 	}
 	defer agentMgr.Close() //nolint:errcheck // best-effort
+	if ws.RoleManager != nil {
+		agentMgr.SetRoleManager(ws.RoleManager)
+	}
 	agentSvc := bcagent.NewAgentService(agentMgr, hub, nil)
 
 	var channelSvc *bcchannel.ChannelService
