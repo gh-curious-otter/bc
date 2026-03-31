@@ -14,6 +14,8 @@ services:
       - "5432:5432"
     volumes:
       - bc-sql-data:/var/lib/postgresql/data
+    networks:
+      - bc-net
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bc"]
@@ -31,6 +33,8 @@ services:
       - "5433:5432"
     volumes:
       - bc-stats-data:/var/lib/postgresql/data
+    networks:
+      - bc-net
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bc"]
@@ -48,10 +52,14 @@ services:
       DATABASE_URL: postgres://bc:bc@bc-sql:5432/bc?sslmode=disable
       STATS_DATABASE_URL: postgres://bc:bc@bc-stats:5432/bcstats?sslmode=disable
       BC_HOST_WORKSPACE: ${BC_HOST_WORKSPACE:-.}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/workspace
       - shared-tmp:/tmp/bc-shared
+    networks:
+      - bc-net
     depends_on:
       bc-sql:
         condition: service_healthy
@@ -73,7 +81,14 @@ services:
       - "3100:3100"
     volumes:
       - shared-tmp:/tmp/bc-shared
+    networks:
+      - bc-net
     restart: unless-stopped
+
+networks:
+  bc-net:
+    name: bc-net
+    driver: bridge
 
 volumes:
   bc-sql-data:
