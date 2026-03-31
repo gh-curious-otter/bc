@@ -457,6 +457,9 @@ type Manager struct {
 	// Workspace path for env vars
 	workspacePath string
 
+	// roleManager validates role existence (shared with workspace)
+	roleManager *workspace.RoleManager
+
 	// maxLogBytes is the maximum log file size before truncation.
 	// Defaults to DefaultMaxLogBytes; overridden by ApplyWorkspaceConfig.
 	maxLogBytes int64
@@ -474,6 +477,11 @@ func (m *Manager) SetOnStateChange(fn func(name string, state State, task string
 	m.mu.Lock()
 	m.onStateChange = fn
 	m.mu.Unlock()
+}
+
+// SetRoleManager sets the role manager used for role validation.
+func (m *Manager) SetRoleManager(rm *workspace.RoleManager) {
+	m.roleManager = rm
 }
 
 // ApplyWorkspaceConfig applies workspace-level configuration overrides to the manager.
@@ -772,12 +780,13 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 		return nil, fmt.Errorf("role is required and cannot be empty or null")
 	}
 
-	// Validate role exists on disk (built-in roles like "root" are always valid)
-	if role != RoleRoot {
-		rm := workspace.NewRoleManager(m.stateDir)
-		if !rm.HasRole(string(role)) {
+	// Validate role exists. Skip validation if no role manager is available
+	// (e.g., standalone agent manager without workspace). Built-in roles
+	// like "root" are always valid.
+	if role != RoleRoot && m.roleManager != nil {
+		if !m.roleManager.HasRole(string(role)) {
 			m.mu.Unlock()
-			return nil, fmt.Errorf("role %q does not exist; create it in .bc/roles/%s.md first", role, role)
+			return nil, fmt.Errorf("role %q does not exist; create it via the API or in .bc/roles/%s.md", role, role)
 		}
 	}
 
