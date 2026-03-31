@@ -483,7 +483,7 @@ export function Agents() {
 
       <CreateAgentForm onCreated={refresh} />
 
-      <div className="rounded border border-bc-border overflow-hidden">
+      <div className="rounded border border-bc-border overflow-x-auto">
         {agentList.length === 0 ? (
           <EmptyState
             icon=">"
