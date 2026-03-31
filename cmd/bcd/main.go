@@ -300,6 +300,12 @@ func run(addr, wsRoot, corsOrigin string) error {
 					log.Error("gateway manager stopped", "error", err)
 				}
 			}()
+
+			// Restore gateway channel members after startup.
+			// When bcd restarts, gateway channels exist in the DB but may
+			// have lost their members (e.g., channel was auto-created fresh).
+			// This adds all known agents to any gateway channel with 0 members.
+			go restoreGatewayMembers(ctx, channelSvc, agentSvc)
 		}
 	}
 
@@ -331,6 +337,59 @@ func run(addr, wsRoot, corsOrigin string) error {
 
 	srv := server.New(cfg, svc, hub, server.WebDist())
 	return srv.Start(ctx)
+}
+
+// gatewayPrefixes are the channel name prefixes that identify gateway channels.
+var gatewayPrefixes = []string{"slack:", "telegram:", "discord:"}
+
+// isGatewayChannel returns true if the channel name starts with a known gateway prefix.
+func isGatewayChannel(name string) bool {
+	for _, p := range gatewayPrefixes {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// restoreGatewayMembers ensures gateway channels have members after bcd restart.
+// If a gateway channel has zero members, all known agents are added as members
+// so that inbound messages are visible to the team.
+func restoreGatewayMembers(ctx context.Context, channelSvc *bcchannel.ChannelService, agentSvc *bcagent.AgentService) {
+	if channelSvc == nil || agentSvc == nil {
+		return
+	}
+
+	channels, err := channelSvc.List(ctx)
+	if err != nil {
+		log.Warn("gateway member restore: failed to list channels", "error", err)
+		return
+	}
+
+	agents, err := agentSvc.List(ctx, bcagent.ListOptions{})
+	if err != nil {
+		log.Warn("gateway member restore: failed to list agents", "error", err)
+		return
+	}
+	if len(agents) == 0 {
+		return
+	}
+
+	for _, ch := range channels {
+		if !isGatewayChannel(ch.Name) {
+			continue
+		}
+		if ch.MemberCount > 0 {
+			continue
+		}
+
+		log.Info("gateway member restore: adding agents to empty gateway channel", "channel", ch.Name, "agents", len(agents))
+		for _, a := range agents {
+			if addErr := channelSvc.AddMember(ctx, ch.Name, a.Name); addErr != nil {
+				log.Warn("gateway member restore: failed to add member", "channel", ch.Name, "agent", a.Name, "error", addErr)
+			}
+		}
+	}
 }
 
 func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, error) {
