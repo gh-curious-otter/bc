@@ -451,7 +451,15 @@ func (c *Config) Save(path string) error {
 }
 
 // ConfigPath returns the standard config file path for a workspace root.
+// Checks global state dir first, falls back to legacy .bc/.
 func ConfigPath(rootDir string) string {
+	stateDir, err := GlobalStateDir(rootDir)
+	if err == nil {
+		p := filepath.Join(stateDir, "settings.json")
+		if _, statErr := os.Stat(p); statErr == nil {
+			return p
+		}
+	}
 	return filepath.Join(rootDir, ".bc", "settings.json")
 }
 
