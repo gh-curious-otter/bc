@@ -128,6 +128,24 @@ export function ChatRoom({
     ]);
   };
 
+  const handleFileUpload = async (file: File) => {
+    const attachment = await api.uploadFile(file, channelName, senderName);
+    const isImage = file.type.startsWith("image/");
+    const content = isImage
+      ? `[file:${attachment.id}]`
+      : `📎 [${file.name}](${api.getFileUrl(attachment.id)})`;
+    await api.sendToChannel(channelName, content, senderName);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        sender: senderName,
+        content,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  };
+
   const handleDescriptionSave = async (description: string) => {
     await api.updateChannel(channelName, { description });
     onChannelUpdated();
@@ -172,6 +190,7 @@ export function ChatRoom({
         <MessageComposer
           channelName={channelName}
           onSend={handleSend}
+          onFileUpload={handleFileUpload}
         />
       </div>
       {showMembers && channel && (
