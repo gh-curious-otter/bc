@@ -69,6 +69,16 @@ export interface ModelCostSummary {
   record_count: number;
 }
 
+export interface FileAttachment {
+  id: string;
+  filename: string;
+  mime_type: string;
+  size: number;
+  channel: string;
+  sender: string;
+  created_at: string;
+}
+
 export interface DailyCost {
   date: string;
   cost_usd: number;
@@ -577,4 +587,18 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
+
+  /** Upload a file attachment to a channel. */
+  uploadFile: async (file: File, channel: string, sender: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("channel", channel);
+    form.append("sender", sender);
+    const res = await fetch(`${BASE}/files/upload`, { method: "POST", body: form });
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    return res.json() as Promise<FileAttachment>;
+  },
+
+  /** Get file download URL. */
+  getFileUrl: (id: string) => `${BASE}/files/${encodeURIComponent(id)}`,
 };
