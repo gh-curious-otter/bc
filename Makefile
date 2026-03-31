@@ -28,7 +28,7 @@
 .PHONY: build-local-bc build-local-bcd test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
 .PHONY: release-local-bc release-local-bcd install-local-bc
 # Docker
-.PHONY: build-docker-daemon build-docker-db
+.PHONY: build-docker-daemon build-docker-db build-docker-bcdb
 .PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-agent-infra build-docker-playwright stop-docker-playwright run-docker-playwright
 # TS
 .PHONY: build-local-tui build-local-web build-local-landing
@@ -140,6 +140,8 @@ build-docker-daemon: ## Build bcd Docker image
 
 build-docker-db: ## Build bc-db (unified TimescaleDB) Docker image
 	docker build -t $(REGISTRY)-bcdb:$(IMAGE_TAG) -f docker/Dockerfile.bcdb .
+
+build-docker-bcdb: build-docker-db ## Alias: Build bcdb (Postgres) Docker image
 
 build-docker-agent-base: ## Build agent base image
 	docker build -t $(REGISTRY)-agent-base:$(IMAGE_TAG) -f docker/Dockerfile.base .

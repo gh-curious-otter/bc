@@ -147,7 +147,7 @@ jobs:
           cache: true
 
       - name: Build release binary
-        run: make release-bc-local
+        run: make release-local-bc
 
       - name: Verify binary runs
         run: ./bin/bc version
