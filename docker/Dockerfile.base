@@ -3,7 +3,11 @@
 
 FROM ubuntu:24.04
 
-ENV GOVERSION=1.25.8
+ARG GOVERSION=1.25.8
+# SHA256 checksums from https://go.dev/dl/ for Go ${GOVERSION}
+ARG GO_SHA256_AMD64=ceb5e041bbc3893846bd1614d76cb4681c91dadee579426cf21a63f2d7e03be6
+ARG GO_SHA256_ARM64=7d137f59f66bb93f40a6b2b11e713adc2a9d0c8d9ae581718e3fad19e5295dc7
+ENV GOVERSION=${GOVERSION}
 ENV PATH=/usr/local/go/bin:/root/go/bin:/home/agent/go/bin:$PATH
 ENV TERM=xterm-256color
 ENV LANG=en_US.UTF-8
@@ -19,11 +23,19 @@ RUN apt-get update && \
     locale-gen en_US.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Go (arch-aware)
-RUN ARCH=$(dpkg --print-architecture | sed 's/amd64/amd64/;s/arm64/arm64/') && \
-    curl -fsSL "https://go.dev/dl/go${GOVERSION}.linux-${ARCH}.tar.gz" | tar -C /usr/local -xz
+# Install Go (arch-aware, download-then-verify pattern)
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then GO_SHA256="$GO_SHA256_AMD64"; else GO_SHA256="$GO_SHA256_ARM64"; fi && \
+    curl -fsSL "https://go.dev/dl/go${GOVERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz && \
+    echo "${GO_SHA256}  /tmp/go.tar.gz" | sha256sum -c - && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    rm /tmp/go.tar.gz
 
 # Install Bun (for TUI / JS tooling)
+# SECURITY: curl-pipe-bash without checksum verification is a supply chain risk.
+# Bun does not currently publish SHA256 checksums for its install script.
+# Mitigations: pinned BUN_INSTALL path, non-root user created after install.
+# TODO(#2616): pin Bun version and verify checksum when available.
 RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash && \
     ln -sf /usr/local/bin/bun /usr/local/bin/bunx && \
     ln -sf /usr/local/bin/bun /usr/local/bin/node && \
