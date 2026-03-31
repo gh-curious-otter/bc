@@ -1,21 +1,25 @@
-# Playwright MCP server for bc
-# https://playwright.dev/docs/docker
+# Playwright MCP server with visible browser via VNC
 #
 # Build: make build-docker-playwright
-# Run:   docker run --init --ipc=host -p 3100:3000 -p 6080:6080 bc-playwright:latest
+# Run:   make run-docker-playwright
+# Stop:  make stop-docker-playwright
+# VNC:   http://localhost:6080
+# MCP:   http://localhost:3000/sse
 FROM mcr.microsoft.com/playwright:v1.52.0-noble
 
-# VNC for optional browser viewing
+# VNC for visible browser viewing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     x11vnc xvfb websockify novnc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Playwright MCP server
+# Playwright MCP server
 RUN npm install -g @playwright/mcp@latest
 
-# Install browsers — chromium from base image, chrome-for-testing for MCP default
-RUN npx playwright install chromium
+# Install all browsers the MCP server might use
+RUN npx -y playwright-core install --no-shell chromium
 RUN npx @playwright/mcp install-browser chrome-for-testing
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 EXPOSE 3000 6080
 COPY docker/playwright-entrypoint.sh /entrypoint.sh

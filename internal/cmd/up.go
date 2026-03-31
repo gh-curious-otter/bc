@@ -130,29 +130,11 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		fmt.Println(ui.GreenText("ready"))
 	}
 
-	// 6. bc-playwright — Playwright MCP server with Chromium + noVNC
-	// --init prevents zombie processes, --ipc=host prevents Chromium OOM crashes
-	// See: https://playwright.dev/docs/docker
-	if err := dockerRun(ctx, "bc-playwright", []string{
-		"--init",
-		"--ipc=host",
-		"-p", "3000:3000",
-		"-p", "6080:6080",
-		"-v", sharedVolume + ":/tmp/bc-shared",
-		"-e", "DISPLAY=:99",
-		"--restart", "always",
-		"bc-playwright:latest",
-	}); err != nil {
-		// Non-fatal — Playwright is optional
-		fmt.Printf("  %s playwright skipped: %v\n", ui.YellowText("note"), err)
-	}
-
 	fmt.Println()
 	fmt.Printf("  %s bc workspace ready\n", ui.GreenText("ok"))
 	fmt.Printf("  bcd:        http://%s\n", addr)
 	fmt.Println("  bc-sql:     localhost:5432")
 	fmt.Println("  bc-stats:   localhost:5433")
-	fmt.Println("  playwright: http://localhost:6080 (noVNC), MCP localhost:3000")
 	fmt.Println()
 
 	return nil

@@ -87,7 +87,7 @@ version: ## Show version info
 
 build: build-local build-docker ## Build everything (local + docker)
 build-local: build-local-go build-local-ts ## Build local binaries (go + ts)
-build-docker: build-docker-sql build-docker-stats build-docker-daemon build-docker-playwright ## Build Docker images (sql, stats, bcd, playwright)
+build-docker: build-docker-sql build-docker-stats build-docker-daemon ## Build Docker images (sql, stats, bcd)
 
 test: test-go test-ts ## Run all tests
 lint: lint-go lint-ts ## Run all linters
@@ -159,19 +159,23 @@ build-docker-agents: build-docker-agent-base ## Build all agent images
 		docker build -t $(REGISTRY)-agent-$$p:$(IMAGE_TAG) -f docker/Dockerfile.$$p . || exit 1; \
 	done
 
-build-docker-playwright: ## Build Playwright MCP Docker image
+build-docker-playwright: ## Build Playwright MCP Docker image (separate from main build)
 	docker build -t bc-playwright:latest -f docker/Dockerfile.playwright .
 
 stop-docker-playwright: ## Stop and remove Playwright container
 	docker stop bc-playwright 2>/dev/null || true
 	docker rm bc-playwright 2>/dev/null || true
 
-run-docker-playwright: stop-docker-playwright ## Run Playwright MCP container
+run-docker-playwright: stop-docker-playwright ## Run Playwright MCP container (VNC :6080, MCP :3000)
 	docker run -d --name bc-playwright \
-		-p 3100:3000 -p 6080:6080 \
+		--init --ipc=host \
+		-p 3000:3000 -p 6080:6080 \
 		-v bc-shared-tmp:/tmp/bc-shared \
+		-e DISPLAY=:99 \
 		--restart unless-stopped \
 		bc-playwright:latest
+	@echo "  Playwright MCP: http://localhost:3000/sse"
+	@echo "  VNC viewer:     http://localhost:6080"
 
 # =============================================================================
 # Test
