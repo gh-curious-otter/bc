@@ -41,10 +41,15 @@ COPY --from=go /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Install Bun (for TypeScript builds)
+# SECURITY(#2616): curl-pipe-bash without checksum is a supply chain risk.
+# TODO: pin Bun version and verify checksum when available.
 RUN curl -fsSL https://bun.sh/install | bash && \
     ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
 # Install Claude Code so bcd can run tmux agents inside this container
+# SECURITY(#2616): curl-pipe-bash without checksum is a supply chain risk.
+# Anthropic does not currently publish checksums for the install script.
+# TODO: add checksum verification when Anthropic provides signed releases.
 SHELL ["/bin/bash", "-c"]
 RUN curl -fsSL https://claude.ai/install.sh | bash && \
     cp /root/.local/share/claude/versions/* /usr/local/bin/claude && \

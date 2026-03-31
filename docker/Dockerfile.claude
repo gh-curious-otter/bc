@@ -7,6 +7,9 @@ FROM bc-agent-base:latest AS base
 USER root
 
 # Install Claude Code native binary (includes syntax highlighting + tree-sitter)
+# SECURITY(#2616): curl-pipe-bash without checksum is a supply chain risk.
+# Anthropic does not currently publish checksums for the install script.
+# TODO: add checksum verification when Anthropic provides signed releases.
 SHELL ["/bin/bash", "-c"]
 RUN curl -fsSL https://claude.ai/install.sh | bash && \
     cp /root/.local/share/claude/versions/* /usr/local/bin/claude && \
