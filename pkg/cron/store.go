@@ -25,8 +25,12 @@ func Open(workspacePath string) (*Store, error) {
 	// Try shared database first
 	if shared := db.SharedWrapped(); shared != nil {
 		s := &Store{db: shared}
-		if err := s.initSchema(); err != nil {
-			return nil, fmt.Errorf("init cron schema on shared db: %w", err)
+		// Skip initSchema on Postgres — init.sql handles table creation.
+		// The SQLite-specific schema (AUTOINCREMENT, DATETIME) breaks on Postgres.
+		if db.SharedDriver() != "postgres" {
+			if err := s.initSchema(); err != nil {
+				return nil, fmt.Errorf("init cron schema on shared db: %w", err)
+			}
 		}
 		return s, nil
 	}
