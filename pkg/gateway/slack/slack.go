@@ -257,6 +257,10 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 	if content == "" && ev.SubType != "file_share" {
 		return
 	}
+	// For file_share events with no text, add a descriptive message
+	if content == "" && ev.SubType == "file_share" {
+		content = "[shared a file]"
+	}
 
 	// Resolve channel name — try cache first, then API lookup
 	a.chatMu.RLock()
