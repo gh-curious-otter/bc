@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Clear stale X11 locks
+# Clear stale X11 locks from previous crashes
 rm -f /tmp/.X*-lock /tmp/.X11-unix/X* 2>/dev/null
 
 # Start Xvfb (virtual framebuffer)
@@ -14,5 +14,5 @@ x11vnc -display :99 -forever -nopw -shared -rfbport 5900 &
 # Start noVNC (web-based VNC client on port 6080)
 websockify --web=/usr/share/novnc 6080 localhost:5900 &
 
-# Start Playwright MCP server
-exec npx -y @playwright/mcp@latest --port 3000 --host 0.0.0.0
+# Start Playwright MCP server — bind to 0.0.0.0 so Docker port mapping works
+exec npx -y @playwright/mcp --port 3000 --host 0.0.0.0

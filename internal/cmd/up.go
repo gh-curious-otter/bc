@@ -131,7 +131,11 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 
 	// 6. bc-playwright — Playwright MCP server with Chromium + noVNC
+	// --init prevents zombie processes, --ipc=host prevents Chromium OOM crashes
+	// See: https://playwright.dev/docs/docker
 	if err := dockerRun(ctx, "bc-playwright", []string{
+		"--init",
+		"--ipc=host",
 		"-p", "3100:3000",
 		"-p", "6080:6080",
 		"-v", sharedVolume + ":/tmp/bc-shared",

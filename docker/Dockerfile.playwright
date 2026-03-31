@@ -1,4 +1,5 @@
 # Playwright MCP server with pre-installed Chrome and VNC viewing
+# See: https://playwright.dev/docs/docker
 FROM mcr.microsoft.com/playwright:v1.52.0-noble
 
 # Install VNC server and noVNC for browser viewing
@@ -9,11 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     novnc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Playwright MCP server and Chrome browser
-RUN npm install -g @anthropic-ai/claude-code@latest 2>/dev/null || true
-RUN npx -y @playwright/mcp@latest install-browser chrome-for-testing 2>/dev/null || true
-RUN npx playwright install-deps 2>/dev/null || true
-RUN npx playwright install chromium 2>/dev/null || true
+# Install Playwright MCP server globally so npx doesn't re-download
+RUN npm install -g @playwright/mcp@latest
 
 # Expose ports: 3000 for MCP, 6080 for noVNC
 EXPOSE 3000 6080
