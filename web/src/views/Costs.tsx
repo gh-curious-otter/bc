@@ -261,7 +261,6 @@ function AddBudgetForm({ onCreated }: { onCreated: () => void }) {
           >
             <option value="workspace">Workspace</option>
             <option value="agent">Agent</option>
-            <option value="team">Team</option>
           </select>
         </div>
         <div className="space-y-1">
