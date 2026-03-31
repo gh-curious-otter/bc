@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -52,6 +54,24 @@ func definedTools() []Tool {
 					},
 				},
 				"required": []string{"channel", "message"},
+			},
+		},
+		{
+			Name:        "send_file",
+			Description: "Upload a file to a bc gateway channel (e.g., share a screenshot to Slack)",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"channel": map[string]any{
+						"type":        "string",
+						"description": "Gateway channel name (e.g., slack:all-bc)",
+					},
+					"file_path": map[string]any{
+						"type":        "string",
+						"description": "Local file path to upload",
+					},
+				},
+				"required": []string{"channel", "file_path"},
 			},
 		},
 		{
@@ -214,6 +234,81 @@ type reportStatusArgs struct {
 	Agent string `json:"agent"`
 	Task  string `json:"task"`
 }
+
+// ─── send_file ──────────────────────────────────────────────────────────────
+
+func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
+	var args struct {
+		Channel  string `json:"channel"`
+		FilePath string `json:"file_path"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if args.Channel == "" || args.FilePath == "" {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("channel and file_path are required")},
+			IsError: true,
+		}, nil
+	}
+
+	// Read the file
+	data, err := os.ReadFile(args.FilePath) //nolint:gosec // agent-controlled path
+	if err != nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("failed to read file: %s", err))},
+			IsError: true,
+		}, nil
+	}
+
+	// Detect mime type from extension
+	filename := filepath.Base(args.FilePath)
+	mimeType := "application/octet-stream"
+	switch {
+	case strings.HasSuffix(filename, ".png"):
+		mimeType = "image/png"
+	case strings.HasSuffix(filename, ".jpg"), strings.HasSuffix(filename, ".jpeg"):
+		mimeType = "image/jpeg"
+	case strings.HasSuffix(filename, ".gif"):
+		mimeType = "image/gif"
+	case strings.HasSuffix(filename, ".pdf"):
+		mimeType = "application/pdf"
+	}
+
+	// Get sender from context
+	sender := "agent"
+	if agentID, ok := ctx.Value(ctxKeyAgent).(string); ok && agentID != "" {
+		sender = agentID
+	}
+
+	// Route through gateway manager
+	if s.gateway == nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("no gateway configured — file upload requires a gateway channel (e.g., slack:all-bc)")},
+			IsError: true,
+		}, nil
+	}
+
+	sent, err := s.gateway.SendFile(ctx, args.Channel, sender, filename, data, mimeType)
+	if err != nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("file upload failed: %s", err))},
+			IsError: true,
+		}, nil
+	}
+	if !sent {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("channel %q is not a gateway channel — file upload only works with gateway channels (slack:*, telegram:*, discord:*)", args.Channel))},
+			IsError: true,
+		}, nil
+	}
+
+	return &toolsCallResult{
+		Content: []ToolContent{textContent(fmt.Sprintf("Uploaded %s (%d bytes) to %s", filename, len(data), args.Channel))},
+	}, nil
+}
+
+// ─── report_status ──────────────────────────────────────────────────────────
 
 func (s *Server) toolReportStatus(raw json.RawMessage) (*toolsCallResult, error) {
 	var args reportStatusArgs

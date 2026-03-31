@@ -10,6 +10,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/agent"
 	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/cost"
+	"github.com/gh-curious-otter/bc/pkg/gateway"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
@@ -34,6 +35,7 @@ type Server struct {
 	chans      *channel.Store
 	chanSvc    *channel.ChannelService
 	costs      *cost.Store
+	gateway    *gateway.Manager
 	broker  *SSEBroker
 	version string
 	ownChans   bool
@@ -49,6 +51,7 @@ type Config struct {
 	Channels       *channel.Store          // optional: pre-built channel store (SQLite/Postgres)
 	ChannelService *channel.ChannelService // optional: service with OnMessage hook for delivery
 	Costs          *cost.Store             // optional: pre-built cost store
+	Gateway        *gateway.Manager        // optional: gateway manager for file uploads
 	Version        string                  // bc binary version, e.g. "1.2.3"
 }
 
@@ -104,6 +107,7 @@ func New(cfg Config) (*Server, error) {
 		chans:    cs,
 		chanSvc:  cfg.ChannelService,
 		costs:    costStore,
+		gateway:  cfg.Gateway,
 		version:  v,
 		ownChans: ownChans,
 		ownCosts: ownCosts,
@@ -309,6 +313,8 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) Response {
 		result, err = s.toolCreateAgent(ctx, p.Arguments)
 	case "send_message":
 		result, err = s.toolSendMessage(ctx, p.Arguments)
+	case "send_file":
+		result, err = s.toolSendFile(ctx, p.Arguments)
 	case "report_status":
 		result, err = s.toolReportStatus(p.Arguments)
 	case "query_costs":
