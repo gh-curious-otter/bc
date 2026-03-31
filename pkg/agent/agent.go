@@ -1291,7 +1291,66 @@ func (m *Manager) captureSessionIDForAgent(ctx context.Context, ag *Agent, rt ru
 		}
 	}
 
-	return sr.ParseSessionID(output)
+	if id := sr.ParseSessionID(output); id != "" {
+		return id
+	}
+
+	// Fallback: read session ID from the most recent JSONL transcript filename.
+	// Claude Code writes transcripts to .bc/agents/<name>/claude/projects/*/<uuid>.jsonl
+	// where the UUID IS the session ID.
+	if id := findSessionIDFromTranscripts(m.stateDir, ag.Name); id != "" {
+		log.Debug("captured session ID from JSONL transcript", "agent", ag.Name, "session_id", id)
+		return id
+	}
+
+	return ""
+}
+
+// findSessionIDFromTranscripts scans the agent's Claude projects directory
+// for the most recent .jsonl transcript and extracts the session ID from
+// the filename (which is the UUID session ID).
+func findSessionIDFromTranscripts(stateDir, agentName string) string {
+	projectsDir := filepath.Join(stateDir, "agents", agentName, "claude", "projects")
+	if _, err := os.Stat(projectsDir); err != nil {
+		return ""
+	}
+
+	var newestFile string
+	var newestTime time.Time
+
+	_ = filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".jsonl") || d.Name() == "history.jsonl" {
+			return nil
+		}
+		// Skip subagent transcripts
+		if strings.Contains(path, "/subagents/") {
+			return nil
+		}
+		info, statErr := d.Info()
+		if statErr != nil {
+			return nil
+		}
+		if info.ModTime().After(newestTime) {
+			newestTime = info.ModTime()
+			newestFile = d.Name()
+		}
+		return nil
+	})
+
+	if newestFile == "" {
+		return ""
+	}
+
+	// Extract UUID from filename: "<uuid>.jsonl" → "<uuid>"
+	id := strings.TrimSuffix(newestFile, ".jsonl")
+	// Validate it looks like a UUID (36 chars, hyphens at positions 8,13,18,23)
+	if len(id) == 36 && id[8] == '-' && id[13] == '-' && id[18] == '-' && id[23] == '-' {
+		return id
+	}
+	return ""
 }
 
 // writeSessionIDFile persists the session ID to a plain-text file and archives
