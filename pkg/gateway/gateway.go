@@ -29,6 +29,22 @@ type Adapter interface {
 	Health(ctx context.Context) error
 }
 
+// FileSender is optionally implemented by adapters that support file uploads.
+type FileSender interface {
+	// SendFile uploads a file to a platform channel.
+	SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error
+}
+
+// Attachment represents a file attached to a message.
+type Attachment struct {
+	URL      string `json:"url"`
+	Name     string `json:"name"`
+	MimeType string `json:"mime_type"`
+	Size     int64  `json:"size,omitempty"`
+	Source   string `json:"source"` // "slack", "telegram", "discord", "local"
+	FileID   string `json:"file_id,omitempty"`
+}
+
 // InboundMessage is a normalized message from an external platform.
 type InboundMessage struct {
 	Timestamp   time.Time
@@ -38,6 +54,7 @@ type InboundMessage struct {
 	SenderID    string
 	Content     string
 	MessageID   string
+	Attachments []Attachment
 }
 
 // ExternalChannel represents a channel/group on an external platform.

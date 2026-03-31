@@ -251,6 +251,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			mcpCfg.Channels = svc.Channels.Store()
 			mcpCfg.ChannelService = svc.Channels
 		}
+		if svc.Gateway != nil {
+			mcpCfg.Gateway = svc.Gateway
+		}
 		mcpSrv, mcpErr := servermcp.New(mcpCfg)
 		if mcpErr != nil {
 			log.Warn("MCP server unavailable", "error", mcpErr)
