@@ -69,6 +69,35 @@ export interface ModelCostSummary {
   record_count: number;
 }
 
+export interface AgentStatsSummary {
+  agent_name: string;
+  cpu_avg: number;
+  cpu_max: number;
+  mem_avg_bytes: number;
+  mem_max_bytes: number;
+  mem_percent: number;
+  disk_read_bytes: number;
+  disk_write_bytes: number;
+  net_rx_bytes: number;
+  net_tx_bytes: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read: number;
+  cache_create: number;
+  total_cost_usd: number;
+  cost_by_model: ModelCostSummary[];
+}
+
+export interface FileAttachment {
+  id: string;
+  filename: string;
+  mime_type: string;
+  size: number;
+  channel: string;
+  sender: string;
+  created_at: string;
+}
+
 export interface DailyCost {
   date: string;
   cost_usd: number;
@@ -558,6 +587,26 @@ export const api = {
     request<TokenMetricTS[]>(`/agents/stats/cost${qs(params)}`),
   getChannelStats: (metric: string, params?: Record<string, string>) =>
     request<ChannelMetricTS[]>(`/channels/stats/${metric}${qs(params)}`),
+
+  /** Unified per-agent stats summary — single call for drill-down. */
+  getAgentStatsSummary: (name: string, params?: Record<string, string>) =>
+    request<AgentStatsSummary>(
+      `/agents/stats/summary/${encodeURIComponent(name)}${qs(params)}`,
+    ),
+
+  /** Upload a file attachment. */
+  uploadFile: async (file: File, channel: string, sender: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("channel", channel);
+    form.append("sender", sender);
+    const res = await fetch(`${BASE}/files/upload`, { method: "POST", body: form });
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    return res.json() as Promise<FileAttachment>;
+  },
+
+  /** Get file download URL. */
+  getFileUrl: (id: string) => `${BASE}/files/${encodeURIComponent(id)}`,
 
   getSettings: () => request<SettingsConfig>("/settings"),
   updateSettings: (patch: Record<string, unknown>) =>

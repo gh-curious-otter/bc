@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -6,6 +6,7 @@ import {
 import { api } from "../api/client";
 import type {
   SystemStats, StatsSummary, CostSummary, ModelCostSummary, AgentCostSummary,
+  AgentStatsSummary,
   SystemMetricTS, AgentMetricTS, TokenMetricTS, ChannelMetricTS,
 } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -287,38 +288,37 @@ function AgentOverview({
 
 function AgentDrillDown({
   agentName,
-  metrics,
-  tokenMetrics,
-  costByAgent,
   onClose,
 }: {
   agentName: string;
-  metrics: AgentMetricTS[];
-  tokenMetrics: TokenMetricTS[];
-  costByAgent: AgentCostSummary[];
   onClose: () => void;
 }) {
-  const agentMetrics = metrics.filter((m) => m.agent_name === agentName);
-  const agentTokens = tokenMetrics.filter((m) => m.agent_name === agentName);
-  const agentCost = costByAgent.find((c) => c.agent_id === agentName);
+  const [summary, setSummary] = useState<AgentStatsSummary | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Latest snapshot
-  const latest = agentMetrics[agentMetrics.length - 1];
+  useEffect(() => {
+    setLoading(true);
+    setSummary(null);
+    void (async () => {
+      try {
+        const data = await api.getAgentStatsSummary(agentName);
+        setSummary(data);
+      } catch {
+        // keep null
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [agentName]);
 
-  // Token totals
-  let totalInput = 0, totalOutput = 0;
-  for (const t of agentTokens) { totalInput += t.input_tokens; totalOutput += t.output_tokens; }
-
-  // Cost by model for this agent
-  const modelCosts = new Map<string, number>();
-  for (const t of agentTokens) {
-    if (t.cost_usd > 0) {
-      modelCosts.set(t.model, (modelCosts.get(t.model) ?? 0) + t.cost_usd);
-    }
-  }
-  const modelCostData = Array.from(modelCosts.entries())
-    .map(([model, cost], i) => ({ name: trunc(model || "unknown", 20), cost: parseFloat(cost.toFixed(4)), color: PIE_COLORS[i % PIE_COLORS.length] }))
-    .sort((a, b) => b.cost - a.cost);
+  const modelCostData = (summary?.cost_by_model ?? [])
+    .filter((m) => m.total_cost_usd > 0)
+    .sort((a, b) => b.total_cost_usd - a.total_cost_usd)
+    .map((m, i) => ({
+      name: trunc(m.model || "unknown", 20),
+      cost: parseFloat(m.total_cost_usd.toFixed(4)),
+      color: PIE_COLORS[i % PIE_COLORS.length],
+    }));
 
   return (
     <section className="rounded border border-bc-accent bg-bc-surface p-4">
@@ -333,25 +333,28 @@ function AgentDrillDown({
         </button>
       </div>
 
-      {/* Resource snapshot */}
-      {latest && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
-          <Stat label="CPU" value={`${latest.cpu_percent.toFixed(1)}%`} accent={pctColor(latest.cpu_percent)} />
-          <Stat label="Memory" value={`${(latest.mem_used_bytes / 1024 / 1024).toFixed(0)} MB`} sub={`${latest.mem_percent.toFixed(1)}%`} accent={pctColor(latest.mem_percent)} />
-          <Stat label="Net RX" value={fmtBytes(latest.net_rx_bytes)} />
-          <Stat label="Net TX" value={fmtBytes(latest.net_tx_bytes)} />
-          <Stat label="Disk Read" value={fmtBytes(latest.disk_read_bytes)} />
-          <Stat label="Disk Write" value={fmtBytes(latest.disk_write_bytes)} />
-        </div>
-      )}
+      {loading && <Empty msg="Loading agent stats..." />}
 
-      {/* Token & Cost */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <Stat label="Input Tokens" value={totalInput.toLocaleString()} accent={C.amber} />
-        <Stat label="Output Tokens" value={totalOutput.toLocaleString()} accent={C.purple} />
-        <Stat label="Total Cost" value={`$${(agentCost?.total_cost_usd ?? 0).toFixed(2)}`} accent={C.orange} />
-        <Stat label="Records" value={String(agentCost?.record_count ?? 0)} />
-      </div>
+      {/* Resource snapshot */}
+      {summary && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+            <Stat label="CPU (avg)" value={`${summary.cpu_avg.toFixed(1)}%`} sub={`max ${summary.cpu_max.toFixed(1)}%`} accent={pctColor(summary.cpu_avg)} />
+            <Stat label="Memory" value={fmtBytes(summary.mem_avg_bytes)} sub={`${summary.mem_percent.toFixed(1)}% · max ${fmtBytes(summary.mem_max_bytes)}`} accent={pctColor(summary.mem_percent)} />
+            <Stat label="Net RX" value={fmtBytes(summary.net_rx_bytes)} />
+            <Stat label="Net TX" value={fmtBytes(summary.net_tx_bytes)} />
+            <Stat label="Disk Read" value={fmtBytes(summary.disk_read_bytes)} />
+            <Stat label="Disk Write" value={fmtBytes(summary.disk_write_bytes)} />
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <Stat label="Input Tokens" value={summary.input_tokens.toLocaleString()} accent={C.amber} />
+            <Stat label="Output Tokens" value={summary.output_tokens.toLocaleString()} accent={C.purple} />
+            <Stat label="Total Cost" value={`$${summary.total_cost_usd.toFixed(2)}`} accent={C.orange} />
+            <Stat label="Cache" value={`R: ${(summary.cache_read ?? 0).toLocaleString()} / W: ${(summary.cache_create ?? 0).toLocaleString()}`} />
+          </div>
+        </>
+      )}
 
       {/* Cost by model */}
       {modelCostData.length > 0 && (
@@ -666,9 +669,6 @@ export function Stats() {
       {selectedAgent && (
         <AgentDrillDown
           agentName={selectedAgent}
-          metrics={data.agentMetrics}
-          tokenMetrics={data.tokenMetrics}
-          costByAgent={data.costByAgent}
           onClose={() => setSelectedAgent(null)}
         />
       )}
