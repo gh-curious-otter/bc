@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "bc": {
-      "url": "http://host.docker.internal:9374/mcp/swift-hawk/sse",
+      "url": "http://host.docker.internal:9374/_mcp/swift-hawk/sse",
       "type": "sse"
     }
   }
