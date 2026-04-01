@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"os/exec"
 	"strings"
 
 	"github.com/gh-curious-otter/bc/pkg/tool"
@@ -20,12 +21,63 @@ func NewToolHandler(store *tool.Store) *ToolHandler {
 
 // Register mounts tool routes on mux.
 func (h *ToolHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("/api/tools/check", h.checkAll)
 	mux.HandleFunc("/api/tools", h.list)
 	mux.HandleFunc("/api/tools/", h.byName)
 }
 
 func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
+	switch r.Method {
+	case http.MethodGet:
+		// Support ?type=cli&type=mcp filtering
+		opts := tool.ListOptions{}
+		if types := r.URL.Query()["type"]; len(types) > 0 {
+			opts.Types = types
+		}
+		tools, err := h.store.ListWithOptions(r.Context(), opts)
+		if err != nil {
+			httpInternalError(w, "list tools", err)
+			return
+		}
+		if tools == nil {
+			tools = []*tool.Tool{}
+		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(tools) {
+			tools = []*tool.Tool{}
+		} else {
+			tools = tools[offset:]
+			if len(tools) > limit {
+				tools = tools[:limit]
+			}
+		}
+		writeJSON(w, http.StatusOK, tools)
+
+	case http.MethodPost:
+		var t tool.Tool
+		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := h.store.Add(r.Context(), &t); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		created, err := h.store.Get(r.Context(), t.Name)
+		if err != nil {
+			httpInternalError(w, "operation failed", err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+
+	default:
+		methodNotAllowed(w)
+	}
+}
+
+// checkAll runs health checks on all tools.
+func (h *ToolHandler) checkAll(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
 	tools, err := h.store.List(r.Context())
@@ -33,19 +85,44 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 		httpInternalError(w, "list tools", err)
 		return
 	}
-	if tools == nil {
-		tools = []*tool.Tool{}
+
+	type checkResult struct {
+		Name   string `json:"name"`
+		Type   string `json:"type"`
+		Status string `json:"status"`
+		Error  string `json:"error,omitempty"`
 	}
-	limit, offset := parsePagination(r, 50)
-	if offset >= len(tools) {
-		tools = []*tool.Tool{}
-	} else {
-		tools = tools[offset:]
-		if len(tools) > limit {
-			tools = tools[:limit]
+	var results []checkResult
+	for _, t := range tools {
+		r := checkResult{Name: t.Name, Type: t.Type, Status: "ok"}
+		switch t.Type {
+		case tool.ToolTypeMCP:
+			if t.Transport == "stdio" && t.Command != "" {
+				cmd := strings.Fields(t.Command)[0]
+				if _, err := exec.LookPath(cmd); err != nil {
+					r.Status = "error"
+					r.Error = "command not found: " + cmd
+				}
+			}
+		case tool.ToolTypeCLI:
+			if _, err := exec.LookPath(t.Command); err != nil {
+				r.Status = "not_installed"
+				r.Error = "not found in PATH"
+			} else {
+				r.Status = "installed"
+			}
+		case tool.ToolTypeProvider:
+			cmd := strings.Fields(t.Command)[0]
+			if _, err := exec.LookPath(cmd); err != nil {
+				r.Status = "not_installed"
+				r.Error = "not found in PATH"
+			} else {
+				r.Status = "installed"
+			}
 		}
+		results = append(results, r)
 	}
-	writeJSON(w, http.StatusOK, tools)
+	writeJSON(w, http.StatusOK, results)
 }
 
 func (h *ToolHandler) byName(w http.ResponseWriter, r *http.Request) {
