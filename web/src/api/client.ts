@@ -607,6 +607,12 @@ export const api = {
       body: JSON.stringify({ agent_id: agentName }),
     }),
 
+  removeChannelMember: (channelName: string, agentName: string) =>
+    request<void>(
+      `/channels/${encodeURIComponent(channelName)}/members/${encodeURIComponent(agentName)}`,
+      { method: "DELETE" },
+    ),
+
   updateChannel: (name: string, patch: { description?: string }) =>
     request<Channel>(`/channels/${encodeURIComponent(name)}`, {
       method: "PATCH",

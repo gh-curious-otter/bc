@@ -14,6 +14,7 @@ export function MemberPanel({
 }) {
   const [addingMember, setAddingMember] = useState(false);
   const [agents, setAgents] = useState<string[]>([]);
+  const [removingMember, setRemovingMember] = useState<string | null>(null);
 
   useEffect(() => {
     if (!addingMember) return;
@@ -37,6 +38,18 @@ export function MemberPanel({
     setAddingMember(false);
   };
 
+  const handleRemoveMember = async (agentName: string) => {
+    setRemovingMember(agentName);
+    try {
+      await api.removeChannelMember(channel.name, agentName);
+      onChannelUpdated();
+    } catch {
+      // silently fail
+    } finally {
+      setRemovingMember(null);
+    }
+  };
+
   return (
     <div className="w-56 shrink-0 border-l border-bc-border overflow-auto bg-bc-surface/30">
       <div className="p-3 border-b border-bc-border">
@@ -48,13 +61,23 @@ export function MemberPanel({
         {(channel.members ?? []).map((m) => (
           <div
             key={m}
-            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bc-surface/50 transition-colors"
+            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bc-surface/50 transition-colors group"
           >
             <AgentAvatar name={m} role={agentRoles[m]} size="sm" />
             <div className="flex-1 min-w-0">
               <span className="text-sm text-bc-text truncate block">{m}</span>
             </div>
             <RoleBadge role={agentRoles[m]} />
+            <button
+              type="button"
+              onClick={() => void handleRemoveMember(m)}
+              disabled={removingMember === m}
+              className="text-xs text-bc-muted hover:text-bc-error opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-bc-error rounded px-1"
+              aria-label={`Remove ${m} from channel`}
+              title={`Remove ${m}`}
+            >
+              ✕
+            </button>
           </div>
         ))}
       </div>
