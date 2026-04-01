@@ -193,7 +193,7 @@ test-go-fast: ## Run Go tests excluding slow packages
 test-ts: test-tui test-web test-landing ## Run all TS tests
 
 test-tui: ## Run TUI tests
-	cd tui && bun install && bun test
+	cd tui && bun install && CI=true bun test
 
 test-web: ## Run web UI tests
 	cd web && bun install && bun run test
