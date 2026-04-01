@@ -82,7 +82,7 @@ func (p *PostgresStore) AddJob(ctx context.Context, job *Job) error {
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		job.Name, job.Schedule,
 		pgNullStr(job.AgentName), pgNullStr(job.Prompt), pgNullStr(job.Command),
-		enabled, nextRun.Format(time.RFC3339), time.Now().Format(time.RFC3339),
+		enabled, nextRun, time.Now(),
 	)
 	if err != nil {
 		return fmt.Errorf("insert cron job: %w", err)
@@ -178,7 +178,7 @@ func (p *PostgresStore) RecordRun(ctx context.Context, entry *LogEntry) error {
 		`INSERT INTO cron_logs (job_name, status, duration_ms, cost_usd, output, run_at)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		entry.JobName, entry.Status, entry.DurationMS, entry.CostUSD,
-		pgNullStr(entry.Output), entry.RunAt.Format(time.RFC3339),
+		pgNullStr(entry.Output), entry.RunAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert cron log: %w", err)
@@ -199,7 +199,7 @@ func (p *PostgresStore) RecordRun(ctx context.Context, entry *LogEntry) error {
 		`UPDATE cron_jobs
 		 SET last_run = $1, next_run = $2, run_count = run_count + 1
 		 WHERE name = $3`,
-		now.Format(time.RFC3339), pgNullTime(nextRunPtr), entry.JobName,
+		now, pgNullTime(nextRunPtr), entry.JobName,
 	)
 	if err != nil {
 		return fmt.Errorf("update cron job stats: %w", err)
@@ -228,7 +228,7 @@ func (p *PostgresStore) RecordManualTrigger(ctx context.Context, name string) er
 
 	_, err = p.db.ExecContext(ctx,
 		`UPDATE cron_jobs SET last_run = $1, next_run = $2, run_count = run_count + 1 WHERE name = $3`,
-		now.Format(time.RFC3339), pgNullTime(nextRunPtr), name,
+		now, pgNullTime(nextRunPtr), name,
 	)
 	return err
 }
@@ -258,12 +258,8 @@ func (p *PostgresStore) GetLogs(ctx context.Context, jobName string, last int) (
 	for rows.Next() {
 		e := &LogEntry{}
 		var output sql.NullString
-		var runAt string
-		if scanErr := rows.Scan(&e.ID, &e.JobName, &e.Status, &e.DurationMS, &e.CostUSD, &output, &runAt); scanErr != nil {
+		if scanErr := rows.Scan(&e.ID, &e.JobName, &e.Status, &e.DurationMS, &e.CostUSD, &output, &e.RunAt); scanErr != nil {
 			return nil, fmt.Errorf("scan cron log: %w", scanErr)
-		}
-		if t, parseErr := time.Parse(time.RFC3339, runAt); parseErr == nil {
-			e.RunAt = t
 		}
 		if output.Valid {
 			e.Output = output.String
@@ -286,14 +282,13 @@ func pgScanJob(s pgCronScanner) (*Job, error) {
 		agentName sql.NullString
 		prompt    sql.NullString
 		command   sql.NullString
-		lastRun   sql.NullString
-		nextRun   sql.NullString
+		lastRun   sql.NullTime
+		nextRun   sql.NullTime
 		enabled   int
-		createdAt string
 	)
 	err := s.Scan(
 		&j.Name, &j.Schedule, &agentName, &prompt, &command,
-		&enabled, &lastRun, &nextRun, &j.RunCount, &createdAt,
+		&enabled, &lastRun, &nextRun, &j.RunCount, &j.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, sql.ErrNoRows
@@ -302,9 +297,6 @@ func pgScanJob(s pgCronScanner) (*Job, error) {
 		return nil, fmt.Errorf("scan cron job: %w", err)
 	}
 	j.Enabled = enabled != 0
-	if t, parseErr := time.Parse(time.RFC3339, createdAt); parseErr == nil {
-		j.CreatedAt = t
-	}
 	if agentName.Valid {
 		j.AgentName = agentName.String
 	}
@@ -315,14 +307,12 @@ func pgScanJob(s pgCronScanner) (*Job, error) {
 		j.Command = command.String
 	}
 	if lastRun.Valid {
-		if t, parseErr := time.Parse(time.RFC3339, lastRun.String); parseErr == nil {
-			j.LastRun = &t
-		}
+		t := lastRun.Time
+		j.LastRun = &t
 	}
 	if nextRun.Valid {
-		if t, parseErr := time.Parse(time.RFC3339, nextRun.String); parseErr == nil {
-			j.NextRun = &t
-		}
+		t := nextRun.Time
+		j.NextRun = &t
 	}
 	return j, nil
 }
@@ -334,11 +324,11 @@ func pgNullStr(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: true}
 }
 
-func pgNullTime(t *time.Time) sql.NullString {
+func pgNullTime(t *time.Time) sql.NullTime {
 	if t == nil {
-		return sql.NullString{}
+		return sql.NullTime{}
 	}
-	return sql.NullString{String: t.Format(time.RFC3339), Valid: true}
+	return sql.NullTime{Time: *t, Valid: true}
 }
 
 // OpenStore opens the cron store using the shared workspace database.
