@@ -15,6 +15,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/log"
 	pkgmcp "github.com/gh-curious-otter/bc/pkg/mcp"
 	"github.com/gh-curious-otter/bc/pkg/secret"
+	pkgtool "github.com/gh-curious-otter/bc/pkg/tool"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
@@ -141,49 +142,86 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 	isDocker := runtimeBackend == "docker"
 	cfg := mcpConfig{MCPServers: make(map[string]mcpServerEntry)}
 
+	// Try unified tool store first for MCP server configs, fall back to mcp.Store.
+	toolStore := pkgtool.NewStore(filepath.Join(workspacePath, ".bc"))
+	var toolStoreOpen bool
+	if openErr := toolStore.Open(); openErr == nil {
+		toolStoreOpen = true
+		defer toolStore.Close() //nolint:errcheck
+	}
+
 	mcpStore, mcpErr := pkgmcp.NewStore(workspacePath)
-	if mcpErr != nil {
-		log.Debug("MCP store unavailable", "error", mcpErr)
+	if mcpErr != nil && !toolStoreOpen {
+		log.Debug("both tool and MCP stores unavailable", "error", mcpErr)
 		return writeJSONFile(targetDir, ".mcp.json", cfg)
 	}
-	defer mcpStore.Close() //nolint:errcheck
+	if mcpErr == nil {
+		defer mcpStore.Close() //nolint:errcheck
+	}
 
 	for _, name := range resolved.MCPServers {
-		def, getErr := mcpStore.Get(name)
-		if getErr != nil || def == nil || !def.Enabled {
+		// Try unified tool store first
+		var transport, command, url string
+		var args []string
+		var env map[string]string
+		var enabled bool
+		var found bool
+
+		if toolStoreOpen {
+			t, tErr := toolStore.Get(context.Background(), name)
+			if tErr == nil && t != nil && t.Type == pkgtool.ToolTypeMCP {
+				transport = t.Transport
+				command = t.Command
+				url = t.URL
+				args = t.Args
+				env = t.Env
+				enabled = t.Enabled
+				found = true
+			}
+		}
+
+		// Fall back to mcp.Store
+		if !found && mcpErr == nil {
+			def, getErr := mcpStore.Get(name)
+			if getErr == nil && def != nil {
+				transport = string(def.Transport)
+				command = def.Command
+				url = def.URL
+				args = def.Args
+				env = def.Env
+				enabled = def.Enabled
+				found = true
+			}
+		}
+
+		if !found || !enabled {
 			continue
 		}
 		// Docker agents can't use stdio-transport MCP servers (no access to
 		// host processes). Skip with warning — use tmux runtime for full MCP.
-		if isDocker && def.Transport != "sse" {
+		if isDocker && transport != "sse" {
 			log.Warn("skipping stdio MCP server for Docker agent (unreachable)",
 				"agent", agentName, "mcp", name,
 				"hint", "use tmux runtime for stdio MCP servers")
 			continue
 		}
-		entry := mcpServerEntry{Command: def.Command, Args: def.Args, URL: def.URL}
+		entry := mcpServerEntry{Command: command, Args: args, URL: url}
 		if isDocker && entry.URL != "" {
 			entry.URL = rewriteDockerURL(entry.URL)
 		}
-		// Rewrite MCP SSE URL to include agent identity in the path.
-		// /_mcp/sse → /_mcp/{agentName}/sse
-		// This is permanent — survives config regeneration unlike ?agent= query params.
 		if entry.URL != "" && strings.Contains(entry.URL, "/_mcp/sse") {
 			entry.URL = strings.Replace(entry.URL, "/_mcp/sse", "/_mcp/"+agentName+"/sse", 1)
 		}
-		if def.Transport == "sse" {
+		if transport == "sse" {
 			entry.Type = "sse"
 		}
-		if len(def.Env) > 0 {
-			entry.Env = make(map[string]string, len(def.Env))
-			for k, v := range def.Env {
-				// Try to resolve ${secret:NAME} to actual value
+		if len(env) > 0 {
+			entry.Env = make(map[string]string, len(env))
+			for k, v := range env {
 				resolved := resolveSecretValue(v, secrets)
 				if resolved != "" {
 					entry.Env[k] = resolved
 				} else {
-					// Secret not available — use env var reference so Claude Code
-					// can resolve it from the container environment instead
 					entry.Env[k] = "${" + k + "}"
 				}
 			}
