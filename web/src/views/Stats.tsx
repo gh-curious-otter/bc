@@ -15,7 +15,6 @@ import { EmptyState } from "../components/EmptyState";
 
 // ── Model Pricing ───────────────────────────────────────────────────────────────
 
-// Model pricing (per 1M tokens, USD)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   "claude-opus-4-6": { input: 15, output: 75 },
   "claude-sonnet-4-6": { input: 3, output: 15 },
@@ -62,14 +61,14 @@ const fmtBytes = (b: number) => {
   const i = Math.floor(Math.log(b) / Math.log(1024));
   return `${(b / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
 };
-const fmtUptime = (s: number) => {
-  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-  return [d && `${d}d`, h && `${h}h`, `${m}m`].filter(Boolean).join(" ");
-};
 const fmtTokens = (n: number) => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+};
+const fmtCost = (n: number) => {
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n.toFixed(2)}`;
 };
 const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 
@@ -115,7 +114,7 @@ type SortKey = "name" | "role" | "state" | "cpu" | "mem" | "tokens" | "cost";
 
 export function Stats() {
   const navigate = useNavigate();
-  const [range, setRange] = useState(0); // index into RANGES
+  const [range, setRange] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>("cost");
   const [sortAsc, setSortAsc] = useState(false);
 
@@ -169,13 +168,18 @@ export function Stats() {
 
   const agentTable = useMemo(() => buildAgentTable(data, sortKey, sortAsc), [data, sortKey, sortAsc]);
 
-  const totalTokens = data?.costSummary?.total_tokens ?? 0;
-  const inputTokens = data?.costSummary?.input_tokens ?? 0;
-  const outputTokens = data?.costSummary?.output_tokens ?? 0;
-  const totalCost = data?.costSummary?.total_cost_usd ?? 0;
-  const uptime = data?.system?.uptime_seconds ?? data?.summary?.uptime_seconds ?? 0;
-  const running = data?.summary?.agents_running ?? 0;
-  const total = data?.summary?.agents_total ?? 0;
+  const agentColors = useMemo(() => {
+    const names = [...new Set((data?.agentCpu ?? []).map(m => m.agent_name).filter(n => !isInfra(n)))];
+    const map: Record<string, string> = {};
+    names.forEach((n, i) => { map[n] = COLORS[i % COLORS.length]!; });
+    return map;
+  }, [data?.agentCpu]);
+
+  // Aggregate stats for column headers
+  const avgCpu = agentTable.length > 0 ? agentTable.reduce((s, a) => s + a.cpu, 0) / agentTable.length : 0;
+  const totalMem = agentTable.reduce((s, a) => s + a.mem, 0);
+  const totalTokens = agentTable.reduce((s, a) => s + a.tokens, 0);
+  const totalCost = agentTable.reduce((s, a) => s + a.cost, 0);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -188,6 +192,16 @@ export function Stats() {
     if (sortKey === key) setSortAsc(!sortAsc);
     else { setSortKey(key); setSortAsc(false); }
   }
+
+  const colHeaders: { key: SortKey; label: string; agg?: string }[] = [
+    { key: "name", label: "Name" },
+    { key: "role", label: "Role" },
+    { key: "state", label: "State" },
+    { key: "cpu", label: "CPU%", agg: `avg ${avgCpu.toFixed(1)}` },
+    { key: "mem", label: "Mem MB", agg: `total ${totalMem >= 1024 ? `${(totalMem / 1024).toFixed(1)}G` : `${totalMem.toFixed(0)}M`}` },
+    { key: "tokens", label: "Tokens", agg: fmtTokens(totalTokens) },
+    { key: "cost", label: "Cost", agg: fmtCost(totalCost) },
+  ];
 
   return (
     <div className="p-6 space-y-4">
@@ -207,31 +221,71 @@ export function Stats() {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded border border-bc-border bg-bc-surface p-3">
-          <p className="text-[11px] text-bc-muted uppercase tracking-wider">Agents</p>
-          <p className="mt-1 text-xl font-bold flex items-center gap-2">
-            {running > 0 && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
-            {running}/{total}
-          </p>
-        </div>
-        <div className="rounded border border-bc-border bg-bc-surface p-3">
-          <p className="text-[11px] text-bc-muted uppercase tracking-wider">Tokens</p>
-          <p className="mt-1 text-xl font-bold">{fmtTokens(totalTokens)}</p>
-          <p className="text-[10px] text-bc-muted">In: {fmtTokens(inputTokens)} / Out: {fmtTokens(outputTokens)}</p>
-        </div>
-        <div className="rounded border border-bc-border bg-bc-surface p-3">
-          <p className="text-[11px] text-bc-muted uppercase tracking-wider">Cost</p>
-          <p className="mt-1 text-xl font-bold text-[#FF6B35]">${totalCost.toFixed(2)}</p>
-        </div>
-        <div className="rounded border border-bc-border bg-bc-surface p-3">
-          <p className="text-[11px] text-bc-muted uppercase tracking-wider">Uptime</p>
-          <p className="mt-1 text-xl font-bold">{fmtUptime(uptime)}</p>
-        </div>
-      </div>
+      {/* Agent Table */}
+      {agentTable.length > 0 && (
+        <Panel title={`Agents (${agentTable.length})`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-bc-muted text-left">
+                  {colHeaders.map(h => (
+                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-bc-text select-none" onClick={() => handleSort(h.key)}>
+                      <div className="flex items-center">
+                        {h.label}
+                        {sortKey === h.key && <span className="ml-1">{sortAsc ? "\u25B2" : "\u25BC"}</span>}
+                      </div>
+                      {h.agg && <div className="text-[10px] font-normal text-bc-muted">{h.agg}</div>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {agentTable.map(a => (
+                  <tr key={a.name}
+                    className="border-t border-bc-border/50 hover:bg-bc-bg/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/agents/${encodeURIComponent(a.name)}`)}
+                  >
+                    <td className="py-1.5 px-2 font-medium">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: agentColors[a.name] ?? COLORS[0] }} />
+                        {a.name}
+                      </span>
+                    </td>
+                    <td className="py-1.5 px-2 text-bc-muted">{a.role}</td>
+                    <td className="py-1.5 px-2">
+                      <span className="flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          a.state === "working" || a.state === "idle" || a.state === "running" ? "bg-green-500"
+                          : a.state === "stuck" ? "bg-orange-500" : "bg-bc-muted"
+                        }`} />
+                        {a.state}
+                      </span>
+                    </td>
+                    <td className="py-1.5 px-2 font-mono">{a.cpu.toFixed(1)}</td>
+                    <td className="py-1.5 px-2 font-mono">{a.mem.toFixed(0)}</td>
+                    <td className="py-1.5 px-2 font-mono">{fmtTokens(a.tokens)}</td>
+                    <td className="py-1.5 px-2 font-mono text-[#FF6B35]">${a.cost.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
 
-      {/* Row 1: CPU + Memory */}
+      {/* Sticky agent legend bar */}
+      {Object.keys(agentColors).length > 0 && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 px-3 py-2 bg-bc-bg/95 backdrop-blur-sm border-b border-bc-border">
+          {Object.entries(agentColors).map(([name, color]) => (
+            <span key={name} className="flex items-center gap-1.5 text-xs text-bc-muted">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+              {name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* CPU + Memory */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="CPU by Agent (%)">
           {cpuChart.data.length === 0 ? <Empty /> : (
@@ -241,8 +295,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `${v}%`} />
                 <Tooltip contentStyle={TT} />
-                {cpuChart.agents.map((n, i) => (
-                  <Area key={n} type="monotone" dataKey={n} stroke={COLORS[i % COLORS.length]} fill={COLORS[i % COLORS.length]} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                {cpuChart.agents.map((n) => (
+                  <Area key={n} type="monotone" dataKey={n} stroke={agentColors[n] ?? COLORS[0]} fill={agentColors[n] ?? COLORS[0]} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
@@ -256,8 +310,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
-                {memChart.agents.map((n, i) => (
-                  <Area key={n} type="monotone" dataKey={n} stroke={COLORS[i % COLORS.length]} fill={COLORS[i % COLORS.length]} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                {memChart.agents.map((n) => (
+                  <Area key={n} type="monotone" dataKey={n} stroke={agentColors[n] ?? COLORS[0]} fill={agentColors[n] ?? COLORS[0]} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
@@ -265,7 +319,7 @@ export function Stats() {
         </Panel>
       </div>
 
-      {/* Row 2: Network + Disk */}
+      {/* Network + Disk */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="Network I/O">
           {netChart.length === 0 ? <Empty /> : (
@@ -297,7 +351,7 @@ export function Stats() {
         </Panel>
       </div>
 
-      {/* Row 3: Tokens + Cost by Model */}
+      {/* Tokens + Cost by Model */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="Token Usage">
           {tokenChart.length === 0 ? <Empty /> : (
@@ -329,50 +383,6 @@ export function Stats() {
           )}
         </Panel>
       </div>
-
-      {/* Agent Table */}
-      {agentTable.length > 0 && (
-        <Panel title={`Agents (${agentTable.length})`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-bc-muted text-left">
-                  {(["name", "role", "state", "cpu", "mem", "tokens", "cost"] as SortKey[]).map(k => (
-                    <th key={k} className="py-1.5 px-2 font-medium cursor-pointer hover:text-bc-text select-none" onClick={() => handleSort(k)}>
-                      {k === "cpu" ? "CPU%" : k === "mem" ? "Mem MB" : k.charAt(0).toUpperCase() + k.slice(1)}
-                      {sortKey === k && <span className="ml-1">{sortAsc ? "\u25B2" : "\u25BC"}</span>}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {agentTable.map(a => (
-                  <tr key={a.name}
-                    className="border-t border-bc-border/50 hover:bg-bc-bg/50 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/agents/${encodeURIComponent(a.name)}`)}
-                  >
-                    <td className="py-1.5 px-2 font-medium">{a.name}</td>
-                    <td className="py-1.5 px-2 text-bc-muted">{a.role}</td>
-                    <td className="py-1.5 px-2">
-                      <span className="flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          a.state === "working" || a.state === "idle" || a.state === "running" ? "bg-green-500"
-                          : a.state === "stuck" ? "bg-orange-500" : "bg-bc-muted"
-                        }`} />
-                        {a.state}
-                      </span>
-                    </td>
-                    <td className="py-1.5 px-2 font-mono">{a.cpu.toFixed(1)}</td>
-                    <td className="py-1.5 px-2 font-mono">{a.mem.toFixed(0)}</td>
-                    <td className="py-1.5 px-2 font-mono">{fmtTokens(a.tokens)}</td>
-                    <td className="py-1.5 px-2 font-mono text-[#FF6B35]">${a.cost.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-      )}
     </div>
   );
 }

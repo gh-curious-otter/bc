@@ -106,6 +106,14 @@ export function Layout() {
   const { mode, toggle } = useTheme();
   const isMobile = useMediaQuery("(max-width: 767px)");
 
+  // Fetch user name for sidebar header
+  const [userName, setUserName] = useState("");
+  useEffect(() => {
+    fetch("/api/settings").then(r => r.json()).then(d => {
+      setUserName(d?.user?.name || "");
+    }).catch(() => {});
+  }, []);
+
   // Mobile overlay sidebar (open/close)
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -185,12 +193,21 @@ export function Layout() {
         }`}
       >
         <div className="p-4 border-b border-bc-border flex items-center justify-between">
-          <div className="flex items-center overflow-hidden">
-            <span className="text-lg font-bold text-bc-accent">bc</span>
-            {(!collapsed || isMobile) && (
-              <span className="ml-2 text-xs text-bc-muted">v2</span>
-            )}
-          </div>
+          {(!collapsed || isMobile) ? (
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="w-7 h-7 rounded-full bg-bc-accent/20 text-bc-accent flex items-center justify-center text-xs font-bold shrink-0">
+                {(userName || "U")[0]!.toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-bc-text truncate">{userName || "User"}</p>
+                <p className="text-[10px] text-bc-muted">workspace</p>
+              </div>
+            </div>
+          ) : (
+            <span className="w-7 h-7 rounded-full bg-bc-accent/20 text-bc-accent flex items-center justify-center text-xs font-bold shrink-0">
+              {(userName || "U")[0]!.toUpperCase()}
+            </span>
+          )}
           {/* Close button on mobile */}
           {isMobile && (
             <button
