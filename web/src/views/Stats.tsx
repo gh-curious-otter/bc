@@ -300,7 +300,7 @@ export function Stats() {
                     <td className="py-1.5 px-2 font-mono">{a.cpu.toFixed(1)}</td>
                     <td className="py-1.5 px-2 font-mono">{a.mem.toFixed(0)}</td>
                     <td className="py-1.5 px-2 font-mono">{fmtTokens(a.tokens)}</td>
-                    <td className="py-1.5 px-2 font-mono text-[#FF6B35]">${a.cost.toFixed(2)}</td>
+                    <td className="py-1.5 px-2 font-mono text-bc-accent">${a.cost.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

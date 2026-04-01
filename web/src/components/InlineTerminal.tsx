@@ -86,7 +86,7 @@ export function InlineTerminal({ agentName, lines = 10 }: InlineTerminalProps) {
     <div className="bg-bc-bg border-t border-bc-border/30 px-4 py-3">
       <div
         ref={scrollRef}
-        className="rounded bg-[#0a0a0f] border border-bc-border/40 p-3 font-mono text-xs leading-relaxed text-[#c9d1d9] max-h-48 overflow-auto whitespace-pre-wrap"
+        className="rounded bg-bc-bg border border-bc-border/40 p-3 font-mono text-xs leading-relaxed text-bc-text max-h-48 overflow-auto whitespace-pre-wrap"
       >
         {loading ? (
           <span className="text-bc-muted animate-pulse">Loading output...</span>

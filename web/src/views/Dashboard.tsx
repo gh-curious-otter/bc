@@ -618,7 +618,7 @@ export function Dashboard() {
   const totalTokens = data.agents.reduce((s, a) => s + (a.total_tokens ?? 0), 0);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0b]">
+    <div className="min-h-screen bg-bc-bg">
       {/* Header */}
       <div className="sticky top-0 z-10 backdrop-blur-md bg-bc-bg/80 border-b border-bc-border/50">
         <div className="flex items-center justify-between px-6 py-4">

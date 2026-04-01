@@ -67,7 +67,7 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
   return (
     <div className="rounded border border-bc-border bg-bc-surface p-3">
       <p className="text-[11px] text-bc-muted uppercase tracking-wider">{label}</p>
-      <p className={`mt-1 text-xl font-bold ${accent ? "text-[#FF6B35]" : ""}`}>{value}</p>
+      <p className={`mt-1 text-xl font-bold ${accent ? "text-bc-accent" : ""}`}>{value}</p>
       {sub && <p className="text-[10px] text-bc-muted">{sub}</p>}
     </div>
   );
@@ -281,7 +281,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
               </div>
               <div className="text-center">
                 <p className="text-[11px] text-bc-muted uppercase">Net TX</p>
-                <p className="text-lg font-bold text-[#FF6B35]">{fmtBytes(s.net_tx_bytes)}</p>
+                <p className="text-lg font-bold text-bc-accent">{fmtBytes(s.net_tx_bytes)}</p>
               </div>
               <div className="text-center">
                 <p className="text-[11px] text-bc-muted uppercase">Disk Read</p>

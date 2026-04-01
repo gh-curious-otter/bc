@@ -73,7 +73,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? "bg-bc-accent" : "bg-bc-border"}`}
     >
-      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-bc-text transition-transform ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`} />
     </button>
   );
 }
@@ -153,7 +153,7 @@ function Section({
         </svg>
         <span className="text-[11px] font-semibold text-bc-text uppercase tracking-wide">{title}</span>
         {meta?.desc && <span className="text-[10px] text-bc-muted ml-auto mr-2 hidden sm:inline">{meta.desc}</span>}
-        {dirty && <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />}
+        {dirty && <span className="w-1.5 h-1.5 rounded-full bg-bc-accent" />}
         <svg className={`w-3 h-3 text-bc-muted transition-transform ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
@@ -276,7 +276,7 @@ function GatewaysSection({ data, onChange }: { data: Record<string, unknown>; on
           <div key={name} className="rounded border border-bc-border/50 bg-bc-bg/50 p-2.5 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${enabled ? "bg-green-500" : "bg-bc-muted"}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${enabled ? "bg-bc-success" : "bg-bc-muted"}`} />
                 {name}
               </span>
               <Toggle checked={enabled} onChange={(v) => onChange([...basePath, "enabled"], v)} />
@@ -410,12 +410,12 @@ export function Settings() {
 
       {/* Floating save bar */}
       {dirtySections.length > 0 && (
-        <div className="sticky top-0 z-20 rounded border border-orange-500/50 bg-orange-500/10 backdrop-blur px-3 py-2 flex items-center justify-between">
+        <div className="sticky top-0 z-20 rounded border border-bc-accent/50 bg-bc-accent/10 backdrop-blur px-3 py-2 flex items-center justify-between">
           <div className="text-xs text-bc-text">
             <span className="font-medium">Unsaved:</span>{" "}
             <span className="text-bc-muted">{dirtySections.join(", ")}</span>
             {dirtySections.some((k) => RESTART_SECTIONS.has(k)) && (
-              <span className="ml-2 text-orange-400">Restart required after save</span>
+              <span className="ml-2 text-bc-accent">Restart required after save</span>
             )}
           </div>
           <button
@@ -423,8 +423,8 @@ export function Settings() {
             disabled={saveStatus === "saving"}
             className={`px-3 py-1 rounded text-xs font-medium transition-all disabled:opacity-50 ${
               saveStatus === "error"
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-orange-500 text-white hover:bg-orange-600"
+                ? "bg-bc-error text-white hover:opacity-90"
+                : "bg-bc-accent text-white hover:opacity-90"
             }`}
           >
             {saveStatus === "saving" ? "Saving..." : saveStatus === "error" ? "Retry" : "Save"}
@@ -433,13 +433,13 @@ export function Settings() {
       )}
 
       {saveStatus === "saved" && dirtySections.length === 0 && !restartWarning && (
-        <div className="rounded border border-green-500/30 bg-green-500/10 px-3 py-1.5 text-xs text-green-400">
+        <div className="rounded border border-bc-success/30 bg-bc-success/10 px-3 py-1.5 text-xs text-bc-success">
           Changes saved.
         </div>
       )}
 
       {restartWarning && (
-        <div className="rounded border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-400">
+        <div className="rounded border border-bc-error/30 bg-bc-error/10 px-3 py-1.5 text-xs text-bc-error">
           Changes saved. Restart bcd to apply (<code className="font-mono">bc down &amp;&amp; bc up -d</code>)
         </div>
       )}

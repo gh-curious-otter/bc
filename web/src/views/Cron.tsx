@@ -276,7 +276,7 @@ function LiveLogs({ name }: { name: string }) {
       </div>
       <pre
         ref={preRef}
-        className="text-xs text-bc-text/80 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono bg-[#0a0a0f] rounded p-3"
+        className="text-xs text-bc-text/80 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono bg-bc-bg rounded p-3"
       >
         {output || "Waiting for output..."}
       </pre>
@@ -299,7 +299,7 @@ function RunDetail({ log }: { log: CronLogEntry }) {
           {log.status}
         </span>
       </div>
-      <pre className="text-xs text-bc-text/80 whitespace-pre-wrap max-h-64 overflow-y-auto font-mono bg-[#0a0a0f] rounded p-3">
+      <pre className="text-xs text-bc-text/80 whitespace-pre-wrap max-h-64 overflow-y-auto font-mono bg-bc-bg rounded p-3">
         {log.output || "(no output)"}
       </pre>
     </div>
