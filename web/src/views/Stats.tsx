@@ -13,6 +13,23 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
+// ── Model Pricing ───────────────────────────────────────────────────────────────
+
+// Model pricing (per 1M tokens, USD)
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "claude-opus-4-6": { input: 15, output: 75 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-haiku-4-5-20251001": { input: 0.80, output: 4 },
+  "claude-3-5-sonnet-20241022": { input: 3, output: 15 },
+  "claude-3-5-haiku-20241022": { input: 0.80, output: 4 },
+  // Fallback for unknown models
+};
+
+export function calculateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = MODEL_PRICING[model] ?? { input: 3, output: 15 }; // default to sonnet pricing
+  return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output;
+}
+
 // ── Theme ──────────────────────────────────────────────────────────────────────
 
 const C = {

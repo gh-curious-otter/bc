@@ -10,7 +10,6 @@ const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: "~" },
   { to: "/agents", label: "Agents", icon: "A" },
   { to: "/channels", label: "Channels", icon: "C" },
-  { to: "/costs", label: "Costs", icon: "$" },
   { to: "/roles", label: "Roles", icon: "R" },
   { to: "/tools", label: "Tools", icon: "T" },
   { to: "/cron", label: "Cron", icon: "@" },

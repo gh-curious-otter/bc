@@ -17,9 +17,6 @@ const AgentDetail = lazy(() =>
 const Channels = lazy(() =>
   import("./views/Channels").then((m) => ({ default: m.Channels })),
 );
-const Costs = lazy(() =>
-  import("./views/Costs").then((m) => ({ default: m.Costs })),
-);
 const Roles = lazy(() =>
   import("./views/Roles").then((m) => ({ default: m.Roles })),
 );
@@ -107,16 +104,6 @@ export function App() {
                   <Suspense fallback={<Loading />}>
                     <ErrorBoundary>
                       <Channels />
-                    </ErrorBoundary>
-                  </Suspense>
-                }
-              />
-              <Route
-                path="costs"
-                element={
-                  <Suspense fallback={<Loading />}>
-                    <ErrorBoundary>
-                      <Costs />
                     </ErrorBoundary>
                   </Suspense>
                 }

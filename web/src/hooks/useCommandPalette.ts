@@ -63,13 +63,6 @@ export function useCommandPalette() {
         action: () => navigate("/channels"),
       },
       {
-        id: "nav-costs",
-        label: "Costs",
-        section: "Navigate",
-        icon: "$",
-        action: () => navigate("/costs"),
-      },
-      {
         id: "nav-roles",
         label: "Roles",
         section: "Navigate",

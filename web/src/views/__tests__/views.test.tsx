@@ -4,7 +4,6 @@ import { MemoryRouter } from "react-router-dom";
 import { Dashboard } from "../Dashboard";
 import { Agents } from "../Agents";
 import { Channels } from "../Channels";
-import { Costs } from "../Costs";
 import { Roles } from "../Roles";
 import { UnifiedTools } from "../UnifiedTools";
 import { Logs } from "../Logs";
@@ -113,31 +112,6 @@ describe("Channels", () => {
     expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText("#general")).toBeInTheDocument();
-    });
-  });
-});
-
-describe("Costs", () => {
-  it("renders skeleton loading then cost data", async () => {
-    fetchMock.mockImplementation((url: string) => {
-      if (url.includes("/costs/budgets")) return jsonResponse([]);
-      if (url.includes("/costs/models")) return jsonResponse([]);
-      if (url.includes("/costs/daily")) return jsonResponse([]);
-      if (url.includes("/costs/agents")) return jsonResponse([]);
-      if (url.includes("/costs"))
-        return jsonResponse({
-          input_tokens: 0,
-          output_tokens: 0,
-          total_tokens: 0,
-          total_cost_usd: 0,
-          record_count: 0,
-        });
-      return jsonResponse({});
-    });
-    const { container } = wrap(<Costs />);
-    expectSkeletonLoading(container);
-    await waitFor(() => {
-      expect(screen.getByText("Costs")).toBeInTheDocument();
     });
   });
 });
