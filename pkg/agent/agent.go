@@ -1136,6 +1136,15 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		agent.Task = fmt.Sprintf("role setup failed: %v", setupErr)
 	}
 
+	// Validate required tools before starting — fail fast with clear errors.
+	if toolErrs := validateAgentTools(wsPath, string(role)); len(toolErrs) > 0 {
+		for _, te := range toolErrs {
+			log.Warn("tool validation failed", "agent", name, "error", te)
+		}
+		agent.Task = fmt.Sprintf("tool validation: %d issue(s)", len(toolErrs))
+		// Non-fatal: agent starts but issues are logged for visibility
+	}
+
 	// Create session IN the worktree directory
 	if err := rt.CreateSessionWithEnv(ctx, name, wtDir, agentCmd, env); err != nil {
 		agentLock.Unlock()
