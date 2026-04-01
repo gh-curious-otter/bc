@@ -248,8 +248,20 @@ func runUpDaemon(ws *workspace.Workspace) error {
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = ws.RootDir
-	// Detach from parent process
-	cmd.SysProcAttr = nil // Default — inherits signals on Linux
+	cmd.Env = os.Environ()
+
+	// If bc-db container is running, set DATABASE_URL so bcd uses Postgres.
+	// This matches the behavior of `bc up` (Docker mode) which passes DATABASE_URL.
+	//nolint:gosec // trusted
+	dbCheck, _ := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", "bc-db").Output()
+	if strings.TrimSpace(string(dbCheck)) == "true" {
+		dbURL := "postgres://bc:bc@localhost:5432/bc"
+		cmd.Env = append(cmd.Env,
+			"DATABASE_URL="+dbURL,
+			"STATS_DATABASE_URL="+dbURL,
+		)
+		fmt.Printf("  bc-db detected — using Postgres\n")
+	}
 
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
