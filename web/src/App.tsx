@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -24,9 +24,6 @@ const Roles = lazy(() =>
   import("./views/Roles").then((m) => ({ default: m.Roles })),
 );
 const Tools = lazy(() =>
-  import("./views/UnifiedTools").then((m) => ({ default: m.UnifiedTools })),
-);
-const MCP = lazy(() =>
   import("./views/UnifiedTools").then((m) => ({ default: m.UnifiedTools })),
 );
 const Logs = lazy(() =>
@@ -144,16 +141,7 @@ export function App() {
                   </Suspense>
                 }
               />
-              <Route
-                path="mcp"
-                element={
-                  <Suspense fallback={<Loading />}>
-                    <ErrorBoundary>
-                      <MCP />
-                    </ErrorBoundary>
-                  </Suspense>
-                }
-              />
+              <Route path="mcp" element={<Navigate to="/tools" replace />} />
               <Route
                 path="logs"
                 element={

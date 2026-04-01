@@ -13,7 +13,6 @@ const NAV_ITEMS = [
   { to: "/costs", label: "Costs", icon: "$" },
   { to: "/roles", label: "Roles", icon: "R" },
   { to: "/tools", label: "Tools", icon: "T" },
-  { to: "/mcp", label: "MCP", icon: "M" },
   { to: "/cron", label: "Cron", icon: "@" },
   { to: "/secrets", label: "Secrets", icon: "#" },
   { to: "/stats", label: "Stats", icon: "S" },
