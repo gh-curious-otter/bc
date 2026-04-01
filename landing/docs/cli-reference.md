@@ -32,7 +32,7 @@ bc init ~/Projects/myapp       # Initialize specific directory
 ```
 
 **Creates:**
-- `.bc/settings.toml` - Workspace configuration
+- `.bc/settings.json` - Workspace configuration
 - `.bc/roles/` - Agent role definitions
 - `.bc/agents/` - Per-agent state files
 

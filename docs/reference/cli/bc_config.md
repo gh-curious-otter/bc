@@ -4,7 +4,7 @@ Manage workspace configuration
 
 ### Synopsis
 
-Commands for managing workspace configuration (.bc/settings.toml).
+Commands for managing workspace configuration (.bc/settings.json).
 
 Configuration uses a hierarchical key structure with dot notation:
   workspace.name

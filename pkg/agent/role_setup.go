@@ -72,11 +72,11 @@ func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBa
 		}
 	}
 
-	// Write plugin config to the agent's auth dir (user-level .claude/)
-	// so Docker agents have plugins available without host mounts.
-	authClaudeDir := filepath.Join(workspacePath, ".bc", "agents", agentName, "auth", ".claude")
+	// Write plugin config to the agent's Claude home dir (~/.claude/ in container).
+	// This is the "claude/" dir that gets mounted as /home/agent/.claude.
+	agentClaudeDir := filepath.Join(workspacePath, ".bc", "agents", agentName, "claude")
 	if len(resolved.Plugins) > 0 {
-		if e := writePluginConfig(authClaudeDir, resolved.Plugins); e != nil {
+		if e := writePluginConfig(agentClaudeDir, resolved.Plugins); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
@@ -266,9 +266,9 @@ type pluginManifest struct {
 }
 
 // writePluginConfig writes an installed_plugins.json manifest so Claude Code
-// knows which plugins to load. The file is placed in the agent's auth .claude/
-// directory (authClaudeDir).
-func writePluginConfig(authClaudeDir string, plugins []string) error {
+// knows which plugins to load. The file is placed in the agent's Claude home
+// directory (mounted as /home/agent/.claude in Docker containers).
+func writePluginConfig(claudeDir string, plugins []string) error {
 	manifest := pluginManifest{
 		Plugins: make(map[string]pluginEntry, len(plugins)),
 	}
@@ -279,7 +279,7 @@ func writePluginConfig(authClaudeDir string, plugins []string) error {
 			Enabled: true,
 		}
 	}
-	return writeJSONFile(authClaudeDir, "installed_plugins.json", manifest)
+	return writeJSONFile(claudeDir, "installed_plugins.json", manifest)
 }
 
 // ── File writers ────────────────────────────────────────────────────────────

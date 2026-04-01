@@ -61,7 +61,7 @@ func isV1Workspace(dir string) bool {
 	return err == nil
 }
 
-// isV2Workspace checks if a directory has a v2 workspace (settings.json or config.toml).
+// isV2Workspace checks if a directory has a v2 workspace (settings.json, or legacy config.toml).
 func isV2Workspace(dir string) bool {
 	if _, err := os.Stat(filepath.Join(dir, ".bc", "settings.json")); err == nil {
 		return true

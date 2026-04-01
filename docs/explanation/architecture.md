@@ -45,7 +45,7 @@ This document describes the internal architecture of bc, covering component rela
        |  | Runtime       |  | Storage                    |  |
        |  |               |  |                            |  |
        |  | +----------+  |  | ~/.bc/bc.db (SQLite WAL)   |  |
-       |  | | tmux     |  |  | ~/.bc/settings.toml        |  |
+       |  | | tmux     |  |  | ~/.bc/settings.json        |  |
        |  | | sessions |  |  | ~/.bc/secret-key           |  |
        |  | +----------+  |  | ~/.bc/agents/<name>/       |  |
        |  | +----------+  |  |                            |  |

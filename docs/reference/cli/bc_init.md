@@ -10,7 +10,7 @@ This creates a .bc directory with v2 configuration for managing agents.
 
 v2 workspace structure:
   .bc/
-    settings.toml  # Workspace configuration
+    settings.json  # Workspace configuration
     roles/         # Agent role definitions
       root.md      # Root agent role
     agents/        # Per-agent state files

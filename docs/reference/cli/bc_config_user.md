@@ -11,7 +11,7 @@ User configuration provides defaults that apply across all bc workspaces:
   - Default role for new agents
   - Preferred AI tools
 
-Workspace config (.bc/settings.toml) takes precedence over user config.
+Workspace config (.bc/settings.json) takes precedence over user config.
 
 Examples:
   bc config user init   # Create ~/.bcrc with guided prompts

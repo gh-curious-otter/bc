@@ -192,7 +192,7 @@ When needed for multi-user deployment:
 ```
 ~/.bc/
   bc.db                     # Main SQLite database (all tables)
-  settings.toml             # Global settings
+  settings.json             # Global settings
   secret-key                # AES-256 encryption key (0600 perms)
   agents/
     <agent-name>/
@@ -238,10 +238,10 @@ Importer scans `~/.bc/agents/*/auth/.claude/` for session JSONL files, extracts 
 ```
 OLD (per-project):                NEW (global):
   project/.bc/bc.db        ->     ~/.bc/bc.db
-  project/.bc/settings.toml  ->     ~/.bc/settings.toml
+  project/.bc/settings.json  ->     ~/.bc/settings.json
   project/.bc/agents/      ->     ~/.bc/agents/
   project/.bc/roles/*.md   ->     roles table in bc.db
   project/.bc/logs/        ->     ~/.bc/logs/
 ```
 
-`bc workspace migrate` migrates workspace config format from v1 (`.bc/config.json`) to v2 (`.bc/settings.toml`). It does not migrate database schema or copy data between directories. Agent JSON state files auto-migrate on next load.
+`bc workspace migrate` migrates workspace config format from v1 (`.bc/config.json`) to v2 (`.bc/settings.json`). It does not migrate database schema or copy data between directories. Agent JSON state files auto-migrate on next load.

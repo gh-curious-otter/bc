@@ -26,7 +26,7 @@ graph TB
 
     subgraph Storage ["Storage Layer"]
         DB["SQLite<br/>~/.bc/bc.db<br/>agents, channels, costs,<br/>roles, events, cron"]
-        FS["Filesystem<br/>~/.bc/<br/>settings.toml, logs,<br/>agent worktrees"]
+        FS["Filesystem<br/>~/.bc/<br/>settings.json, logs,<br/>agent worktrees"]
     end
 
     CLI -->|"HTTP GET/POST"| REST
@@ -584,7 +584,7 @@ The config directory lives at `~/.bc/` as a global location. The web dashboard r
 
 - `Roles.tsx` displays labels for role field names from the DB, not filesystem paths.
 - The `Doctor` view surfaces file-path-based diagnostics that reference `~/.bc/` paths.
-- The `Teams` view shows the workspace config path as `~/.bc/settings.toml`.
+- The `Teams` view shows the workspace config path as `~/.bc/settings.json`.
 
 ---
 

@@ -17,7 +17,7 @@ graph TD
         API["REST API\n/api/*"]
         SSE["SSE Endpoint\n/api/events"]
         DB["SQLite\n~/.bc/bc.db"]
-        Config["Global Config\n~/.bc/settings.toml"]
+        Config["Global Config\n~/.bc/settings.json"]
     end
 
     TUI -->|"HTTP + SSE"| API
@@ -37,7 +37,7 @@ graph TD
 - The TUI calls `bcd`, not the `bc` CLI. The CLI is a sibling client, not an intermediary.
 - All four clients share the same REST contract. A feature available in one client can be built in any other without backend changes.
 - Real-time updates (agent state transitions, channel messages, cost ticks) arrive via SSE, not polling.
-- Global configuration lives at `~/.bc/settings.toml`. Team-scoped configuration lives at `<project>/.bc/settings.toml`.
+- Global configuration lives at `~/.bc/settings.json`. Team-scoped configuration lives at `<project>/.bc/settings.json`.
 
 ### Tech Stack
 
@@ -346,7 +346,7 @@ flowchart LR
         REST["REST API\nGET /api/agents\nGET /api/channels\nPOST /api/channels/:name/messages\n..."]
         Events["SSE Endpoint\nGET /api/events"]
         DB["SQLite\n~/.bc/bc.db"]
-        TeamDB["Team Config\n.bc/settings.toml"]
+        TeamDB["Team Config\n.bc/settings.json"]
     end
 
     Hook -->|"initial fetch"| Client
@@ -364,7 +364,7 @@ flowchart LR
 
 ### Service Layer: `tui/src/services/api.ts`
 
-The service layer is an HTTP client that calls the `bcd` REST API at `localhost:9374` using `fetch()`. The base URL is configurable via the `BCD_ADDR` environment variable or read from `~/.bc/settings.toml`.
+The service layer is an HTTP client that calls the `bcd` REST API at `localhost:9374` using `fetch()`. The base URL is configurable via the `BCD_ADDR` environment variable or read from `~/.bc/settings.json`.
 
 **Key characteristics:**
 
@@ -753,7 +753,7 @@ The TUI centralizes magic numbers into `tui/src/constants/`:
 | `limits.ts` | `TRUNCATION` (name=12, description=45, message=70, preview=100 chars), `DISPLAY_LIMITS` (experiences=10, comments=3, capabilities=3, top roles=3), `COLUMN_WIDTHS` (selection=3, timestamp=9, agent=12, role=15, status=9) |
 | `colors.ts` | `ROLE_COLORS` (role name to ANSI color), `ROLE_PREFIXES` (agent name prefix to role mapping), `ROLE_EMOJIS`, helper functions |
 
-**Runtime-configurable values** come from workspace config via `ConfigContext` and can be tuned in `<project>/.bc/settings.toml` under `[performance]`:
+**Runtime-configurable values** come from workspace config via `ConfigContext` and can be tuned in `<project>/.bc/settings.json` under `[performance]`:
 
 | Config Key | Default | Purpose |
 |-----------|---------|---------|

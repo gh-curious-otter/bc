@@ -43,7 +43,7 @@ bc init --quick
 ```
 
 This creates a `.bc/` directory with:
-- `settings.toml` - Workspace configuration
+- `settings.json` - Workspace configuration
 - `agents/` - Agent state storage
 - `roles/` - Role definitions
 
