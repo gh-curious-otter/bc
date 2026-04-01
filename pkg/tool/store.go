@@ -234,6 +234,10 @@ func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()
 	}
+	// Don't close shared DB — CloseShared() handles it.
+	if db.SharedWrapped() != nil && s.db == db.SharedWrapped() {
+		return nil
+	}
 	if s.db != nil {
 		return s.db.Close()
 	}
