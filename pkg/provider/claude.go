@@ -10,10 +10,11 @@ import (
 // ClaudeProvider implements the Provider interface for Claude Code.
 // Claude Code is the Anthropic CLI for Claude.
 type ClaudeProvider struct {
-	name        string
-	description string
-	command     string
-	binary      string
+	ClaudeConfigAdapter // embeds ConfigAdapter implementation
+	name                string
+	description         string
+	command             string
+	binary              string
 }
 
 // NewClaudeProvider creates a new Claude provider.
