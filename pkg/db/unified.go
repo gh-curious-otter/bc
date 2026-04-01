@@ -55,10 +55,64 @@ func SharedDriver() string {
 	return sharedDriver
 }
 
+// StorageSettings holds the storage configuration from settings.json.
+// Used by OpenWorkspaceDB to determine the database backend.
+type StorageSettings struct {
+	Default  string // "sqlite" or "sql"
+	SQLite   SQLiteSettings
+	Postgres PostgresSettings
+}
+
+// SQLiteSettings configures the SQLite database path.
+type SQLiteSettings struct {
+	Path string // base directory for bc.db (default: workspace .bc/ dir)
+}
+
+// PostgresSettings configures the Postgres connection.
+type PostgresSettings struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+	Database string
+}
+
+// DSN builds a Postgres connection string from config fields.
+func (p PostgresSettings) DSN() string {
+	host := p.Host
+	if host == "" {
+		host = "localhost"
+	}
+	port := p.Port
+	if port == 0 {
+		port = 5432
+	}
+	user := p.User
+	if user == "" {
+		user = "bc"
+	}
+	pw := p.Password
+	if pw == "" {
+		pw = "bc"
+	}
+	db := p.Database
+	if db == "" {
+		db = "bc"
+	}
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", user, pw, host, port, db)
+}
+
 // OpenWorkspaceDB opens the workspace database based on configuration.
-// If DATABASE_URL is set, connects to Postgres.
-// Otherwise, opens SQLite at .bc/bc.db.
+// Priority: DATABASE_URL env var > settings.json storage config > SQLite default.
 func OpenWorkspaceDB(workspaceRoot string) (*sql.DB, string, error) {
+	return OpenWorkspaceDBWithConfig(workspaceRoot, nil)
+}
+
+// OpenWorkspaceDBWithConfig opens the workspace database using settings.json config.
+// If DATABASE_URL env var is set, it takes priority (for Docker/CI).
+// Otherwise, settings.json storage.default determines the backend.
+func OpenWorkspaceDBWithConfig(workspaceRoot string, cfg *StorageSettings) (*sql.DB, string, error) {
+	// Priority 1: DATABASE_URL env var (Docker/CI override)
 	if IsPostgresEnabled() {
 		db, err := OpenPostgres(PostgresDSN())
 		if err != nil {
@@ -67,7 +121,26 @@ func OpenWorkspaceDB(workspaceRoot string) (*sql.DB, string, error) {
 		return db, "postgres", nil
 	}
 
-	path := BCDBPath(workspaceRoot)
+	// Priority 2: settings.json storage config
+	if cfg != nil && cfg.Default == "sql" {
+		dsn := cfg.Postgres.DSN()
+		db, err := OpenPostgres(dsn)
+		if err != nil {
+			return nil, "", fmt.Errorf("open postgres from config: %w", err)
+		}
+		return db, "postgres", nil
+	}
+
+	// Priority 3: SQLite (default)
+	basePath := workspaceRoot
+	if cfg != nil && cfg.SQLite.Path != "" {
+		basePath = cfg.SQLite.Path
+	}
+	path := filepath.Join(basePath, ".bc", "bc.db")
+	if cfg != nil && cfg.SQLite.Path != "" && cfg.SQLite.Path != ".bc" {
+		// If a custom path is set, use it directly
+		path = filepath.Join(basePath, "bc.db")
+	}
 	d, err := Open(path)
 	if err != nil {
 		return nil, "", fmt.Errorf("open sqlite %s: %w", path, err)

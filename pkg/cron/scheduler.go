@@ -37,13 +37,27 @@ type Scheduler struct {
 
 // NewScheduler creates a Scheduler that polls at DefaultPollInterval.
 func NewScheduler(store *Store, logDir string) *Scheduler {
+	return NewSchedulerWithConfig(store, logDir, 0, 0)
+}
+
+// NewSchedulerWithConfig creates a Scheduler with configurable poll interval and job timeout.
+// Zero values use defaults (30s poll, 5m timeout).
+func NewSchedulerWithConfig(store *Store, logDir string, pollIntervalSec, jobTimeoutSec int) *Scheduler {
 	if logDir != "" {
 		_ = os.MkdirAll(logDir, 0o755)
 	}
+	interval := DefaultPollInterval
+	if pollIntervalSec > 0 {
+		interval = time.Duration(pollIntervalSec) * time.Second
+	}
+	jobTimeout := DefaultJobTimeout
+	if jobTimeoutSec > 0 {
+		jobTimeout = time.Duration(jobTimeoutSec) * time.Second
+	}
 	s := &Scheduler{
 		store:      store,
-		interval:   DefaultPollInterval,
-		jobTimeout: DefaultJobTimeout,
+		interval:   interval,
+		jobTimeout: jobTimeout,
 		logDir:     logDir,
 		running:    make(map[string]bool),
 	}
