@@ -150,7 +150,21 @@ export interface MCPServer {
   transport: string;
   command: string;
   url: string;
+  env?: Record<string, string>;
+  args?: string[];
   enabled: boolean;
+}
+
+export interface UnifiedTool {
+  name: string;
+  type: "mcp" | "cli";
+  status: string;
+  transport?: string;
+  command?: string;
+  url?: string;
+  version?: string;
+  error?: string;
+  required?: boolean;
 }
 
 export interface EventLogEntry {
@@ -510,6 +524,21 @@ export const api = {
     request<void>(`/mcp/${encodeURIComponent(name)}/disable`, {
       method: "POST",
     }),
+
+  /** Unified tool list — merges MCP + CLI tools with status. */
+  listUnifiedTools: () => request<UnifiedTool[]>("/tools/unified"),
+
+  /** Run live health checks on all tools. */
+  checkUnifiedTools: () =>
+    request<UnifiedTool[]>("/tools/unified/check", { method: "POST" }),
+
+  /** Create or update a CLI tool. */
+  upsertTool: (tool: Partial<Tool> & { name: string }) =>
+    request<Tool>(`/tools/${encodeURIComponent(tool.name)}`, {
+      method: "PUT",
+      body: JSON.stringify(tool),
+    }),
+
   getLogs: (tail = 50) =>
     request<EventLogEntry[]>(
       `/logs?${new URLSearchParams({ tail: String(tail) })}`,

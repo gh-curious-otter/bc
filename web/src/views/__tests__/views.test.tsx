@@ -6,8 +6,7 @@ import { Agents } from "../Agents";
 import { Channels } from "../Channels";
 import { Costs } from "../Costs";
 import { Roles } from "../Roles";
-import { Tools } from "../Tools";
-import { MCP } from "../MCP";
+import { UnifiedTools } from "../UnifiedTools";
 import { Logs } from "../Logs";
 import { Doctor } from "../Doctor";
 import { Cron } from "../Cron";
@@ -174,44 +173,29 @@ describe("Roles", () => {
   });
 });
 
-describe("Tools", () => {
-  it("renders skeleton loading then tool table", async () => {
+describe("UnifiedTools", () => {
+  it("renders skeleton loading then tool list", async () => {
     fetchMock.mockReturnValue(
       jsonResponse([
         {
           name: "my-tool",
+          type: "cli",
+          status: "installed",
           command: "/usr/bin/tool",
-          install_cmd: "",
-          builtin: true,
-          enabled: true,
+        },
+        {
+          name: "test-server",
+          type: "mcp",
+          status: "connected",
+          transport: "stdio",
+          command: "node",
         },
       ]),
     );
-    const { container } = wrap(<Tools />);
+    const { container } = wrap(<UnifiedTools />);
     expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText("my-tool")).toBeInTheDocument();
-    });
-  });
-});
-
-describe("MCP", () => {
-  it("renders skeleton loading then server list", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse([
-        {
-          name: "test-server",
-          transport: "stdio",
-          command: "node",
-          url: "",
-          enabled: true,
-        },
-      ]),
-    );
-    const { container } = wrap(<MCP />);
-    expectSkeletonLoading(container);
-    await waitFor(() => {
-      expect(screen.getByText("test-server")).toBeInTheDocument();
     });
   });
 });

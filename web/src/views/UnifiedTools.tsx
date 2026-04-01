@@ -1,106 +1,94 @@
 import { useCallback, useState } from "react";
 import { api } from "../api/client";
-import type { Tool, MCPServer } from "../api/client";
+import type { UnifiedTool } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
-interface ToolsData {
-  tools: Tool[];
-  mcpServers: MCPServer[];
-}
-
 type AddFormType = "mcp" | "cli" | null;
 
-function StatusDot({ status }: { status: "connected" | "installed" | "error" | "missing" }) {
-  const colors = {
-    connected: "bg-bc-success",
-    installed: "bg-bc-success",
-    error: "bg-bc-warning",
-    missing: "bg-bc-error",
-  };
-  return <span className={`inline-block w-2 h-2 rounded-full ${colors[status]}`} />;
+const STATUS_CONFIG: Record<string, { dot: string; label: string; textColor: string }> = {
+  connected:     { dot: "bg-bc-success", label: "Connected",     textColor: "text-bc-success" },
+  configured:    { dot: "bg-bc-success", label: "Configured",    textColor: "text-bc-success" },
+  installed:     { dot: "bg-bc-success", label: "Installed",     textColor: "text-bc-success" },
+  disabled:      { dot: "bg-bc-muted",   label: "Disabled",      textColor: "text-bc-muted" },
+  not_installed: { dot: "bg-bc-error",   label: "Not installed", textColor: "text-bc-error" },
+  error:         { dot: "bg-bc-error",   label: "Error",         textColor: "text-bc-error" },
+  unknown:       { dot: "bg-bc-muted",   label: "Unknown",       textColor: "text-bc-muted" },
+};
+
+function getStatusConfig(status: string) {
+  return STATUS_CONFIG[status] ?? STATUS_CONFIG.unknown!;
 }
 
-function StatusLabel({ status }: { status: "connected" | "installed" | "error" | "missing" }) {
-  const labels = {
-    connected: "Connected",
-    installed: "Installed",
-    error: "Error",
-    missing: "Not installed",
-  };
-  const colors = {
-    connected: "text-bc-success",
-    installed: "text-bc-success",
-    error: "text-bc-warning",
-    missing: "text-bc-error",
-  };
-  return <span className={`text-xs ${colors[status]}`}>{labels[status]}</span>;
-}
-
-function MCPCard({
-  server,
+function ToolCard({
+  tool,
   onToggle,
   onRemove,
 }: {
-  server: MCPServer;
+  tool: UnifiedTool;
   onToggle: () => void;
   onRemove: () => void;
 }) {
-  const [removing, setRemoving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const status = server.enabled ? "connected" : "error";
-
-  const handleRemove = async () => {
-    setRemoving(true);
-    try {
-      onRemove();
-    } finally {
-      setRemoving(false);
-      setConfirmRemove(false);
-    }
-  };
+  const cfg = getStatusConfig(tool.status);
+  const isMCP = tool.type === "mcp";
+  const isDisabled = tool.status === "disabled";
 
   return (
-    <div className="rounded border border-bc-border bg-bc-surface p-4 flex items-start gap-3">
-      <StatusDot status={status} />
+    <div className={`rounded border bg-bc-surface p-4 flex items-start gap-3 ${
+      tool.error ? "border-bc-error/30" : "border-bc-border"
+    }`}>
+      <span className={`inline-block w-2 h-2 mt-1.5 rounded-full shrink-0 ${cfg.dot}`} />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{server.name}</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
-            MCP
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-sm">{tool.name}</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+            isMCP ? "bg-bc-accent/10 text-bc-accent" : "bg-blue-500/10 text-blue-400"
+          }`}>
+            {isMCP ? "MCP" : "CLI"}
           </span>
-          <StatusLabel status={status} />
+          {tool.required && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-bc-border text-bc-muted">
+              required
+            </span>
+          )}
+          <span className={`text-xs ${cfg.textColor}`}>{cfg.label}</span>
         </div>
-        <div className="mt-1 text-xs text-bc-muted truncate" title={server.url || server.command}>
-          {server.transport === "sse"
-            ? server.url
-            : server.command}
+        <div className="mt-1 text-xs text-bc-muted font-mono truncate" title={tool.url || tool.command || ""}>
+          {isMCP
+            ? (tool.transport === "sse" ? tool.url : tool.command) || tool.transport
+            : tool.command || "—"}
         </div>
-        <div className="mt-1 text-[10px] text-bc-muted">
-          Transport: {server.transport}
-        </div>
+        {tool.version && (
+          <span className="text-[10px] text-bc-muted">v{tool.version}</span>
+        )}
+        {isMCP && tool.transport && (
+          <span className="text-[10px] text-bc-muted ml-2">transport: {tool.transport}</span>
+        )}
+        {tool.error && (
+          <p className="mt-1 text-[10px] text-bc-error">{tool.error}</p>
+        )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={onToggle}
           className={`text-xs px-2 py-1 rounded transition-colors ${
-            server.enabled
-              ? "bg-bc-success/10 text-bc-success hover:bg-bc-success/20"
-              : "bg-bc-border text-bc-muted hover:bg-bc-border/80"
+            isDisabled
+              ? "bg-bc-border text-bc-muted hover:bg-bc-border/80"
+              : "bg-bc-success/10 text-bc-success hover:bg-bc-success/20"
           }`}
-          aria-label={server.enabled ? "Disable server" : "Enable server"}
+          aria-label={isDisabled ? `Enable ${tool.name}` : `Disable ${tool.name}`}
         >
-          {server.enabled ? "Enabled" : "Disabled"}
+          {isDisabled ? "Enable" : "Enabled"}
         </button>
         {confirmRemove ? (
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => void handleRemove()}
-              disabled={removing}
-              className="text-xs px-2 py-1 rounded bg-bc-error/20 text-bc-error disabled:opacity-50"
+              onClick={() => { onRemove(); setConfirmRemove(false); }}
+              className="text-xs px-2 py-1 rounded bg-bc-error/20 text-bc-error"
               aria-label="Confirm remove"
             >
               Yes
@@ -119,108 +107,10 @@ function MCPCard({
             type="button"
             onClick={() => setConfirmRemove(true)}
             className="text-xs px-2 py-1 rounded border border-bc-border text-bc-muted hover:text-bc-error hover:border-bc-error/50 transition-colors"
-            aria-label={`Remove ${server.name}`}
+            aria-label={`Remove ${tool.name}`}
           >
             Remove
           </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CLIToolCard({
-  tool,
-  onToggle,
-  onRemove,
-}: {
-  tool: Tool;
-  onToggle: () => void;
-  onRemove: () => void;
-}) {
-  const [removing, setRemoving] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
-  const status = tool.enabled ? "installed" : "missing";
-
-  const handleRemove = async () => {
-    setRemoving(true);
-    try {
-      onRemove();
-    } finally {
-      setRemoving(false);
-      setConfirmRemove(false);
-    }
-  };
-
-  return (
-    <div className="rounded border border-bc-border bg-bc-surface p-4 flex items-start gap-3">
-      <StatusDot status={status} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{tool.name}</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium">
-            CLI
-          </span>
-          {tool.builtin && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-bc-border text-bc-muted">
-              built-in
-            </span>
-          )}
-          <StatusLabel status={status} />
-        </div>
-        <div className="mt-1 text-xs text-bc-muted font-mono truncate" title={tool.command}>
-          {tool.command}
-        </div>
-        {tool.install_cmd && (
-          <div className="mt-0.5 text-[10px] text-bc-muted">
-            Install: <code className="bg-bc-bg px-1 rounded">{tool.install_cmd}</code>
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={onToggle}
-          className={`text-xs px-2 py-1 rounded transition-colors ${
-            tool.enabled
-              ? "bg-bc-success/10 text-bc-success hover:bg-bc-success/20"
-              : "bg-bc-border text-bc-muted hover:bg-bc-border/80"
-          }`}
-          aria-label={tool.enabled ? "Disable tool" : "Enable tool"}
-        >
-          {tool.enabled ? "Enabled" : "Disabled"}
-        </button>
-        {!tool.builtin && (
-          confirmRemove ? (
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => void handleRemove()}
-                disabled={removing}
-                className="text-xs px-2 py-1 rounded bg-bc-error/20 text-bc-error disabled:opacity-50"
-                aria-label="Confirm remove"
-              >
-                Yes
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmRemove(false)}
-                className="text-xs px-2 py-1 rounded border border-bc-border text-bc-muted"
-                aria-label="Cancel remove"
-              >
-                No
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmRemove(true)}
-              className="text-xs px-2 py-1 rounded border border-bc-border text-bc-muted hover:text-bc-error hover:border-bc-error/50 transition-colors"
-              aria-label={`Remove ${tool.name}`}
-            >
-              Remove
-            </button>
-          )
         )}
       </div>
     </div>
@@ -241,6 +131,7 @@ function AddToolForm({
   const [url, setUrl] = useState("");
   const [transport, setTransport] = useState<"stdio" | "sse">("sse");
   const [installCmd, setInstallCmd] = useState("");
+  const [envText, setEnvText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -250,17 +141,28 @@ function AddToolForm({
     setError(null);
     try {
       if (type === "mcp") {
+        const env: Record<string, string> = {};
+        for (const line of envText.split("\n")) {
+          const eq = line.indexOf("=");
+          if (eq > 0) {
+            env[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+          }
+        }
         await api.registerMCP({
           name: name.trim(),
           transport,
           command: transport === "stdio" ? command.trim() : "",
           url: transport === "sse" ? url.trim() : "",
+          env: Object.keys(env).length > 0 ? env : undefined,
           enabled: true,
         });
       } else {
-        // CLI tool registration — uses the tools API
-        // For now, CLI tools are managed via role config
-        throw new Error("CLI tool registration coming soon — configure via role settings");
+        await api.upsertTool({
+          name: name.trim(),
+          command: command.trim(),
+          install_cmd: installCmd.trim(),
+          enabled: true,
+        });
       }
       onAdded();
       onClose();
@@ -277,11 +179,7 @@ function AddToolForm({
         <h3 className="text-sm font-medium">
           Add {type === "mcp" ? "MCP Server" : "CLI Tool"}
         </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-xs text-bc-muted hover:text-bc-text"
-        >
+        <button type="button" onClick={onClose} className="text-xs text-bc-muted hover:text-bc-text">
           Cancel
         </button>
       </div>
@@ -334,6 +232,16 @@ function AddToolForm({
                 />
               </div>
             )}
+            <div className="md:col-span-2">
+              <label className="text-xs text-bc-muted block mb-1">Environment Variables (one per line, KEY=VALUE)</label>
+              <textarea
+                value={envText}
+                onChange={(e) => setEnvText(e.target.value)}
+                placeholder={"API_KEY=${secret:MY_KEY}\nDEBUG=true"}
+                rows={2}
+                className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent resize-none font-mono"
+              />
+            </div>
           </>
         ) : (
           <>
@@ -376,21 +284,25 @@ function AddToolForm({
 }
 
 export function UnifiedTools() {
-  const fetcher = useCallback(async (): Promise<ToolsData> => {
-    const [r0, r1] = await Promise.allSettled([
-      api.listTools(),
-      api.listMCP(),
-    ]);
-    return {
-      tools: r0.status === "fulfilled" ? r0.value : [],
-      mcpServers: r1.status === "fulfilled" ? r1.value : [],
-    };
-  }, []);
-
-  const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
+  const fetcher = useCallback(() => api.listUnifiedTools(), []);
+  const { data: tools, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
   const [addForm, setAddForm] = useState<AddFormType>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkedTools, setCheckedTools] = useState<UnifiedTool[] | null>(null);
 
-  if (loading && !data) {
+  const handleCheck = async () => {
+    setChecking(true);
+    try {
+      const result = await api.checkUnifiedTools();
+      setCheckedTools(result);
+    } catch {
+      // fall back to polled data
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  if (loading && !tools) {
     return (
       <div className="p-6 space-y-6">
         <div className="h-6 w-32 animate-pulse rounded bg-bc-border/50" />
@@ -398,14 +310,14 @@ export function UnifiedTools() {
       </div>
     );
   }
-  if (timedOut && !data) {
+  if (timedOut && !tools) {
     return (
       <div className="p-6">
         <EmptyState icon="!" title="Tools timed out" actionLabel="Retry" onAction={refresh} />
       </div>
     );
   }
-  if (error && !data) {
+  if (error && !tools) {
     return (
       <div className="p-6">
         <EmptyState icon="!" title="Failed to load tools" description={error} actionLabel="Retry" onAction={refresh} />
@@ -413,39 +325,40 @@ export function UnifiedTools() {
     );
   }
 
-  const mcpServers = data?.mcpServers ?? [];
-  const cliTools = data?.tools ?? [];
+  const allTools = checkedTools ?? tools ?? [];
+  const mcpTools = allTools.filter((t) => t.type === "mcp");
+  const cliTools = allTools.filter((t) => t.type === "cli");
 
-  const handleToggleMCP = async (name: string, enabled: boolean) => {
+  const handleToggle = async (tool: UnifiedTool) => {
     try {
-      await enabled ? api.disableMCP(name) : api.enableMCP(name);
+      if (tool.type === "mcp") {
+        if (tool.status === "disabled") {
+          await api.enableMCP(tool.name);
+        } else {
+          await api.disableMCP(tool.name);
+        }
+      } else {
+        if (tool.status === "disabled" || tool.status === "not_installed") {
+          await api.enableTool(tool.name);
+        } else {
+          await api.disableTool(tool.name);
+        }
+      }
+      setCheckedTools(null);
       refresh();
     } catch {
       // silently fail
     }
   };
 
-  const handleRemoveMCP = async (name: string) => {
+  const handleRemove = async (tool: UnifiedTool) => {
     try {
-      await api.removeMCP(name);
-      refresh();
-    } catch {
-      // silently fail
-    }
-  };
-
-  const handleToggleTool = async (name: string, enabled: boolean) => {
-    try {
-      await enabled ? api.disableTool(name) : api.enableTool(name);
-      refresh();
-    } catch {
-      // silently fail
-    }
-  };
-
-  const handleRemoveTool = async (name: string) => {
-    try {
-      await api.deleteTool(name);
+      if (tool.type === "mcp") {
+        await api.removeMCP(tool.name);
+      } else {
+        await api.deleteTool(tool.name);
+      }
+      setCheckedTools(null);
       refresh();
     } catch {
       // silently fail
@@ -458,10 +371,19 @@ export function UnifiedTools() {
         <div>
           <h1 className="text-xl font-bold">Tools</h1>
           <p className="text-xs text-bc-muted mt-0.5">
-            {mcpServers.length} MCP servers · {cliTools.length} CLI tools
+            {mcpTools.length} MCP · {cliTools.length} CLI
+            {checkedTools && " · checked"}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleCheck()}
+            disabled={checking}
+            className="px-3 py-1.5 text-sm rounded border border-bc-border text-bc-muted hover:text-bc-text transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent"
+          >
+            {checking ? "Checking..." : "Health Check"}
+          </button>
           <button
             type="button"
             onClick={() => setAddForm(addForm === "mcp" ? null : "mcp")}
@@ -483,29 +405,25 @@ export function UnifiedTools() {
         <AddToolForm
           type={addForm}
           onClose={() => setAddForm(null)}
-          onAdded={refresh}
+          onAdded={() => { setCheckedTools(null); refresh(); }}
         />
       )}
 
       {/* MCP Servers */}
       <section>
         <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
-          MCP Servers ({mcpServers.length})
+          MCP Servers ({mcpTools.length})
         </h2>
-        {mcpServers.length === 0 ? (
-          <EmptyState
-            icon="🔌"
-            title="No MCP servers"
-            description="Add an MCP server to connect external tools."
-          />
+        {mcpTools.length === 0 ? (
+          <EmptyState icon="🔌" title="No MCP servers" description="Add an MCP server to connect external tools." />
         ) : (
           <div className="space-y-2">
-            {mcpServers.map((s) => (
-              <MCPCard
-                key={s.name}
-                server={s}
-                onToggle={() => void handleToggleMCP(s.name, s.enabled)}
-                onRemove={() => void handleRemoveMCP(s.name)}
+            {mcpTools.map((t) => (
+              <ToolCard
+                key={t.name}
+                tool={t}
+                onToggle={() => void handleToggle(t)}
+                onRemove={() => void handleRemove(t)}
               />
             ))}
           </div>
@@ -518,19 +436,15 @@ export function UnifiedTools() {
           CLI Tools ({cliTools.length})
         </h2>
         {cliTools.length === 0 ? (
-          <EmptyState
-            icon="⌨"
-            title="No CLI tools"
-            description="Add CLI tools like gh, aws, or wrangler."
-          />
+          <EmptyState icon="⌨" title="No CLI tools" description="Add CLI tools like gh, aws, or wrangler." />
         ) : (
           <div className="space-y-2">
             {cliTools.map((t) => (
-              <CLIToolCard
+              <ToolCard
                 key={t.name}
                 tool={t}
-                onToggle={() => void handleToggleTool(t.name, t.enabled)}
-                onRemove={() => void handleRemoveTool(t.name)}
+                onToggle={() => void handleToggle(t)}
+                onRemove={() => void handleRemove(t)}
               />
             ))}
           </div>
