@@ -245,6 +245,13 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 		}
 	}
 
+	// Prefer claude CLI for MCP setup; fall back to .mcp.json file write.
+	if len(cfg.MCPServers) > 0 && setupMCPViaCLI(targetDir, agentName, cfg.MCPServers) {
+		log.Debug("MCP servers configured via claude CLI", "agent", agentName, "count", len(cfg.MCPServers))
+		return nil
+	}
+
+	// Fallback: write .mcp.json directly (for non-Claude providers or if CLI unavailable)
 	return writeJSONFile(targetDir, ".mcp.json", cfg)
 }
 
@@ -525,4 +532,73 @@ func checkSSEEndpoint(url string) error {
 	}
 	_ = resp.Body.Close()
 	return nil
+}
+
+// setupMCPViaCLI configures MCP servers using `claude mcp add` commands
+// instead of writing .mcp.json directly. This is the preferred approach
+// as it uses Claude Code's native configuration system.
+//
+// Returns true if claude CLI was used successfully, false if caller should
+// fall back to file-based .mcp.json.
+func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEntry) bool {
+	// Check if claude CLI is available
+	claudePath, err := exec.LookPath("claude")
+	if err != nil {
+		log.Debug("claude CLI not available, falling back to .mcp.json", "error", err)
+		return false
+	}
+
+	// First remove any existing MCP servers to avoid duplicates
+	existingCmd := exec.Command(claudePath, "mcp", "list")
+	existingCmd.Dir = targetDir
+	if out, err := existingCmd.Output(); err == nil && len(out) > 0 {
+		// Parse existing servers and remove them
+		for name := range servers {
+			rmCmd := exec.Command(claudePath, "mcp", "remove", name, "--scope", "project")
+			rmCmd.Dir = targetDir
+			_ = rmCmd.Run() //nolint:errcheck // ignore if not found
+		}
+	}
+
+	allOK := true
+	for name, entry := range servers {
+		args := []string{"mcp", "add", "--scope", "project"}
+
+		if entry.Type == "sse" || entry.URL != "" {
+			// SSE/HTTP transport
+			args = append(args, "--transport", "sse")
+
+			// Add env vars
+			for k, v := range entry.Env {
+				args = append(args, "-e", k+"="+v)
+			}
+
+			args = append(args, name, entry.URL)
+		} else if entry.Command != "" {
+			// Stdio transport
+			for k, v := range entry.Env {
+				args = append(args, "-e", k+"="+v)
+			}
+
+			// Split command and args
+			args = append(args, name, "--")
+			cmdParts := strings.Fields(entry.Command)
+			args = append(args, cmdParts...)
+			args = append(args, entry.Args...)
+		} else {
+			log.Warn("skipping MCP server with no URL or command", "name", name)
+			continue
+		}
+
+		cmd := exec.Command(claudePath, args...) //nolint:gosec // args are from trusted config
+		cmd.Dir = targetDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			log.Warn("claude mcp add failed", "name", name, "error", err, "output", string(out))
+			allOK = false
+		} else {
+			log.Debug("claude mcp add succeeded", "name", name)
+		}
+	}
+
+	return allOK
 }
