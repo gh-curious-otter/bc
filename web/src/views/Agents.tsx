@@ -22,6 +22,7 @@ interface CreateFormState {
 function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
+  const [tools, setTools] = useState<string[]>([]);
   const [form, setForm] = useState<CreateFormState>({
     name: "",
     role: "",
@@ -31,17 +32,17 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch roles when form opens
+  // Fetch roles and tools when form opens
   useEffect(() => {
     if (!open) return;
     api
       .listRoles()
-      .then((r) => {
-        setRoles(Object.keys(r));
-      })
-      .catch(() => {
-        /* ignore */
-      });
+      .then((r) => setRoles(Object.keys(r)))
+      .catch(() => { /* ignore */ });
+    api
+      .listTools()
+      .then((t) => setTools(t.filter((tool) => tool.enabled).map((tool) => tool.name)))
+      .catch(() => { /* ignore */ });
   }, [open]);
 
   const handleCreate = async () => {
@@ -133,13 +134,9 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
             className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
           >
             <option value="">Default</option>
-            <option value="claude">claude</option>
-            <option value="gemini">gemini</option>
-            <option value="codex">codex</option>
-            <option value="cursor">cursor</option>
-            <option value="aider">aider</option>
-            <option value="opencode">opencode</option>
-            <option value="openclaw">openclaw</option>
+            {tools.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
           </select>
         </div>
 
@@ -155,6 +152,7 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
             <option value="">Default</option>
             <option value="tmux">tmux</option>
             <option value="docker">docker</option>
+            <option value="localhost">localhost</option>
           </select>
         </div>
       </div>
