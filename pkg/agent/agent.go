@@ -933,17 +933,42 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
 
-	// Ensure worktree exists (may have been cleaned up)
+	// Ensure worktree exists and is valid (may have been cleaned up, moved,
+	// or corrupted by runtime changes like Docker→localhost migration).
 	wtDir := existing.WorktreeDir
-	if wtDir == "" || !m.worktreeMgr.Exists(name) {
+	needsRecreate := wtDir == "" || !m.worktreeMgr.Exists(name)
+
+	// Also check that the worktree has a valid .git reference
+	if !needsRecreate && wtDir != "" {
+		gitPath := filepath.Join(wtDir, ".git")
+		if _, statErr := os.Stat(gitPath); statErr != nil {
+			log.Warn("worktree .git missing, will recreate", "agent", name, "path", wtDir)
+			needsRecreate = true
+		}
+	}
+
+	// Check for stale Docker paths (e.g., /workspace/... when running locally)
+	if !needsRecreate && wtDir != "" && !filepath.IsAbs(wtDir) {
+		needsRecreate = true
+	}
+	if !needsRecreate && wtDir != "" {
+		if _, statErr := os.Stat(wtDir); statErr != nil {
+			log.Warn("worktree path inaccessible, will recreate", "agent", name, "path", wtDir, "error", statErr)
+			needsRecreate = true
+		}
+	}
+
+	if needsRecreate {
+		// Remove stale worktree if it exists
+		_ = m.worktreeMgr.Remove(ctx, name) //nolint:errcheck
 		var wtErr error
 		wtDir, wtErr = m.worktreeMgr.Create(ctx, name)
 		if wtErr != nil {
 			agentLock.Unlock()
 			return nil, fmt.Errorf("failed to create worktree for agent %s: %w", name, wtErr)
-		} else {
-			existing.WorktreeDir = wtDir
 		}
+		existing.WorktreeDir = wtDir
+		log.Info("worktree recreated", "agent", name, "path", wtDir)
 	}
 
 	// Write hook settings and role files to worktree (regenerate on every start
