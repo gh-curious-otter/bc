@@ -79,7 +79,7 @@ function LogsTab({
       </h2>
       <pre
         ref={outputRef}
-        className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto max-h-[50vh] md:max-h-[70vh] whitespace-pre-wrap text-bc-text/90 shadow-inner"
+        className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto overflow-x-hidden max-h-[50vh] md:max-h-[70vh] whitespace-pre-wrap break-words text-bc-text/90 shadow-inner w-full min-w-0"
         style={{
           fontFamily:
             "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
