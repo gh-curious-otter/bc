@@ -24,9 +24,11 @@ const Roles = lazy(() =>
   import("./views/Roles").then((m) => ({ default: m.Roles })),
 );
 const Tools = lazy(() =>
-  import("./views/Tools").then((m) => ({ default: m.Tools })),
+  import("./views/UnifiedTools").then((m) => ({ default: m.UnifiedTools })),
 );
-const MCP = lazy(() => import("./views/MCP").then((m) => ({ default: m.MCP })));
+const MCP = lazy(() =>
+  import("./views/UnifiedTools").then((m) => ({ default: m.UnifiedTools })),
+);
 const Logs = lazy(() =>
   import("./views/Logs").then((m) => ({ default: m.Logs })),
 );
