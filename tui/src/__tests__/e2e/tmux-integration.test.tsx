@@ -39,6 +39,9 @@ function hasTmux(): boolean {
  * Check if running in CI environment
  */
 function isCI(): boolean {
+  // Also treat Docker containers as CI — terminal dimensions are unreliable
+  if (process.env.container !== undefined) return true;
+  if (process.env.DOCKER_CONTAINER !== undefined) return true;
   return process.env.CI !== undefined;
 }
 

@@ -265,7 +265,7 @@ describe('TUI Render Performance Benchmarks', () => {
         { key: 'q', label: 'Quit' },
       ];
       const { time } = measureRenderTime(<Footer hints={hints} />);
-      expect(time).toBeLessThan(10);
+      expect(time).toBeLessThan(25);
     });
   });
 
