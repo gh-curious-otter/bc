@@ -101,9 +101,10 @@ func (p *PostgresStore) add(ctx context.Context, t *Tool) error {
 		enabled = 1
 	}
 	_, err = p.db.ExecContext(ctx,
-		`INSERT INTO tools (name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		t.Name, t.Command, t.InstallCmd, t.UpgradeCmd,
+		`INSERT INTO tools (name, type, command, install_cmd, upgrade_cmd, version_cmd, transport, url, slash_cmds, mcp_servers, config, builtin, enabled)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		t.Name, string(t.Type), t.Command, t.InstallCmd, t.UpgradeCmd, t.VersionCmd,
+		t.Transport, t.URL,
 		slashCmds, mcpServers, config, builtin, enabled,
 	)
 	return err
