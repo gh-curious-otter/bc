@@ -31,12 +31,14 @@ export function GatewayFeed({
   channelName,
   channel,
   agentRoles,
+  agentStates,
   onPeekAgent,
   onChannelUpdated,
 }: {
   channelName: string;
   channel?: Channel;
   agentRoles: Record<string, string>;
+  agentStates?: Record<string, string>;
   onPeekAgent: (name: string) => void;
   onChannelUpdated: () => void;
 }) {
@@ -192,6 +194,7 @@ export function GatewayFeed({
         <MemberPanel
           channel={channel}
           agentRoles={agentRoles}
+          agentStates={agentStates}
           onChannelUpdated={onChannelUpdated}
         />
       )}

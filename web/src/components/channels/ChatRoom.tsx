@@ -14,12 +14,14 @@ export function ChatRoom({
   channelName,
   channel,
   agentRoles,
+  agentStates,
   onPeekAgent,
   onChannelUpdated,
 }: {
   channelName: string;
   channel?: Channel;
   agentRoles: Record<string, string>;
+  agentStates?: Record<string, string>;
   onPeekAgent: (name: string) => void;
   onChannelUpdated: () => void;
 }) {
@@ -197,6 +199,7 @@ export function ChatRoom({
         <MemberPanel
           channel={channel}
           agentRoles={agentRoles}
+          agentStates={agentStates}
           onChannelUpdated={onChannelUpdated}
         />
       )}
