@@ -1673,6 +1673,19 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		newWorktreeDir = newPath
 	}
 
+	// Regenerate .mcp.json with the new agent name so MCP SSE URLs
+	// point to /_mcp/{newName}/sse instead of /_mcp/{oldName}/sse.
+	if newWorktreeDir != "" && agent.Role != "" {
+		wsPath := m.workspacePath
+		agentRuntime := agent.RuntimeBackend
+		if agentRuntime == "" {
+			agentRuntime = "tmux"
+		}
+		if setupErr := SetupAgentFromRoleWithRuntime(wsPath, newName, string(agent.Role), newWorktreeDir, agentRuntime); setupErr != nil {
+			log.Warn("rename: failed to regenerate role files", "agent", newName, "error", setupErr)
+		}
+	}
+
 	// Rename log file
 	oldLogDir := filepath.Join(m.workspacePath, ".bc", "logs")
 	oldLogFile := filepath.Join(oldLogDir, oldName+".log")
