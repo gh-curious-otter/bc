@@ -6,21 +6,47 @@ import { CommandPalette } from "./CommandPalette";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
 
-const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: "~" },
-  { to: "/agents", label: "Agents", icon: "A" },
-  { to: "/channels", label: "Channels", icon: "C" },
-  { to: "/roles", label: "Roles", icon: "R" },
-  { to: "/tools", label: "Tools", icon: "T" },
-  { to: "/cron", label: "Cron", icon: "@" },
-  { to: "/secrets", label: "Secrets", icon: "#" },
-  { to: "/stats", label: "Stats", icon: "S" },
-  { to: "/logs", label: "Logs", icon: "L" },
-  { to: "/workspace", label: "Workspace", icon: "W" },
-  { to: "/doctor", label: "Doctor", icon: "+" },
-  { to: "/settings", label: "Settings", icon: "\u2699" },
+function NavIcon({ name }: { name: string }) {
+  const icons: Record<string, JSX.Element> = {
+    dashboard: <path d="M3 3h4v5H3zM9 3h4v3H9zM9 8h4v5H9zM3 10h4v3H3z" />,
+    agents: <path d="M8 4a2 2 0 100 4 2 2 0 000-4zM4 12c0-2 2-3 4-3s4 1 4 3" />,
+    channels: <path d="M3 5h10M3 8h7M3 11h10" />,
+    roles: <path d="M8 3l5 3v4l-5 3-5-3V6z" />,
+    tools: <path d="M10 3l3 3-7 7H3v-3z" />,
+    cron: <path d="M8 3a5 5 0 100 10A5 5 0 008 3zM8 5v3l2 2" />,
+    secrets: <path d="M8 3a2 2 0 00-2 2v2H5v5h6V7H10V5a2 2 0 00-2-2zm0 6a1 1 0 110 2 1 1 0 010-2z" />,
+    metrics: <path d="M3 11l3-4 2 2 4-5" strokeLinecap="round" strokeLinejoin="round" />,
+    logs: <path d="M4 3h8M4 6h6M4 9h8M4 12h5" />,
+    workspace: <path d="M3 4h10v8H3zM5 4V3h6v1" />,
+    doctor: <path d="M8 3v10M3 8h10" />,
+    settings: <path d="M8 6a2 2 0 100 4 2 2 0 000-4zM8 2v2M8 12v2M2 8h2M12 8h2M3.8 3.8l1.4 1.4M10.8 10.8l1.4 1.4M3.8 12.2l1.4-1.4M10.8 5.2l1.4-1.4" />,
+  };
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      {icons[name] ?? <path d="M4 4h8v8H4z" />}
+    </svg>
+  );
+}
+
+const MAIN_NAV_ITEMS = [
+  { to: "/", label: "Dashboard", icon: "dashboard" },
+  { to: "/agents", label: "Agents", icon: "agents" },
+  { to: "/channels", label: "Channels", icon: "channels" },
+  { to: "/roles", label: "Roles", icon: "roles" },
+  { to: "/tools", label: "Tools", icon: "tools" },
+  { to: "/cron", label: "Cron", icon: "cron" },
+  { to: "/secrets", label: "Secrets", icon: "secrets" },
+  { to: "/stats", label: "Metrics", icon: "metrics" },
 ] as const;
 
+const UTIL_NAV_ITEMS = [
+  { to: "/logs", label: "Logs", icon: "logs" },
+  { to: "/workspace", label: "Workspace", icon: "workspace" },
+  { to: "/doctor", label: "Doctor", icon: "doctor" },
+  { to: "/settings", label: "Settings", icon: "settings" },
+] as const;
+
+const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS];
 
 function readCollapsed(): boolean {
   try {
@@ -36,6 +62,43 @@ function writeCollapsed(v: boolean) {
   } catch {
     // storage unavailable
   }
+}
+
+function NavList({
+  items,
+  collapsed,
+  isMobile,
+}: {
+  items: ReadonlyArray<{ to: string; label: string; icon: string }>;
+  collapsed: boolean;
+  isMobile: boolean;
+}) {
+  const isIconOnly = collapsed && !isMobile;
+  return (
+    <>
+      {items.map(({ to, label, icon }) => (
+        <li key={to}>
+          <NavLink
+            to={to}
+            end={to === "/"}
+            title={isIconOnly ? label : undefined}
+            className={({ isActive }) =>
+              `relative flex items-center gap-3 ${isIconOnly ? "justify-center px-2" : "px-4"} py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-inset transition-colors ${
+                isActive
+                  ? "text-bc-accent bg-bc-bg font-medium border-l-[3px] border-bc-accent"
+                  : "text-bc-muted hover:text-bc-text hover:bg-bc-bg/50 border-l-[3px] border-transparent"
+              }`
+            }
+          >
+            <span className="shrink-0 flex items-center justify-center w-5">
+              <NavIcon name={icon} />
+            </span>
+            {(!collapsed || isMobile) && <span>{label}</span>}
+          </NavLink>
+        </li>
+      ))}
+    </>
+  );
 }
 
 export function Layout() {
@@ -176,40 +239,19 @@ export function Layout() {
           )}
         </div>
         <ul className="flex-1 py-2 overflow-y-auto">
-          {NAV_ITEMS.map(({ to, label, icon }) => (
-            <li key={to}>
-              <NavLink
-                to={to}
-                end={to === "/"}
-                title={collapsed && !isMobile ? label : undefined}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 ${collapsed && !isMobile ? "justify-center px-2" : "px-4"} py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-inset ${
-                    isActive
-                      ? "text-bc-accent bg-bc-bg font-medium"
-                      : "text-bc-muted hover:text-bc-text hover:bg-bc-bg/50"
-                  }`
-                }
-              >
-                <span className="w-5 text-center font-mono text-xs shrink-0">
-                  {icon}
-                </span>
-                {(!collapsed || isMobile) && label}
-              </NavLink>
-            </li>
-          ))}
+          <NavList items={MAIN_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
+          <li className={`my-2 ${collapsed && !isMobile ? "mx-2" : "mx-4"}`}>
+            <div className="border-t border-bc-border" />
+          </li>
+          <NavList items={UTIL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
         </ul>
         <div
-          className={`p-3 border-t border-bc-border text-xs text-bc-muted flex items-center ${collapsed && !isMobile ? "justify-center" : "justify-between"}`}
+          className={`p-3 border-t border-bc-border flex items-center ${collapsed && !isMobile ? "justify-center" : "justify-center"}`}
         >
-          {(!collapsed || isMobile) && (
-            <span>
-              <kbd className="text-bc-text">?</kbd> help
-            </span>
-          )}
           <button
             type="button"
             onClick={toggle}
-            className="px-2 py-1 rounded border border-bc-border text-bc-muted hover:text-bc-text hover:border-bc-accent transition-colors"
+            className="px-2 py-1 rounded border border-bc-border text-xs text-bc-muted hover:text-bc-text hover:border-bc-accent transition-colors"
             title={`Theme: ${THEME_LABELS[mode]}`}
           >
             {collapsed && !isMobile
