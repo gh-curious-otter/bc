@@ -37,8 +37,9 @@ type ServerConfig struct {
 
 // Store provides MCP server config storage backed by SQLite or Postgres.
 type Store struct {
-	db *db.DB
-	pg *PostgresStore // non-nil when using Postgres via OpenStore
+	db     *db.DB
+	pg     *PostgresStore // non-nil when using Postgres via OpenStore
+	shared bool           // true when using shared bc.db (don't close on Close())
 }
 
 // NewStore creates a new MCP store for the given workspace path.
@@ -46,7 +47,7 @@ type Store struct {
 func NewStore(workspacePath string) (*Store, error) {
 	// Try shared database first
 	if shared := db.SharedWrapped(); shared != nil {
-		s := &Store{db: shared}
+		s := &Store{db: shared, shared: true}
 		if err := s.initSchema(); err != nil {
 			return nil, fmt.Errorf("init mcp schema on shared db: %w", err)
 		}
@@ -90,9 +91,13 @@ func (s *Store) initSchema() error {
 }
 
 // Close closes the database connection.
+// No-op when using shared bc.db — CloseShared() handles that.
 func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()
+	}
+	if s.shared {
+		return nil // shared DB, don't close
 	}
 	if s.db != nil {
 		return s.db.Close()

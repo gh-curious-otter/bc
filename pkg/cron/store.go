@@ -51,9 +51,14 @@ func Open(workspacePath string) (*Store, error) {
 }
 
 // Close closes the database connection.
+// If using the shared bc.db, this is a no-op — CloseShared() handles it.
 func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()
+	}
+	// Don't close shared DB — it's owned by the shared connection manager.
+	if s.path == "" {
+		return nil // shared DB, no-op
 	}
 	return s.db.Close()
 }
