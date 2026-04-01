@@ -161,7 +161,7 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 				e.InputTokens, e.OutputTokens, total,
 				e.CacheCreationTokens, e.CacheReadTokens,
 				ie.costUSD,
-				e.Timestamp.UTC(),
+				e.Timestamp.UTC().Format(time.RFC3339Nano),
 			)
 		} else {
 			_, insertErr = tx.ExecContext(ctx,
