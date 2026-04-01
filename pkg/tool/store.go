@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/db"
@@ -302,6 +303,17 @@ func unmarshalMap(s string) map[string]any {
 	return result
 }
 
+func unmarshalStringMap(s string) map[string]string {
+	if s == "" || s == "{}" {
+		return nil
+	}
+	var result map[string]string
+	if err := json.Unmarshal([]byte(s), &result); err != nil {
+		return nil
+	}
+	return result
+}
+
 func (s *Store) add(ctx context.Context, t *Tool) error {
 	slashCmds, err := marshalJSON(t.SlashCmds)
 	if err != nil {
@@ -343,24 +355,33 @@ func (s *Store) Add(ctx context.Context, t *Tool) error {
 	return s.add(ctx, t)
 }
 
+// allColumns is the SELECT column list for the unified tools table.
+const allColumns = `name, type, command, install_cmd, upgrade_cmd, version_cmd,
+	transport, url, args, env, slash_cmds, mcp_servers, config,
+	health_status, last_checked, builtin, enabled, created_at`
+
 // Get returns a tool by name. Returns nil, nil if not found.
 func (s *Store) Get(ctx context.Context, name string) (*Tool, error) {
 	if s.pg != nil {
 		return s.pg.Get(ctx, name)
 	}
 	row := s.db.QueryRowContext(ctx,
-		`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
-		 FROM tools WHERE name = ?`, name)
+		`SELECT `+allColumns+` FROM tools WHERE name = ?`, name)
 	return scanTool(row)
 }
 
 func scanTool(row *sql.Row) (*Tool, error) {
 	var t Tool
-	var installCmd, upgradeCmd, slashCmds, mcpServers, config sql.NullString
+	var toolType, installCmd, upgradeCmd, versionCmd sql.NullString
+	var transport, url, argsJSON, envJSON sql.NullString
+	var slashCmds, mcpServers, config sql.NullString
+	var healthStatus, lastChecked sql.NullString
 	if err := row.Scan(
-		&t.Name, &t.Command,
-		&installCmd, &upgradeCmd,
+		&t.Name, &toolType, &t.Command,
+		&installCmd, &upgradeCmd, &versionCmd,
+		&transport, &url, &argsJSON, &envJSON,
 		&slashCmds, &mcpServers, &config,
+		&healthStatus, &lastChecked,
 		&t.Builtin, &t.Enabled, &t.CreatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
@@ -368,44 +389,92 @@ func scanTool(row *sql.Row) (*Tool, error) {
 		}
 		return nil, err
 	}
+	t.Type = toolType.String
+	if t.Type == "" {
+		t.Type = ToolTypeProvider
+	}
 	t.InstallCmd = installCmd.String
 	t.UpgradeCmd = upgradeCmd.String
+	t.VersionCmd = versionCmd.String
+	t.Transport = transport.String
+	t.URL = url.String
+	t.Args = unmarshalStrings(argsJSON.String)
+	t.Env = unmarshalStringMap(envJSON.String)
 	t.SlashCmds = unmarshalStrings(slashCmds.String)
 	t.MCPServers = unmarshalStrings(mcpServers.String)
 	t.Config = unmarshalMap(config.String)
+	t.HealthStatus = healthStatus.String
+	t.LastChecked = lastChecked.String
 	return &t, nil
 }
 
-// List returns all tools.
+// ListOptions controls tool listing behavior.
+type ListOptions struct {
+	Types []string // filter by type (e.g., ["cli", "mcp"])
+}
+
+// List returns all tools, optionally filtered by type.
 func (s *Store) List(ctx context.Context) ([]*Tool, error) {
+	return s.ListWithOptions(ctx, ListOptions{})
+}
+
+// ListWithOptions returns tools filtered by the given options.
+func (s *Store) ListWithOptions(ctx context.Context, opts ListOptions) ([]*Tool, error) {
 	if s.pg != nil {
 		return s.pg.List(ctx)
 	}
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
-		 FROM tools ORDER BY builtin DESC, name ASC`)
+
+	query := `SELECT ` + allColumns + ` FROM tools`
+	var args []any
+	if len(opts.Types) > 0 {
+		placeholders := make([]string, len(opts.Types))
+		for i, t := range opts.Types {
+			placeholders[i] = "?"
+			args = append(args, t)
+		}
+		query += ` WHERE type IN (` + strings.Join(placeholders, ",") + `)`
+	}
+	query += ` ORDER BY builtin DESC, type ASC, name ASC`
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close() //nolint:errcheck // best-effort close
+	defer rows.Close() //nolint:errcheck
 
 	var tools []*Tool
 	for rows.Next() {
 		var t Tool
-		var installCmd, upgradeCmd, slashCmds, mcpServers, config sql.NullString
+		var toolType, installCmd, upgradeCmd, versionCmd sql.NullString
+		var transport, url, argsJSON, envJSON sql.NullString
+		var slashCmds, mcpServers, config sql.NullString
+		var healthStatus, lastChecked sql.NullString
 		if err := rows.Scan(
-			&t.Name, &t.Command,
-			&installCmd, &upgradeCmd,
+			&t.Name, &toolType, &t.Command,
+			&installCmd, &upgradeCmd, &versionCmd,
+			&transport, &url, &argsJSON, &envJSON,
 			&slashCmds, &mcpServers, &config,
+			&healthStatus, &lastChecked,
 			&t.Builtin, &t.Enabled, &t.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
+		t.Type = toolType.String
+		if t.Type == "" {
+			t.Type = ToolTypeProvider
+		}
 		t.InstallCmd = installCmd.String
 		t.UpgradeCmd = upgradeCmd.String
+		t.VersionCmd = versionCmd.String
+		t.Transport = transport.String
+		t.URL = url.String
+		t.Args = unmarshalStrings(argsJSON.String)
+		t.Env = unmarshalStringMap(envJSON.String)
 		t.SlashCmds = unmarshalStrings(slashCmds.String)
 		t.MCPServers = unmarshalStrings(mcpServers.String)
 		t.Config = unmarshalMap(config.String)
+		t.HealthStatus = healthStatus.String
+		t.LastChecked = lastChecked.String
 		tools = append(tools, &t)
 	}
 	return tools, rows.Err()
