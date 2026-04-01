@@ -93,11 +93,18 @@ func (p *PostgresStore) add(ctx context.Context, t *Tool) error {
 		return err
 	}
 
+	builtin, enabled := 0, 0
+	if t.Builtin {
+		builtin = 1
+	}
+	if t.Enabled {
+		enabled = 1
+	}
 	_, err = p.db.ExecContext(ctx,
 		`INSERT INTO tools (name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		t.Name, t.Command, t.InstallCmd, t.UpgradeCmd,
-		slashCmds, mcpServers, config, t.Builtin, t.Enabled,
+		slashCmds, mcpServers, config, builtin, enabled,
 	)
 	return err
 }
@@ -198,11 +205,15 @@ func (p *PostgresStore) Update(ctx context.Context, t *Tool) error {
 		return err
 	}
 
+	enabledInt := 0
+	if t.Enabled {
+		enabledInt = 1
+	}
 	res, err := p.db.ExecContext(ctx,
 		`UPDATE tools SET command=$1, install_cmd=$2, upgrade_cmd=$3, slash_cmds=$4, mcp_servers=$5, config=$6, enabled=$7
 		 WHERE name=$8`,
 		t.Command, t.InstallCmd, t.UpgradeCmd,
-		slashCmds, mcpServers, config, t.Enabled,
+		slashCmds, mcpServers, config, enabledInt,
 		t.Name,
 	)
 	if err != nil {
@@ -236,7 +247,11 @@ func (p *PostgresStore) Delete(ctx context.Context, name string) error {
 
 // SetEnabled enables or disables a tool.
 func (p *PostgresStore) SetEnabled(ctx context.Context, name string, enabled bool) error {
-	res, err := p.db.ExecContext(ctx, `UPDATE tools SET enabled=$1 WHERE name=$2`, enabled, name)
+	v := 0
+	if enabled {
+		v = 1
+	}
+	res, err := p.db.ExecContext(ctx, `UPDATE tools SET enabled=$1 WHERE name=$2`, v, name)
 	if err != nil {
 		return err
 	}
