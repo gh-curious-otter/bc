@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -51,6 +53,21 @@ func runDown(cmd *cobra.Command, _ []string) error {
 
 	id := wsID(ws.RootDir)
 	daemonName := fmt.Sprintf("bc-%s-daemon", id)
+
+	// Stop local daemon if running via PID file
+	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
+	if pidData, readErr := os.ReadFile(pidPath); readErr == nil {
+		pid := strings.TrimSpace(string(pidData))
+		fmt.Printf("  Stopping local bcd (PID %s)... ", pid)
+		killCmd := exec.CommandContext(ctx, "kill", pid) //nolint:gosec // trusted
+		if killCmd.Run() == nil {
+			fmt.Println(ui.GreenText("stopped"))
+			_ = os.Remove(pidPath)
+		} else {
+			fmt.Println(ui.YellowText("not running"))
+			_ = os.Remove(pidPath)
+		}
+	}
 
 	var stopped int
 	for _, name := range []string{daemonName, "bc-db"} {

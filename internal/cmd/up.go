@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -20,23 +22,26 @@ import (
 var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start bc services",
-	Long: `Start bc-db and bc-<id>-daemon in Docker.
+	Long: `Start bc services (Docker containers or local daemon).
 
 Examples:
-  bc up
-  bc up --port 9000
-  bc up --port 8080 --workspace /path/to/workspace`,
+  bc up                    # Start Docker containers (db + bcd)
+  bc up -d                 # Start bcd as local background daemon (no Docker)
+  bc up --port 9000        # Custom port
+  bc up -d --port 8080     # Local daemon on custom port`,
 	RunE: runUp,
 }
 
 var (
 	upPort      string
 	upWorkspace string
+	upDaemon    bool
 )
 
 func init() {
 	upCmd.Flags().StringVar(&upPort, "port", "9374", "Host port for bcd")
 	upCmd.Flags().StringVar(&upWorkspace, "workspace", "", "Workspace directory (defaults to current workspace)")
+	upCmd.Flags().BoolVarP(&upDaemon, "daemon", "d", false, "Run bcd as local background process (no Docker)")
 	rootCmd.AddCommand(upCmd)
 }
 
@@ -56,6 +61,11 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 
 	ctx := cmd.Context()
+
+	// Daemon mode: run bcd as local background process (no Docker)
+	if upDaemon {
+		return runUpDaemon(ws)
+	}
 
 	fmt.Printf("Starting bc in %s\n\n", ws.RootDir)
 
@@ -195,4 +205,71 @@ func waitHTTP(ctx context.Context, addr string, timeout time.Duration) error {
 func wsID(path string) string {
 	h := sha256.Sum256([]byte(path))
 	return fmt.Sprintf("%x", h[:3])
+}
+
+// runUpDaemon starts bcd as a local background process using nohup.
+// Logs go to .bc/bcd.log, PID to .bc/bcd.pid.
+func runUpDaemon(ws *workspace.Workspace) error {
+	// Find bcd binary
+	bcdPath, err := exec.LookPath("bcd")
+	if err != nil {
+		// Try in same directory as bc binary
+		selfPath, _ := os.Executable()
+		bcdPath = filepath.Join(filepath.Dir(selfPath), "bcd")
+		if _, statErr := os.Stat(bcdPath); statErr != nil {
+			return fmt.Errorf("bcd binary not found in PATH or next to bc binary")
+		}
+	}
+
+	// Check if already running
+	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
+	if pidData, readErr := os.ReadFile(pidPath); readErr == nil {
+		pid := strings.TrimSpace(string(pidData))
+		// Check if process is still alive
+		checkCmd := exec.Command("kill", "-0", pid) //nolint:gosec // trusted
+		if checkCmd.Run() == nil {
+			fmt.Printf("  bcd already running (PID %s)\n", pid)
+			fmt.Printf("  http://127.0.0.1:%s\n", upPort)
+			return nil
+		}
+	}
+
+	logPath := filepath.Join(ws.StateDir(), "bcd.log")
+
+	// Start bcd in background
+	args := []string{bcdPath, "--addr", "127.0.0.1:" + upPort, "--workspace", ws.RootDir}
+
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) //nolint:gosec // controlled path
+	if err != nil {
+		return fmt.Errorf("open log file: %w", err)
+	}
+
+	cmd := exec.Command(args[0], args[1:]...) //nolint:gosec // trusted binary
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	cmd.Dir = ws.RootDir
+	// Detach from parent process
+	cmd.SysProcAttr = nil // Default — inherits signals on Linux
+
+	if err := cmd.Start(); err != nil {
+		_ = logFile.Close()
+		return fmt.Errorf("start bcd: %w", err)
+	}
+	_ = logFile.Close()
+
+	// Write PID file
+	if writeErr := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", cmd.Process.Pid)), 0600); writeErr != nil {
+		log.Warn("failed to write PID file", "path", pidPath, "error", writeErr)
+	}
+
+	// Detach — don't wait for the process
+	_ = cmd.Process.Release()
+
+	fmt.Printf("  %s bcd started (PID %d)\n", ui.GreenText("ok"), cmd.Process.Pid)
+	fmt.Printf("  bcd:  http://127.0.0.1:%s\n", upPort)
+	fmt.Printf("  logs: %s\n", logPath)
+	fmt.Printf("  pid:  %s\n", pidPath)
+	fmt.Println()
+
+	return nil
 }
