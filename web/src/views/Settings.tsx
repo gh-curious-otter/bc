@@ -134,6 +134,19 @@ function JsonEditor({
   }
 
   if (typeof value === "string") {
+    // Secret references: show as link to /secrets
+    if (value.startsWith("${secret:")) {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono text-bc-muted bg-bc-bg px-2 py-1 rounded border border-bc-border">
+            {value}
+          </span>
+          <a href="/secrets" className="text-xs text-bc-accent hover:underline">
+            Manage in Secrets
+          </a>
+        </div>
+      );
+    }
     if (SENSITIVE_KEYS.test(key)) {
       return readOnly ? (
         <TextInput value="********" onChange={() => {}} disabled />
