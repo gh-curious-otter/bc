@@ -6,14 +6,8 @@ import { EmptyState } from "../components/EmptyState";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-const SENSITIVE_KEYS = /token|password|secret|key/i;
-
-const SECTION_ORDER = ["server", "storage", "runtime", "gateways", "providers", "cron", "logs"];
+const SECTION_ORDER = ["server", "storage", "runtime", "providers", "gateways", "cron", "logs"];
 const RESTART_SECTIONS = new Set(["server", "storage", "runtime"]);
-
-function formatLabel(key: string): string {
-  return key.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function deepClone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
@@ -24,48 +18,40 @@ function deepEqual(a: unknown, b: unknown): boolean {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Primitive editors                                                   */
+/*  Shared components                                                   */
 /* ------------------------------------------------------------------ */
 
-function TextInput({
-  value,
-  onChange,
-  type = "text",
-  disabled = false,
-}: {
-  value: string | number;
-  onChange: (v: string) => void;
-  type?: string;
-  disabled?: boolean;
-}) {
+const INPUT_CLS = "w-full px-2.5 py-1 text-xs rounded border border-bc-border bg-bc-bg text-bc-text font-mono focus:outline-none focus:ring-1 focus:ring-bc-accent";
+
+function Field({ label, children, suffix }: { label: string; children: React.ReactNode; suffix?: string }) {
   return (
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      className="w-full px-3 py-1.5 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent disabled:opacity-50 font-mono"
-    />
+    <div className="flex items-center gap-3">
+      <label className="text-xs text-bc-muted w-28 shrink-0">{label}</label>
+      <div className="flex-1 flex items-center gap-2">
+        {children}
+        {suffix && <span className="text-xs text-bc-muted shrink-0">{suffix}</span>}
+      </div>
+    </div>
   );
 }
 
 function PasswordField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [visible, setVisible] = useState(false);
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <input
         type={visible ? "text" : "password"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-1.5 pr-10 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent font-mono"
+        className={`${INPUT_CLS} pr-8`}
       />
       <button
         type="button"
         onClick={() => setVisible(!visible)}
-        className="absolute inset-y-0 right-0 flex items-center px-3 text-bc-muted hover:text-bc-text"
+        className="absolute inset-y-0 right-0 flex items-center px-2 text-bc-muted hover:text-bc-text"
         tabIndex={-1}
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           {visible ? (
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
           ) : (
@@ -85,195 +71,263 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? "bg-bc-accent" : "bg-bc-border"}`}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? "bg-bc-accent" : "bg-bc-border"}`}
     >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`}
-      />
+      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`} />
     </button>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Recursive JSON editor                                               */
-/* ------------------------------------------------------------------ */
+function SecretBadge({ value }: { value: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs font-mono text-bc-muted bg-bc-bg px-2 py-0.5 rounded border border-bc-border truncate">
+        {value}
+      </span>
+      <a href="/secrets" className="text-xs text-bc-accent hover:underline shrink-0">Manage</a>
+    </div>
+  );
+}
 
-function JsonEditor({
-  value,
-  onChange,
-  path = [],
-  readOnly = false,
-}: {
-  value: unknown;
-  onChange: (path: string[], newValue: unknown) => void;
-  path?: string[];
-  readOnly?: boolean;
-}) {
-  const key = path[path.length - 1] ?? "";
-
-  if (value === null || value === undefined) {
-    return (
-      <TextInput
-        value=""
-        onChange={(v) => onChange(path, v || null)}
-        disabled={readOnly}
-      />
-    );
-  }
-
-  if (typeof value === "boolean") {
-    return <Toggle checked={value} onChange={(v) => !readOnly && onChange(path, v)} />;
-  }
-
-  if (typeof value === "number") {
-    return (
-      <TextInput
-        value={value}
-        onChange={(v) => onChange(path, v === "" ? 0 : Number(v))}
-        type="number"
-        disabled={readOnly}
-      />
-    );
-  }
-
-  if (typeof value === "string") {
-    // Secret references: show as link to /secrets
-    if (value.startsWith("${secret:")) {
-      return (
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-bc-muted bg-bc-bg px-2 py-1 rounded border border-bc-border">
-            {value}
-          </span>
-          <a href="/secrets" className="text-xs text-bc-accent hover:underline">
-            Manage in Secrets
-          </a>
-        </div>
-      );
-    }
-    if (SENSITIVE_KEYS.test(key)) {
-      return readOnly ? (
-        <TextInput value="********" onChange={() => {}} disabled />
-      ) : (
-        <PasswordField value={value} onChange={(v) => onChange(path, v)} />
-      );
-    }
-    return (
-      <TextInput value={value} onChange={(v) => onChange(path, v)} disabled={readOnly} />
-    );
-  }
-
-  if (Array.isArray(value)) {
-    const jsonStr = JSON.stringify(value, null, 2);
-    return (
-      <textarea
-        value={jsonStr}
-        disabled={readOnly}
-        onChange={(e) => {
-          try {
-            onChange(path, JSON.parse(e.target.value));
-          } catch {
-            /* keep current value on invalid JSON */
-          }
-        }}
-        rows={Math.min(Math.max(jsonStr.split("\n").length, 2), 8)}
-        className="w-full px-3 py-1.5 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent font-mono disabled:opacity-50 resize-y"
-      />
-    );
-  }
-
-  if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
-    return (
-      <div className="space-y-3 pl-4 border-l-2 border-bc-border/50">
-        {entries.map(([k, v]) => (
-          <div key={k} className="flex items-start gap-4">
-            <label className="text-sm text-bc-muted w-40 shrink-0 pt-1.5 truncate" title={k}>
-              {formatLabel(k)}
-            </label>
-            <div className="flex-1 min-w-0">
-              <JsonEditor
-                value={v}
-                onChange={onChange}
-                path={[...path, k]}
-                readOnly={readOnly}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return <TextInput value={String(value)} onChange={(v) => onChange(path, v)} disabled={readOnly} />;
+function TokenField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  if (value.startsWith("${secret:")) return <SecretBadge value={value} />;
+  return <PasswordField value={value} onChange={onChange} />;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Collapsible section (no per-section save button)                    */
+/*  Section wrapper                                                     */
 /* ------------------------------------------------------------------ */
 
-function ConfigSection({
-  sectionKey,
-  edited,
+const SECTION_META: Record<string, { icon: React.ReactNode; desc: string }> = {
+  server: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />,
+    desc: "Host, port, and CORS settings",
+  },
+  storage: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />,
+    desc: "Database backend configuration",
+  },
+  runtime: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />,
+    desc: "Agent execution environment",
+  },
+  providers: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
+    desc: "AI provider commands",
+  },
+  gateways: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />,
+    desc: "Telegram and Slack integrations",
+  },
+  cron: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />,
+    desc: "Scheduled job configuration",
+  },
+  logs: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />,
+    desc: "Log file location and rotation",
+  },
+};
+
+function Section({
+  title,
   dirty,
-  onChange,
+  defaultOpen = true,
+  children,
 }: {
-  sectionKey: string;
-  edited: unknown;
+  title: string;
   dirty: boolean;
-  onChange: (path: string[], newValue: unknown) => void;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen);
+  const meta = SECTION_META[title];
 
   return (
     <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-3 hover:bg-bc-bg/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-bc-bg/50 transition-colors"
       >
-        <div className="flex items-center gap-3">
-          <svg
-            className={`w-4 h-4 text-bc-muted transition-transform ${open ? "rotate-90" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        <div className="flex items-center gap-2.5">
+          <svg className="w-4 h-4 text-bc-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            {meta?.icon}
           </svg>
-          <h2 className="text-sm font-semibold text-bc-text uppercase tracking-wide">
-            {formatLabel(sectionKey)}
-          </h2>
-          {dirty && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-bc-accent/20 text-bc-accent">
-              unsaved
-            </span>
-          )}
+          <div className="text-left">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-bc-text uppercase tracking-wide">{title}</span>
+              {dirty && <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />}
+            </div>
+            {meta && <p className="text-[10px] text-bc-muted">{meta.desc}</p>}
+          </div>
         </div>
+        <svg className={`w-3.5 h-3.5 text-bc-muted transition-transform ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
       </button>
-      {open && (
-        <div className="px-5 pb-5 pt-2 space-y-4 border-t border-bc-border">
-          {typeof edited === "object" && edited !== null && !Array.isArray(edited) ? (
-            Object.entries(edited as Record<string, unknown>).map(([k, v]) => (
-              <div key={k} className="flex items-start gap-4">
-                <label className="text-sm text-bc-muted w-44 shrink-0 pt-1.5 truncate" title={k}>
-                  {formatLabel(k)}
-                </label>
-                <div className="flex-1 min-w-0">
-                  <JsonEditor
-                    value={v}
-                    onChange={onChange}
-                    path={[sectionKey, k]}
-                  />
-                </div>
-              </div>
-            ))
-          ) : (
-            <JsonEditor value={edited} onChange={onChange} path={[sectionKey]} />
-          )}
-        </div>
-      )}
+      {open && <div className="px-4 pb-4 pt-2 space-y-2.5 border-t border-bc-border">{children}</div>}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Per-section renderers                                               */
+/* ------------------------------------------------------------------ */
+
+function ServerSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const s = (data.server ?? {}) as Record<string, unknown>;
+  return (
+    <>
+      <Field label="Host"><input className={INPUT_CLS} value={String(s.host ?? "")} onChange={(e) => onChange(["server", "host"], e.target.value)} /></Field>
+      <Field label="Port"><input className={INPUT_CLS} type="number" value={Number(s.port ?? 0)} onChange={(e) => onChange(["server", "port"], Number(e.target.value))} /></Field>
+      <Field label="CORS Origin"><input className={INPUT_CLS} value={String(s.cors_origin ?? "")} onChange={(e) => onChange(["server", "cors_origin"], e.target.value)} /></Field>
+    </>
+  );
+}
+
+function StorageSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const s = (data.storage ?? {}) as Record<string, unknown>;
+  const backend = String(s.default ?? "sqlite");
+  const ts = (s.timescale ?? {}) as Record<string, unknown>;
+  const sq = (s.sqlite ?? {}) as Record<string, unknown>;
+
+  return (
+    <>
+      <Field label="Backend">
+        <select value={backend} onChange={(e) => onChange(["storage", "default"], e.target.value)}
+          className={INPUT_CLS}>
+          <option value="timescale">TimescaleDB</option>
+          <option value="sqlite">SQLite</option>
+        </select>
+      </Field>
+      {backend === "timescale" ? (
+        <>
+          <Field label="Host"><input className={INPUT_CLS} value={String(ts.host ?? "")} onChange={(e) => onChange(["storage", "timescale", "host"], e.target.value)} /></Field>
+          <Field label="Port"><input className={INPUT_CLS} type="number" value={Number(ts.port ?? 5432)} onChange={(e) => onChange(["storage", "timescale", "port"], Number(e.target.value))} /></Field>
+          <Field label="User"><input className={INPUT_CLS} value={String(ts.user ?? "")} onChange={(e) => onChange(["storage", "timescale", "user"], e.target.value)} /></Field>
+          <Field label="Password"><PasswordField value={String(ts.password ?? "")} onChange={(v) => onChange(["storage", "timescale", "password"], v)} /></Field>
+          <Field label="Database"><input className={INPUT_CLS} value={String(ts.database ?? "")} onChange={(e) => onChange(["storage", "timescale", "database"], e.target.value)} /></Field>
+        </>
+      ) : (
+        <Field label="Path"><input className={INPUT_CLS} value={String(sq.path ?? "")} onChange={(e) => onChange(["storage", "sqlite", "path"], e.target.value)} /></Field>
+      )}
+    </>
+  );
+}
+
+function RuntimeSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const r = (data.runtime ?? {}) as Record<string, unknown>;
+  const mode = String(r.default ?? "docker");
+  const docker = (r.docker ?? {}) as Record<string, unknown>;
+  const tmux = (r.tmux ?? {}) as Record<string, unknown>;
+
+  return (
+    <>
+      <Field label="Runtime">
+        <select value={mode} onChange={(e) => onChange(["runtime", "default"], e.target.value)}
+          className={INPUT_CLS}>
+          <option value="docker">Docker</option>
+          <option value="local">Local (tmux)</option>
+          <option disabled>Kubernetes (coming soon)</option>
+        </select>
+      </Field>
+      {mode === "docker" ? (
+        <>
+          <Field label="Image"><input className={INPUT_CLS} value={String(docker.image ?? "")} onChange={(e) => onChange(["runtime", "docker", "image"], e.target.value)} /></Field>
+          <Field label="Network"><input className={INPUT_CLS} value={String(docker.network ?? "")} onChange={(e) => onChange(["runtime", "docker", "network"], e.target.value)} /></Field>
+          <Field label="Docker Socket"><input className={INPUT_CLS} value={String(docker.docker_socket_path ?? "")} onChange={(e) => onChange(["runtime", "docker", "docker_socket_path"], e.target.value)} /></Field>
+          <Field label="CPUs"><input className={INPUT_CLS} type="number" value={Number(docker.cpus ?? 2)} onChange={(e) => onChange(["runtime", "docker", "cpus"], Number(e.target.value))} /></Field>
+          <Field label="Memory" suffix="MB"><input className={INPUT_CLS} type="number" value={Number(docker.memory_mb ?? 4096)} onChange={(e) => onChange(["runtime", "docker", "memory_mb"], Number(e.target.value))} /></Field>
+        </>
+      ) : (
+        <>
+          <Field label="Session Prefix"><input className={INPUT_CLS} value={String(tmux.session_prefix ?? "")} onChange={(e) => onChange(["runtime", "tmux", "session_prefix"], e.target.value)} /></Field>
+          <Field label="History Limit"><input className={INPUT_CLS} type="number" value={Number(tmux.history_limit ?? 10000)} onChange={(e) => onChange(["runtime", "tmux", "history_limit"], Number(e.target.value))} /></Field>
+          <Field label="Default Shell"><input className={INPUT_CLS} value={String(tmux.default_shell ?? "")} onChange={(e) => onChange(["runtime", "tmux", "default_shell"], e.target.value)} /></Field>
+        </>
+      )}
+    </>
+  );
+}
+
+function ProvidersSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const p = (data.providers ?? {}) as Record<string, unknown>;
+  const defaultProvider = String(p.default ?? "claude");
+  const providers = (p.providers ?? {}) as Record<string, Record<string, unknown>>;
+  const providerKeys = Object.keys(providers);
+
+  return (
+    <>
+      <Field label="Default">
+        <select value={defaultProvider} onChange={(e) => onChange(["providers", "default"], e.target.value)}
+          className={INPUT_CLS}>
+          {providerKeys.map((k) => <option key={k} value={k}>{k}</option>)}
+        </select>
+      </Field>
+      <div className="border-t border-bc-border/50 pt-2 mt-1 space-y-2">
+        {providerKeys.map((k) => (
+          <Field key={k} label={k}>
+            <input className={INPUT_CLS} value={String(providers[k]?.command ?? "")}
+              onChange={(e) => onChange(["providers", "providers", k, "command"], e.target.value)} />
+          </Field>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function GatewayCard({ name, gw, onChange }: { name: string; gw: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const enabled = Boolean(gw.enabled ?? false);
+  const basePath = ["gateways", name];
+
+  return (
+    <div className="rounded border border-bc-border bg-bc-bg p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-bc-text uppercase">{name}</span>
+        <Toggle checked={enabled} onChange={(v) => onChange([...basePath, "enabled"], v)} />
+      </div>
+      {Object.entries(gw).filter(([k]) => k !== "enabled").map(([k, v]) => {
+        const path = [...basePath, k];
+        if (k.includes("token")) {
+          return <Field key={k} label={k.replace(/_/g, " ")}><TokenField value={String(v ?? "")} onChange={(val) => onChange(path, val)} /></Field>;
+        }
+        return <Field key={k} label={k.replace(/_/g, " ")}><input className={INPUT_CLS} value={String(v ?? "")} onChange={(e) => onChange(path, e.target.value)} /></Field>;
+      })}
+    </div>
+  );
+}
+
+function GatewaysSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const g = (data.gateways ?? {}) as Record<string, Record<string, unknown>>;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {Object.entries(g).map(([name, gw]) => (
+        <GatewayCard key={name} name={name} gw={gw} onChange={onChange} />
+      ))}
+    </div>
+  );
+}
+
+function CronSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const c = (data.cron ?? {}) as Record<string, unknown>;
+  return (
+    <>
+      <Field label="Poll Interval" suffix="seconds"><input className={INPUT_CLS} type="number" value={Number(c.poll_interval_seconds ?? 30)} onChange={(e) => onChange(["cron", "poll_interval_seconds"], Number(e.target.value))} /></Field>
+      <Field label="Job Timeout" suffix="seconds"><input className={INPUT_CLS} type="number" value={Number(c.job_timeout_seconds ?? 300)} onChange={(e) => onChange(["cron", "job_timeout_seconds"], Number(e.target.value))} /></Field>
+    </>
+  );
+}
+
+function LogsSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const l = (data.logs ?? {}) as Record<string, unknown>;
+  const maxBytes = Number(l.max_bytes ?? 0);
+  const maxMB = Math.round(maxBytes / 1048576);
+  return (
+    <>
+      <Field label="Path"><input className={INPUT_CLS} value={String(l.path ?? "")} onChange={(e) => onChange(["logs", "path"], e.target.value)} /></Field>
+      <Field label="Max Size" suffix="MB"><input className={INPUT_CLS} type="number" value={maxMB} onChange={(e) => onChange(["logs", "max_bytes"], Number(e.target.value) * 1048576)} /></Field>
+    </>
   );
 }
 
@@ -340,9 +394,7 @@ export function Settings() {
         return next;
       });
       setSaveStatus("saved");
-      if (needsRestart) {
-        setRestartWarning(true);
-      }
+      if (needsRestart) setRestartWarning(true);
       setTimeout(() => setSaveStatus("idle"), 2000);
     } catch {
       setSaveStatus("error");
@@ -350,83 +402,96 @@ export function Settings() {
   };
 
   if (loading && !config)
-    return (
-      <div className="p-6">
-        <LoadingSkeleton variant="cards" rows={4} />
-      </div>
-    );
+    return <div className="p-6"><LoadingSkeleton variant="cards" rows={4} /></div>;
   if (timedOut && !config)
-    return (
-      <div className="p-6">
-        <EmptyState icon="!" title="Settings timed out" actionLabel="Retry" onAction={refresh} />
-      </div>
-    );
+    return <div className="p-6"><EmptyState icon="!" title="Settings timed out" actionLabel="Retry" onAction={refresh} /></div>;
   if (error && !config)
-    return (
-      <div className="p-6">
-        <EmptyState icon="!" title="Failed to load settings" description={error} actionLabel="Retry" onAction={refresh} />
-      </div>
-    );
+    return <div className="p-6"><EmptyState icon="!" title="Failed to load settings" description={error} actionLabel="Retry" onAction={refresh} /></div>;
   if (!config || !edited || !original) return null;
 
   const version = edited.version;
-  const orderedKeys = SECTION_ORDER.filter((key) => key in edited);
 
   return (
-    <div className="p-6 space-y-4 max-w-3xl">
-      <div className="flex items-center justify-between mb-2">
+    <div className="p-6 space-y-3 max-w-4xl">
+      <div className="flex items-center justify-between mb-1">
         <div>
-          <h1 className="text-xl font-bold text-bc-text">System Configuration</h1>
-          <p className="text-xs text-bc-muted mt-0.5">
+          <h1 className="text-lg font-bold text-bc-text">System Configuration</h1>
+          <p className="text-[10px] text-bc-muted">
             settings.json{typeof version !== "undefined" ? ` v${version}` : ""}
           </p>
         </div>
       </div>
 
-      {/* Sticky save bar */}
+      {/* Floating save bar */}
       {dirtySections.length > 0 && (
-        <div className="sticky top-0 z-20 rounded-lg border border-orange-500/50 bg-orange-500/10 backdrop-blur px-5 py-3 flex items-center justify-between">
-          <div className="text-sm text-bc-text">
-            <span className="font-medium">Unsaved changes:</span>{" "}
+        <div className="sticky top-0 z-20 rounded-lg border border-orange-500/50 bg-orange-500/10 backdrop-blur px-4 py-2.5 flex items-center justify-between">
+          <div className="text-xs text-bc-text">
+            <span className="font-medium">Unsaved:</span>{" "}
             <span className="text-bc-muted">{dirtySections.join(", ")}</span>
+            {dirtySections.some((k) => RESTART_SECTIONS.has(k)) && (
+              <span className="ml-2 text-orange-400">Restart required after save</span>
+            )}
           </div>
           <button
             onClick={handleSaveAll}
             disabled={saveStatus === "saving"}
-            className={`px-4 py-1.5 rounded text-sm font-medium transition-all disabled:opacity-50 ${
+            className={`px-3.5 py-1 rounded text-xs font-medium transition-all disabled:opacity-50 ${
               saveStatus === "error"
                 ? "bg-red-600 text-white hover:bg-red-700"
                 : "bg-orange-500 text-white hover:bg-orange-600"
             }`}
           >
-            {saveStatus === "saving" ? "Saving..." : saveStatus === "error" ? "Error - Retry" : "Save Changes"}
+            {saveStatus === "saving" ? "Saving..." : saveStatus === "error" ? "Retry" : "Save"}
           </button>
         </div>
       )}
 
-      {/* Saved + restart warning */}
       {saveStatus === "saved" && dirtySections.length === 0 && !restartWarning && (
-        <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-5 py-2 text-sm text-green-400">
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-xs text-green-400">
           Changes saved.
         </div>
       )}
 
-      {/* Restart required banner */}
       {restartWarning && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-5 py-2 text-sm text-red-400">
-          Changes saved. Restart bcd to apply (<code className="font-mono text-xs">bc down &amp;&amp; bc up -d</code>)
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs text-red-400">
+          Changes saved. Restart bcd to apply (<code className="font-mono">bc down &amp;&amp; bc up -d</code>)
         </div>
       )}
 
-      {orderedKeys.map((key) => (
-        <ConfigSection
-          key={key}
-          sectionKey={key}
-          edited={edited[key]}
-          dirty={dirtySections.includes(key)}
-          onChange={handleChange}
-        />
-      ))}
+      {/* Row 1: Server + Storage */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Section title="server" dirty={dirtySections.includes("server")}>
+          <ServerSection data={edited} onChange={handleChange} />
+        </Section>
+        <Section title="storage" dirty={dirtySections.includes("storage")}>
+          <StorageSection data={edited} onChange={handleChange} />
+        </Section>
+      </div>
+
+      {/* Row 2: Runtime full width */}
+      <Section title="runtime" dirty={dirtySections.includes("runtime")}>
+        <RuntimeSection data={edited} onChange={handleChange} />
+      </Section>
+
+      {/* Row 3: Gateways + Providers */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Section title="gateways" dirty={dirtySections.includes("gateways")}>
+          <GatewaysSection data={edited} onChange={handleChange} />
+        </Section>
+        <Section title="providers" dirty={dirtySections.includes("providers")}>
+          <ProvidersSection data={edited} onChange={handleChange} />
+        </Section>
+      </div>
+
+      {/* Row 4: Cron + Logs */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Section title="cron" dirty={dirtySections.includes("cron")}>
+          <CronSection data={edited} onChange={handleChange} />
+        </Section>
+        <Section title="logs" dirty={dirtySections.includes("logs")}>
+          <LogsSection data={edited} onChange={handleChange} />
+        </Section>
+      </div>
     </div>
   );
 }
