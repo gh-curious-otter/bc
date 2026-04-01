@@ -258,11 +258,13 @@ func (p *PostgresStore) GetLogs(ctx context.Context, jobName string, last int) (
 	for rows.Next() {
 		e := &LogEntry{}
 		var output sql.NullString
-		var runAt time.Time
+		var runAt string
 		if scanErr := rows.Scan(&e.ID, &e.JobName, &e.Status, &e.DurationMS, &e.CostUSD, &output, &runAt); scanErr != nil {
 			return nil, fmt.Errorf("scan cron log: %w", scanErr)
 		}
-		e.RunAt = runAt
+		if t, parseErr := time.Parse(time.RFC3339, runAt); parseErr == nil {
+			e.RunAt = t
+		}
 		if output.Valid {
 			e.Output = output.String
 		}
@@ -284,10 +286,10 @@ func pgScanJob(s pgCronScanner) (*Job, error) {
 		agentName sql.NullString
 		prompt    sql.NullString
 		command   sql.NullString
-		lastRun   sql.NullTime
-		nextRun   sql.NullTime
-		enabled   bool
-		createdAt time.Time
+		lastRun   sql.NullString
+		nextRun   sql.NullString
+		enabled   int
+		createdAt string
 	)
 	err := s.Scan(
 		&j.Name, &j.Schedule, &agentName, &prompt, &command,
@@ -299,8 +301,10 @@ func pgScanJob(s pgCronScanner) (*Job, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan cron job: %w", err)
 	}
-	j.Enabled = enabled
-	j.CreatedAt = createdAt
+	j.Enabled = enabled != 0
+	if t, parseErr := time.Parse(time.RFC3339, createdAt); parseErr == nil {
+		j.CreatedAt = t
+	}
 	if agentName.Valid {
 		j.AgentName = agentName.String
 	}
@@ -311,12 +315,14 @@ func pgScanJob(s pgCronScanner) (*Job, error) {
 		j.Command = command.String
 	}
 	if lastRun.Valid {
-		t := lastRun.Time
-		j.LastRun = &t
+		if t, parseErr := time.Parse(time.RFC3339, lastRun.String); parseErr == nil {
+			j.LastRun = &t
+		}
 	}
 	if nextRun.Valid {
-		t := nextRun.Time
-		j.NextRun = &t
+		if t, parseErr := time.Parse(time.RFC3339, nextRun.String); parseErr == nil {
+			j.NextRun = &t
+		}
 	}
 	return j, nil
 }
