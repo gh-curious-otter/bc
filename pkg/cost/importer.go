@@ -245,12 +245,14 @@ func (imp *Importer) resolveAgent(cwd, path string) string {
 func initImporterSchema(db *sql.DB) error {
 	ctx := context.Background()
 
+	// Use CURRENT_TIMESTAMP — works on both SQLite and Postgres.
+	// (strftime is SQLite-only and breaks on Postgres)
 	schema := `
 		CREATE TABLE IF NOT EXISTS cost_imports (
 			source_path  TEXT NOT NULL,
 			watermark    TEXT NOT NULL,
 			record_count INTEGER NOT NULL DEFAULT 0,
-			imported_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+			imported_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (source_path)
 		);
 	`
