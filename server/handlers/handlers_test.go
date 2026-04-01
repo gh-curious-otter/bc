@@ -381,7 +381,7 @@ func TestGzipMiddlewareSkipsSSE(t *testing.T) {
 	}{
 		{"health is gzipped", "/health", "", true},
 		{"events endpoint skipped", "/api/events", "", false},
-		{"mcp sse skipped", "/mcp/sse", "", false},
+		{"mcp sse skipped", "/_mcp/sse", "", false},
 		{"agent output skipped", "/api/agents/alice/output", "", false},
 		{"accept event-stream skipped", "/health", "text/event-stream", false},
 	}
