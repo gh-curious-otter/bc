@@ -156,15 +156,15 @@ function SummaryCard({
   accent?: string;
 }) {
   return (
-    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/60 p-4">
-      <p className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">
+    <div className="rounded-lg border border-bc-border bg-bc-surface p-4">
+      <p className="text-[11px] text-bc-muted uppercase tracking-wider font-mono">
         {label}
       </p>
-      <p className={`mt-1.5 text-2xl font-bold tabular-nums ${accent ?? "text-zinc-200"}`}>
+      <p className={`mt-1.5 text-2xl font-bold tabular-nums ${accent ?? "text-bc-text"}`}>
         {value}
       </p>
       {sub && (
-        <p className="mt-0.5 text-[11px] text-zinc-600 font-mono">{sub}</p>
+        <p className="mt-0.5 text-[11px] text-bc-muted font-mono">{sub}</p>
       )}
     </div>
   );
@@ -184,7 +184,7 @@ function StateDot({ state }: { state: string }) {
     return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />;
   if (state === "error" || state === "stopped")
     return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-bc-error/60" />;
-  return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-zinc-500/40" />;
+  return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-bc-muted/40" />;
 }
 
 function ToolDot({ status }: { status: ToolNode["status"] }) {
@@ -221,25 +221,25 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
     <>
       <button
         type="button"
-        className="group flex items-start gap-2 py-0.5 px-3 w-full text-left hover:bg-white/[0.02] cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+        className="group flex items-start gap-2 py-0.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} tool ${node.toolName}`}
       >
-        <span className="text-zinc-600 text-xs select-none mt-[3px] shrink-0">
+        <span className="text-bc-muted text-xs select-none mt-[3px] shrink-0">
           {depth > 0 ? "├─" : ""}
         </span>
         <ToolDot status={node.status} />
         <span className="text-[12px] mr-0.5" aria-hidden="true">{toolIcon(node.toolName)}</span>
-        <span className="font-mono text-[13px] text-zinc-300 font-medium">
+        <span className="font-mono text-[13px] text-bc-text font-medium">
           {node.toolName}
         </span>
         {node.args && (
-          <span className="text-[12px] text-zinc-500 truncate max-w-[400px] font-mono">
+          <span className="text-[12px] text-bc-muted truncate max-w-[400px] font-mono">
             {redactSecrets(node.args)}
           </span>
         )}
-        <span className="ml-auto text-[11px] text-zinc-600 tabular-nums shrink-0 font-mono">
+        <span className="ml-auto text-[11px] text-bc-muted tabular-nums shrink-0 font-mono">
           {node.status === "running" ? (
             <ElapsedTimer start={node.startTime} />
           ) : (
@@ -259,7 +259,7 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
 
       {expanded && node.fullInput && (
         <div
-          className="text-[11px] text-zinc-500 font-mono px-3 py-1 bg-zinc-900/50 mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
+          className="text-[11px] text-bc-muted font-mono px-3 py-1 bg-bc-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
           style={{ marginLeft: `${indent + 12}px` }}
         >
           <pre className="whitespace-pre-wrap break-all">
@@ -270,7 +270,7 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
 
       {expanded && node.fullOutput && (
         <div
-          className="text-[11px] text-bc-success font-mono px-3 py-1 bg-zinc-900/50 mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
+          className="text-[11px] text-bc-success font-mono px-3 py-1 bg-bc-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
           style={{ marginLeft: `${indent + 12}px` }}
         >
           <pre className="whitespace-pre-wrap break-all">
@@ -298,32 +298,32 @@ const AgentCard = memo(function AgentCard({
   const runningCount = activity.nodes.filter((n) => n.status === "running").length;
 
   return (
-    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/60 overflow-hidden">
+    <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
       >
         <svg
           width="12" height="12" viewBox="0 0 12 12" fill="none"
           stroke="currentColor" strokeWidth="2"
-          className={`text-zinc-500 transition-transform ${activity.collapsed ? "" : "rotate-90"}`}
+          className={`text-bc-muted transition-transform ${activity.collapsed ? "" : "rotate-90"}`}
         >
           <path d="M4 2l4 4-4 4" />
         </svg>
 
         <StateDot state={activity.state} />
 
-        <span className="font-semibold text-[14px] text-zinc-200">
+        <span className="font-semibold text-[14px] text-bc-text">
           {activity.name}
         </span>
 
-        <span className="text-[11px] text-zinc-600 font-mono">
+        <span className="text-[11px] text-bc-muted font-mono">
           {activity.role}
         </span>
 
         {activity.task && (
-          <span className="text-[12px] text-zinc-500 truncate max-w-[300px]">
+          <span className="text-[12px] text-bc-muted truncate max-w-[300px]">
             {activity.task}
           </span>
         )}
@@ -335,7 +335,7 @@ const AgentCard = memo(function AgentCard({
             </span>
           )}
           {activity.tokens > 0 && (
-            <span className="text-[11px] text-zinc-600 font-mono tabular-nums">
+            <span className="text-[11px] text-bc-muted font-mono tabular-nums">
               {activity.tokens.toLocaleString()} tok
             </span>
           )}
@@ -343,7 +343,7 @@ const AgentCard = memo(function AgentCard({
       </button>
 
       {!activity.collapsed && activity.nodes.length > 0 && (
-        <div className="border-t border-zinc-800/60 py-1">
+        <div className="border-t border-bc-border/60 py-1">
           {activity.nodes.map((node) => (
             <ToolNodeRow key={node.id} node={node} />
           ))}
@@ -351,7 +351,7 @@ const AgentCard = memo(function AgentCard({
       )}
 
       {!activity.collapsed && activity.nodes.length === 0 && (
-        <div className="border-t border-zinc-800/60 py-3 px-4 text-[12px] text-zinc-600 italic">
+        <div className="border-t border-bc-border/60 py-3 px-4 text-[12px] text-bc-muted italic">
           Waiting for activity...
         </div>
       )}
@@ -590,7 +590,7 @@ export function Dashboard() {
   if (loading && !data) {
     return (
       <div className="p-6 space-y-6">
-        <div className="h-6 w-32 animate-pulse rounded bg-zinc-800/50" />
+        <div className="h-6 w-32 animate-pulse rounded bg-bc-border/50" />
         <LoadingSkeleton variant="cards" rows={4} />
       </div>
     );
@@ -620,19 +620,19 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-[#0a0a0b]">
       {/* Header */}
-      <div className="sticky top-0 z-10 backdrop-blur-md bg-[#0a0a0b]/80 border-b border-zinc-800/50">
+      <div className="sticky top-0 z-10 backdrop-blur-md bg-bc-bg/80 border-b border-bc-border/50">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <h1 className="text-[15px] font-semibold text-zinc-200 tracking-tight">
+            <h1 className="text-[15px] font-semibold text-bc-text tracking-tight">
               Dashboard
             </h1>
-            <span className="text-[11px] text-zinc-600 font-mono">live</span>
+            <span className="text-[11px] text-bc-muted font-mono">live</span>
           </div>
           <div className="flex items-center gap-2">
             {sorted.filter((a) => a.state !== "stopped").map((a) => (
               <span key={a.name} className="flex items-center gap-1.5" title={`${a.name}: ${a.state}`}>
                 <StateDot state={a.state} />
-                <span className="text-[11px] text-zinc-500 font-mono hidden sm:inline">{a.name}</span>
+                <span className="text-[11px] text-bc-muted font-mono hidden sm:inline">{a.name}</span>
               </span>
             ))}
           </div>
@@ -670,7 +670,7 @@ export function Dashboard() {
 
         {/* Activity Section */}
         <section>
-          <h2 className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono mb-3">
+          <h2 className="text-[11px] text-bc-muted uppercase tracking-wider font-mono mb-3">
             Live Activity
           </h2>
 
