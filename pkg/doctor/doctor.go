@@ -34,6 +34,7 @@ import (
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
 	"github.com/gh-curious-otter/bc/pkg/provider"
+	"github.com/gh-curious-otter/bc/pkg/tool"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
@@ -511,6 +512,54 @@ func CheckTools(ctx context.Context) CategoryReport {
 			item.Severity = SeverityOK
 		}
 		cat.Items = append(cat.Items, item)
+	}
+
+	// Check MCP servers from tool store
+	toolStore := tool.NewStore(filepath.Join(os.Getenv("HOME"), ".bc"))
+	if err := toolStore.Open(); err == nil {
+		defer toolStore.Close() //nolint:errcheck
+		tools, listErr := toolStore.ListWithOptions(ctx, tool.ListOptions{Types: []string{tool.ToolTypeMCP}})
+		if listErr == nil {
+			for _, t := range tools {
+				item := Item{Name: "mcp:" + t.Name}
+				switch {
+				case t.Transport == "sse" && t.URL != "":
+					item.Message = fmt.Sprintf("SSE %s", t.URL)
+					item.Severity = SeverityOK
+				case t.Transport == "stdio" && t.Command != "":
+					cmd := strings.Fields(t.Command)[0]
+					if _, err := exec.LookPath(cmd); err != nil {
+						item.Message = fmt.Sprintf("command %q not found", cmd)
+						item.Severity = SeverityWarn
+						item.Fix = t.InstallCmd
+					} else {
+						item.Message = fmt.Sprintf("stdio %s", cmd)
+						item.Severity = SeverityOK
+					}
+				default:
+					item.Message = "configured"
+					item.Severity = SeverityOK
+				}
+				cat.Items = append(cat.Items, item)
+			}
+		}
+
+		// Check CLI tools from tool store
+		cliTools, cliErr := toolStore.ListWithOptions(ctx, tool.ListOptions{Types: []string{tool.ToolTypeCLI}})
+		if cliErr == nil {
+			for _, t := range cliTools {
+				item := Item{Name: "cli:" + t.Name}
+				if path, err := exec.LookPath(t.Command); err != nil {
+					item.Message = "not installed"
+					item.Severity = SeverityWarn
+					item.Fix = t.InstallCmd
+				} else {
+					item.Message = path
+					item.Severity = SeverityOK
+				}
+				cat.Items = append(cat.Items, item)
+			}
+		}
 	}
 
 	// Check ANTHROPIC_API_KEY
