@@ -61,7 +61,6 @@ func main() {
 	verbose := flag.Bool("verbose", false, "enable verbose logging")
 	logFormat := flag.String("log-format", "text", "log output format (text|json)")
 	corsOrigin := flag.String("cors-origin", "*", "CORS allowed origin (* for permissive, or specific origin)")
-	apiKey := flag.String("api-key", os.Getenv("BC_API_KEY"), "API key for Bearer token auth (or set BC_API_KEY env var)")
 	flag.Parse()
 
 	if *logFormat == "json" {
@@ -71,13 +70,13 @@ func main() {
 		log.SetVerbose(true)
 	}
 
-	if err := run(*addr, *wsRoot, *corsOrigin, *apiKey); err != nil {
+	if err := run(*addr, *wsRoot, *corsOrigin); err != nil {
 		fmt.Fprintf(os.Stderr, "bcd: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(addr, wsRoot, corsOrigin, apiKey string) error {
+func run(addr, wsRoot, corsOrigin string) error {
 	ws, err := bcworkspace.Load(wsRoot)
 	if err != nil {
 		ws, err = bcworkspace.Init(wsRoot)
@@ -144,6 +143,12 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 	if containerBackend != nil {
 		go runContainerStatsCollector(ctx, containerBackend, agentMgr)
 	}
+
+	// Background tool health loop: periodically checks that each running
+	// agent's tool binary is still available, marking agents as stuck if
+	// their tool disappears. Runs every 30s.
+	agentMgr.StartToolHealthLoop(ctx, bcagent.DefaultToolHealthInterval)
+	defer agentMgr.StopToolHealthLoop()
 
 	var channelSvc *bcchannel.ChannelService
 	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {
@@ -358,10 +363,6 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 		cfg.Addr = addr
 	}
 	cfg.CORSOrigin = corsOrigin
-	cfg.APIKey = apiKey
-	if apiKey != "" {
-		log.Info("API key authentication enabled")
-	}
 	cfg.Build = server.BuildInfo{
 		Commit:  commit,
 		BuiltAt: date,
