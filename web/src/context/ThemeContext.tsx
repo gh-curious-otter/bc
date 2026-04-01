@@ -6,62 +6,58 @@ import {
   useState,
 } from "react";
 
-export type ThemeMode = "dark" | "light" | "system";
+export type ThemeMode = "solar-flare" | "dark" | "light";
 
 interface ThemeContextValue {
   mode: ThemeMode;
-  resolved: "dark" | "light";
+  setTheme: (mode: ThemeMode) => void;
   toggle: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  mode: "dark",
-  resolved: "dark",
+  mode: "solar-flare",
+  setTheme: () => {},
   toggle: () => {},
 });
 
 const STORAGE_KEY = "bc-theme";
-const CYCLE: ThemeMode[] = ["dark", "light", "system"];
+const CYCLE: ThemeMode[] = ["solar-flare", "dark", "light"];
 
-function getSystemPreference(): "dark" | "light" {
-  if (typeof window === "undefined") return "dark";
-  return window.matchMedia("(prefers-color-scheme: light)").matches
-    ? "light"
-    : "dark";
-}
-
-function resolve(mode: ThemeMode): "dark" | "light" {
-  return mode === "system" ? getSystemPreference() : mode;
-}
+const LABELS: Record<ThemeMode, string> = {
+  "solar-flare": "Solar Flare",
+  dark: "Dark",
+  light: "Light",
+};
 
 function readStored(): ThemeMode {
   try {
     const val = localStorage.getItem(STORAGE_KEY);
-    if (val === "dark" || val === "light" || val === "system") return val;
+    if (val === "solar-flare" || val === "dark" || val === "light") return val;
+    // Migrate old "system" preference
+    if (val === "system") return "solar-flare";
   } catch {
     // localStorage unavailable
   }
-  return "dark";
+  return "solar-flare";
+}
+
+function applyTheme(mode: ThemeMode) {
+  const el = document.documentElement;
+  // Remove all theme classes
+  el.classList.remove("dark", "light");
+  // Apply the right class (solar-flare uses :root defaults, no class needed)
+  if (mode === "dark") {
+    el.classList.add("dark");
+  } else if (mode === "light") {
+    el.classList.add("light");
+  }
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>(readStored);
-  const [resolved, setResolved] = useState<"dark" | "light">(() =>
-    resolve(readStored()),
-  );
 
-  // Apply class to <html> and persist
   useEffect(() => {
-    const r = resolve(mode);
-    setResolved(r);
-
-    const el = document.documentElement;
-    if (r === "light") {
-      el.classList.add("light");
-    } else {
-      el.classList.remove("light");
-    }
-
+    applyTheme(mode);
     try {
       localStorage.setItem(STORAGE_KEY, mode);
     } catch {
@@ -69,35 +65,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [mode]);
 
-  // Listen for system preference changes when in system mode
-  useEffect(() => {
-    if (mode !== "system") return;
-
-    const mql = window.matchMedia("(prefers-color-scheme: light)");
-    const handler = () => {
-      const r = resolve("system");
-      setResolved(r);
-      if (r === "light") {
-        document.documentElement.classList.add("light");
-      } else {
-        document.documentElement.classList.remove("light");
-      }
-    };
-
-    mql.addEventListener("change", handler);
-    return () => mql.removeEventListener("change", handler);
-  }, [mode]);
+  const setTheme = useCallback((m: ThemeMode) => {
+    setMode(m);
+  }, []);
 
   const toggle = useCallback(() => {
     setMode((prev) => {
       const idx = CYCLE.indexOf(prev);
       const next = CYCLE[(idx + 1) % CYCLE.length];
-      return next ?? "dark";
+      return next ?? "solar-flare";
     });
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ mode, resolved, toggle }}>
+    <ThemeContext.Provider value={{ mode, setTheme, toggle }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -106,3 +87,5 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useTheme() {
   return useContext(ThemeContext);
 }
+
+export { LABELS as THEME_LABELS };
