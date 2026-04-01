@@ -531,11 +531,23 @@ func (m *Manager) runtime() runtime.Backend {
 // based on the agent's stored RuntimeBackend. Falls back to the default.
 func (m *Manager) runtimeForAgent(name string) runtime.Backend {
 	if a, ok := m.agents[name]; ok && a.RuntimeBackend != "" {
-		if be, ok := m.backends[a.RuntimeBackend]; ok {
+		rt := normalizeRuntime(a.RuntimeBackend)
+		if be, ok := m.backends[rt]; ok {
 			return be
 		}
 	}
 	return m.runtime()
+}
+
+// normalizeRuntime maps runtime aliases to canonical backend names.
+// "localhost" → "tmux" (runs directly on host via tmux session)
+func normalizeRuntime(rt string) string {
+	switch rt {
+	case "localhost", "local", "host":
+		return "tmux"
+	default:
+		return rt
+	}
 }
 
 // NewManager creates a new agent manager with workspace-scoped tmux sessions.
@@ -847,7 +859,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	wsPath := opts.Workspace
 
 	if opts.Runtime != "" {
-		existing.RuntimeBackend = opts.Runtime
+		existing.RuntimeBackend = normalizeRuntime(opts.Runtime)
 	}
 
 	sessionID := existing.SessionID
@@ -1007,7 +1019,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Determine runtime backend for this agent
 	agentRuntime := m.defaultBackend
 	if opts.Runtime != "" {
-		agentRuntime = opts.Runtime
+		agentRuntime = normalizeRuntime(opts.Runtime)
 	}
 
 	// Determine the command to use
