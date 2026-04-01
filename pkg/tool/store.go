@@ -111,6 +111,37 @@ var builtinTools = []Tool{
 	},
 }
 
+// builtinMCPServers contains default MCP server definitions.
+var builtinMCPServers = []Tool{
+	{
+		Name:      "bc",
+		Type:      ToolTypeMCP,
+		Transport: "sse",
+		URL:       "http://host.docker.internal:9374/_mcp/sse",
+		Enabled:   true,
+		Builtin:   true,
+	},
+	{
+		Name:       "playwright",
+		Type:       ToolTypeMCP,
+		Transport:  "sse",
+		URL:        "http://host.docker.internal:3000/sse",
+		InstallCmd: "npx -y @playwright/mcp@latest",
+		Enabled:    true,
+		Builtin:    true,
+	},
+	{
+		Name:       "github",
+		Type:       ToolTypeMCP,
+		Transport:  "stdio",
+		Command:    "github-mcp-server",
+		InstallCmd: "go install github.com/github/github-mcp-server@latest",
+		Env:        map[string]string{"GITHUB_PERSONAL_ACCESS_TOKEN": "${secret:GITHUB_PERSONAL_ACCESS_TOKEN}"},
+		Enabled:    true,
+		Builtin:    true,
+	},
+}
+
 // Store provides tool management backed by SQLite or Postgres.
 type Store struct {
 	db   *db.DB
@@ -254,6 +285,7 @@ func initSchema(db *sql.DB) error {
 }
 
 func (s *Store) seedBuiltins(ctx context.Context) error {
+	// Seed provider tools (claude, gemini, cursor, etc.)
 	for _, t := range builtinTools {
 		t := t
 		existing, err := s.Get(ctx, t.Name)
@@ -261,10 +293,24 @@ func (s *Store) seedBuiltins(ctx context.Context) error {
 			return fmt.Errorf("failed to check %s: %w", t.Name, err)
 		}
 		if existing != nil {
-			continue // already seeded
+			continue
 		}
 		if err := s.add(ctx, &t); err != nil {
 			return fmt.Errorf("failed to seed %s: %w", t.Name, err)
+		}
+	}
+	// Seed MCP server tools (bc, playwright, github)
+	for _, t := range builtinMCPServers {
+		t := t
+		existing, err := s.Get(ctx, t.Name)
+		if err != nil {
+			return fmt.Errorf("failed to check MCP %s: %w", t.Name, err)
+		}
+		if existing != nil {
+			continue
+		}
+		if err := s.add(ctx, &t); err != nil {
+			return fmt.Errorf("failed to seed MCP %s: %w", t.Name, err)
 		}
 	}
 	return nil
