@@ -80,11 +80,11 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 function SecretBadge({ value }: { value: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs font-mono text-bc-muted bg-bc-bg px-2 py-0.5 rounded border border-bc-border truncate">
+    <div className="flex items-center gap-1.5 min-w-0">
+      <span className="text-[10px] font-mono text-bc-muted bg-bc-bg px-1.5 py-0.5 rounded border border-bc-border truncate min-w-0">
         {value}
       </span>
-      <a href="/secrets" className="text-xs text-bc-accent hover:underline shrink-0">Manage</a>
+      <a href="/secrets" className="text-[10px] text-bc-accent hover:underline shrink-0">Manage</a>
     </div>
   );
 }
@@ -132,15 +132,13 @@ const SECTION_META: Record<string, { icon: React.ReactNode; desc: string }> = {
 function Section({
   title,
   dirty,
-  defaultOpen = true,
   children,
 }: {
   title: string;
   dirty: boolean;
-  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(true);
   const meta = SECTION_META[title];
 
   return (
@@ -400,7 +398,7 @@ export function Settings() {
   const version = edited.version;
 
   return (
-    <div className="p-4 md:p-6 space-y-3 max-w-2xl mx-auto">
+    <div className="p-4 md:p-6 space-y-3">
       <div className="flex items-center justify-between mb-1">
         <div>
           <h1 className="text-lg font-bold text-bc-text">System Configuration</h1>
@@ -446,27 +444,40 @@ export function Settings() {
         </div>
       )}
 
-      <Section title="server" dirty={dirtySections.includes("server")}>
-        <ServerSection data={edited} onChange={handleChange} />
-      </Section>
-      <Section title="storage" dirty={dirtySections.includes("storage")}>
-        <StorageSection data={edited} onChange={handleChange} />
-      </Section>
-      <Section title="runtime" dirty={dirtySections.includes("runtime")}>
-        <RuntimeSection data={edited} onChange={handleChange} />
-      </Section>
+      {/* Row 1: Server + Storage side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Section title="server" dirty={dirtySections.includes("server")}>
+          <ServerSection data={edited} onChange={handleChange} />
+        </Section>
+        <Section title="storage" dirty={dirtySections.includes("storage")}>
+          <StorageSection data={edited} onChange={handleChange} />
+        </Section>
+      </div>
+
+      {/* Row 2: Runtime + Providers side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Section title="runtime" dirty={dirtySections.includes("runtime")}>
+          <RuntimeSection data={edited} onChange={handleChange} />
+        </Section>
+        <Section title="providers" dirty={dirtySections.includes("providers")}>
+          <ProvidersSection data={edited} onChange={handleChange} />
+        </Section>
+      </div>
+
+      {/* Row 3: Gateways full width */}
       <Section title="gateways" dirty={dirtySections.includes("gateways")}>
         <GatewaysSection data={edited} onChange={handleChange} />
       </Section>
-      <Section title="providers" dirty={dirtySections.includes("providers")}>
-        <ProvidersSection data={edited} onChange={handleChange} />
-      </Section>
-      <Section title="cron" dirty={dirtySections.includes("cron")}>
-        <CronSection data={edited} onChange={handleChange} />
-      </Section>
-      <Section title="logs" dirty={dirtySections.includes("logs")}>
-        <LogsSection data={edited} onChange={handleChange} />
-      </Section>
+
+      {/* Row 4: Cron + Logs side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Section title="cron" dirty={dirtySections.includes("cron")}>
+          <CronSection data={edited} onChange={handleChange} />
+        </Section>
+        <Section title="logs" dirty={dirtySections.includes("logs")}>
+          <LogsSection data={edited} onChange={handleChange} />
+        </Section>
+      </div>
     </div>
   );
 }
