@@ -26,9 +26,10 @@ func Open(workspacePath string) (*Store, error) {
 	}
 
 	s := &Store{db: shared}
-	// Skip initSchema on TimescaleDB — init.sql handles table creation.
-	// The SQLite-specific schema (AUTOINCREMENT, DATETIME) breaks on Postgres.
-	if db.SharedDriver() != "timescale" {
+	if db.SharedDriver() == "timescale" {
+		// Use PostgresStore for proper $1 placeholder queries.
+		s.pg = NewPostgresStore(db.Shared())
+	} else {
 		if err := s.initSchema(); err != nil {
 			return nil, fmt.Errorf("init cron schema on shared db: %w", err)
 		}

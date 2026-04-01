@@ -50,8 +50,13 @@ func NewStore(workspacePath string) (*Store, error) {
 	}
 
 	s := &Store{db: shared, shared: true}
-	if err := s.initSchema(); err != nil {
-		return nil, fmt.Errorf("init mcp schema on shared db: %w", err)
+	if db.SharedDriver() == "timescale" {
+		// Use PostgresStore for proper $1 placeholder queries.
+		s.pg = NewPostgresStore(db.Shared())
+	} else {
+		if err := s.initSchema(); err != nil {
+			return nil, fmt.Errorf("init mcp schema on shared db: %w", err)
+		}
 	}
 	return s, nil
 }

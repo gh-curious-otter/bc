@@ -160,14 +160,16 @@ func (s *Store) Open() error {
 		return fmt.Errorf("tool store requires shared database (none available)")
 	}
 
-	// Skip schema init on TimescaleDB — init.sql handles table creation.
-	if db.SharedDriver() != "timescale" {
+	s.db = shared
+
+	if db.SharedDriver() == "timescale" {
+		// Use PostgresStore for proper $1 placeholder queries.
+		s.pg = NewPostgresStore(db.Shared())
+	} else {
 		if err := initSchema(shared.DB); err != nil {
 			return fmt.Errorf("failed to initialize schema: %w", err)
 		}
 	}
-
-	s.db = shared
 
 	if err := s.seedBuiltins(context.Background()); err != nil {
 		return fmt.Errorf("failed to seed built-in tools: %w", err)
