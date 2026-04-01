@@ -13,5 +13,11 @@ landing/node_modules/
 landing/.next/
 landing/out/
 coverage.out
+docs/
+*.test.go
+*_test.go
+.golangci.yml
+.editorconfig
+CODE_OF_CONDUCT.md
 *.md
 !README.md
