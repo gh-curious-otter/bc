@@ -86,13 +86,28 @@ func run(addr, wsRoot, corsOrigin string) error {
 	}
 
 	// Set up shared database connection for all stores.
-	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDB(ws.RootDir)
+	// Settings.json storage config is the source of truth; DATABASE_URL env var overrides for Docker.
+	var storageCfg *bcdb.StorageSettings
+	if ws.Config != nil {
+		storageCfg = &bcdb.StorageSettings{
+			Default: ws.Config.Storage.Default,
+			SQLite:  bcdb.SQLiteSettings{Path: ws.Config.Storage.SQLite.Path},
+			Postgres: bcdb.PostgresSettings{
+				Host:     ws.Config.Storage.SQL.Host,
+				Port:     ws.Config.Storage.SQL.Port,
+				User:     ws.Config.Storage.SQL.User,
+				Password: ws.Config.Storage.SQL.Password,
+				Database: ws.Config.Storage.SQL.Database,
+			},
+		}
+	}
+	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(ws.RootDir, storageCfg)
 	if dbErr != nil {
 		log.Warn("failed to open shared workspace db", "error", dbErr)
 	} else {
 		bcdb.SetShared(sharedDB, sharedDriver)
 		defer bcdb.CloseShared() //nolint:errcheck
-		log.Info("shared database ready", "driver", sharedDriver)
+		log.Info("shared database ready", "driver", sharedDriver, "config_driver", ws.Config.Storage.Default)
 	}
 
 	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
@@ -178,7 +193,8 @@ func run(addr, wsRoot, corsOrigin string) error {
 		defer cr.Close() //nolint:errcheck // best-effort
 
 		cronLogDir := filepath.Join(ws.RootDir, ".bc", "logs", "cron")
-		cronScheduler = bccron.NewScheduler(cr, cronLogDir)
+		cronScheduler = bccron.NewSchedulerWithConfig(cr, cronLogDir,
+			ws.Config.Cron.PollIntervalSeconds, ws.Config.Cron.JobTimeoutSeconds)
 		go cronScheduler.Run(ctx)
 	}
 

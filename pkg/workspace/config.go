@@ -331,6 +331,31 @@ func (c *Config) Validate() error {
 	if err := c.validateUser(); err != nil {
 		return err
 	}
+	if err := c.validateServer(); err != nil {
+		return err
+	}
+	if err := c.validateStorage(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateServer validates server configuration.
+func (c *Config) validateServer() error {
+	if c.Server.Port != 0 && (c.Server.Port < 1 || c.Server.Port > 65535) {
+		return fmt.Errorf("server.port must be between 1 and 65535, got %d", c.Server.Port)
+	}
+	return nil
+}
+
+// validateStorage validates storage configuration.
+func (c *Config) validateStorage() error {
+	if c.Storage.Default != "" && c.Storage.Default != "sqlite" && c.Storage.Default != "sql" {
+		return fmt.Errorf("storage.default must be 'sqlite' or 'sql', got %q", c.Storage.Default)
+	}
+	if c.Storage.SQL.Port != 0 && (c.Storage.SQL.Port < 1 || c.Storage.SQL.Port > 65535) {
+		return fmt.Errorf("storage.sql.port must be between 1 and 65535, got %d", c.Storage.SQL.Port)
+	}
 	return nil
 }
 
