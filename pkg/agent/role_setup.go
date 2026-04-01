@@ -1,13 +1,16 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/log"
 	pkgmcp "github.com/gh-curious-otter/bc/pkg/mcp"
@@ -424,7 +427,7 @@ func validateAgentTools(workspacePath, roleName string) []string {
 		}
 	}
 
-	// Check MCP servers from role config (verify store has definitions)
+	// Check MCP servers from role config — verify definition exists and health check
 	mcpStore, mcpErr := pkgmcp.NewStore(workspacePath)
 	if mcpErr != nil {
 		issues = append(issues, fmt.Sprintf("MCP store unavailable: %v", mcpErr))
@@ -436,6 +439,24 @@ func validateAgentTools(workspacePath, roleName string) []string {
 		def, getErr := mcpStore.Get(name)
 		if getErr != nil || def == nil {
 			issues = append(issues, fmt.Sprintf("MCP server %q not defined in store", name))
+			continue
+		}
+
+		// Health check based on transport type
+		switch string(def.Transport) {
+		case "sse":
+			if def.URL != "" {
+				if err := checkSSEEndpoint(def.URL); err != nil {
+					issues = append(issues, fmt.Sprintf("MCP server %q SSE endpoint unreachable: %v", name, err))
+				}
+			}
+		case "stdio":
+			if def.Command != "" {
+				cmd := strings.Fields(def.Command)[0]
+				if _, err := execLookPath(cmd); err != nil {
+					issues = append(issues, fmt.Sprintf("MCP server %q command %q not found in PATH", name, cmd))
+				}
+			}
 		}
 	}
 
@@ -447,4 +468,23 @@ var execLookPath = defaultLookPath
 
 func defaultLookPath(name string) (string, error) {
 	return exec.LookPath(name)
+}
+
+// checkSSEEndpoint verifies an MCP SSE endpoint is reachable by sending a
+// HEAD request with a short timeout. Returns nil if the endpoint responds.
+func checkSSEEndpoint(url string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("connection failed: %w", err)
+	}
+	_ = resp.Body.Close()
+	return nil
 }
