@@ -12,18 +12,33 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
-// Tool represents a configured AI tool provider stored in the workspace.
+// ToolType classifies a tool.
+const (
+	ToolTypeCLI      = "cli"      // CLI binary (gh, aws, wrangler)
+	ToolTypeMCP      = "mcp"      // MCP server (bc, playwright, github)
+	ToolTypeProvider = "provider" // AI provider (claude, gemini, cursor)
+)
+
+// Tool represents a configured tool in the workspace (CLI, MCP server, or AI provider).
 type Tool struct {
-	CreatedAt  time.Time      `json:"created_at"`
-	Config     map[string]any `json:"config,omitempty"`
-	Name       string         `json:"name"`
-	Command    string         `json:"command"`
-	InstallCmd string         `json:"install_cmd,omitempty"`
-	UpgradeCmd string         `json:"upgrade_cmd,omitempty"`
-	SlashCmds  []string       `json:"slash_cmds,omitempty"`
-	MCPServers []string       `json:"mcp_servers,omitempty"`
-	Builtin    bool           `json:"builtin,omitempty"`
-	Enabled    bool           `json:"enabled"`
+	CreatedAt    time.Time         `json:"created_at"`
+	Config       map[string]any    `json:"config,omitempty"`
+	Env          map[string]string `json:"env,omitempty"`           // env vars, supports ${secret:NAME}
+	Name         string            `json:"name"`
+	Type         string            `json:"type"`                    // "cli", "mcp", "provider"
+	Command      string            `json:"command"`
+	InstallCmd   string            `json:"install_cmd,omitempty"`
+	UpgradeCmd   string            `json:"upgrade_cmd,omitempty"`
+	VersionCmd   string            `json:"version_cmd,omitempty"`   // e.g., "gh --version"
+	Transport    string            `json:"transport,omitempty"`     // "stdio", "sse" (MCP only)
+	URL          string            `json:"url,omitempty"`           // SSE endpoint (MCP only)
+	HealthStatus string            `json:"health_status,omitempty"` // connected/installed/not_installed/error
+	LastChecked  string            `json:"last_checked,omitempty"`  // ISO timestamp
+	SlashCmds    []string          `json:"slash_cmds,omitempty"`
+	Args         []string          `json:"args,omitempty"`          // stdio args (MCP only)
+	MCPServers   []string          `json:"mcp_servers,omitempty"`   // associated MCP server names
+	Builtin      bool              `json:"builtin,omitempty"`
+	Enabled      bool              `json:"enabled"`
 }
 
 // builtinTools contains default configurations for popular AI tools.
@@ -36,6 +51,7 @@ var builtinTools = []Tool{
 		SlashCmds:  []string{"/clear", "/compact", "/help", "/mcp", "/cost", "/quit"},
 		Enabled:    true,
 		Builtin:    true,
+		Type:       ToolTypeProvider,
 	},
 	{
 		Name:       "opencode",
@@ -44,6 +60,7 @@ var builtinTools = []Tool{
 		SlashCmds:  []string{"/exit", "/help"},
 		Enabled:    true,
 		Builtin:    true,
+		Type:       ToolTypeProvider,
 	},
 	{
 		Name:       "cursor",
@@ -52,6 +69,7 @@ var builtinTools = []Tool{
 		SlashCmds:  []string{"/exit", "/help"},
 		Enabled:    true,
 		Builtin:    true,
+		Type:       ToolTypeProvider,
 	},
 	{
 		Name:       "aider",
@@ -61,6 +79,7 @@ var builtinTools = []Tool{
 		SlashCmds:  []string{"/help", "/quit", "/clear"},
 		Enabled:    true,
 		Builtin:    true,
+		Type:       ToolTypeProvider,
 	},
 	{
 		Name:       "openclaw",
@@ -69,6 +88,7 @@ var builtinTools = []Tool{
 		SlashCmds:  []string{"/exit", "/help"},
 		Enabled:    true,
 		Builtin:    true,
+		Type:       ToolTypeProvider,
 	},
 	{
 		Name:       "gemini",
@@ -77,6 +97,7 @@ var builtinTools = []Tool{
 		SlashCmds:  []string{"/help", "/quit"},
 		Enabled:    true,
 		Builtin:    true,
+		Type:       ToolTypeProvider,
 	},
 	{
 		Name:       "codex",
@@ -85,6 +106,7 @@ var builtinTools = []Tool{
 		SlashCmds:  []string{"/help", "/quit"},
 		Enabled:    true,
 		Builtin:    true,
+		Type:       ToolTypeProvider,
 	},
 }
 
@@ -150,19 +172,45 @@ func (s *Store) Close() error {
 func initSchema(db *sql.DB) error {
 	_, err := db.ExecContext(context.TODO(), `
 		CREATE TABLE IF NOT EXISTS tools (
-			name        TEXT PRIMARY KEY,
-			command     TEXT NOT NULL,
-			install_cmd TEXT,
-			upgrade_cmd TEXT,
-			slash_cmds  TEXT,
-			mcp_servers TEXT,
-			config      TEXT,
-			builtin     BOOLEAN DEFAULT FALSE,
-			enabled     BOOLEAN DEFAULT TRUE,
-			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+			name          TEXT PRIMARY KEY,
+			type          TEXT NOT NULL DEFAULT 'provider',
+			command       TEXT NOT NULL DEFAULT '',
+			install_cmd   TEXT,
+			upgrade_cmd   TEXT,
+			version_cmd   TEXT,
+			transport     TEXT DEFAULT '',
+			url           TEXT,
+			args          TEXT DEFAULT '[]',
+			env           TEXT DEFAULT '{}',
+			slash_cmds    TEXT,
+			mcp_servers   TEXT,
+			config        TEXT,
+			health_status TEXT DEFAULT 'unknown',
+			last_checked  TEXT,
+			builtin       BOOLEAN DEFAULT FALSE,
+			enabled       BOOLEAN DEFAULT TRUE,
+			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Migration: add new columns to existing tables
+	for _, col := range []string{
+		"ALTER TABLE tools ADD COLUMN type TEXT NOT NULL DEFAULT 'provider'",
+		"ALTER TABLE tools ADD COLUMN transport TEXT DEFAULT ''",
+		"ALTER TABLE tools ADD COLUMN url TEXT",
+		"ALTER TABLE tools ADD COLUMN args TEXT DEFAULT '[]'",
+		"ALTER TABLE tools ADD COLUMN env TEXT DEFAULT '{}'",
+		"ALTER TABLE tools ADD COLUMN version_cmd TEXT",
+		"ALTER TABLE tools ADD COLUMN health_status TEXT DEFAULT 'unknown'",
+		"ALTER TABLE tools ADD COLUMN last_checked TEXT",
+	} {
+		_, _ = db.ExecContext(context.TODO(), col) //nolint:errcheck // ignore if columns exist
+	}
+
+	return nil
 }
 
 func (s *Store) seedBuiltins(ctx context.Context) error {
