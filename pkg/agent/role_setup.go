@@ -14,6 +14,7 @@ import (
 
 	"github.com/gh-curious-otter/bc/pkg/log"
 	pkgmcp "github.com/gh-curious-otter/bc/pkg/mcp"
+	"github.com/gh-curious-otter/bc/pkg/provider"
 	"github.com/gh-curious-otter/bc/pkg/secret"
 	pkgtool "github.com/gh-curious-otter/bc/pkg/tool"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
@@ -31,19 +32,24 @@ import (
 //   - .claude/rules/*.md     ← topic-specific rules
 //   - REVIEW.md              ← code review checklist
 //
-// SetupAgentFromRoleWithRuntime sets up agent workspace files for the given role
-// and runtime backend. Docker agents skip stdio-transport MCP servers (unreachable).
-func SetupAgentFromRoleWithRuntime(workspacePath, agentName, roleName, targetDir, runtimeBackend string) error {
-	return setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBackend)
+// SetupAgentFromRoleWithRuntime sets up agent workspace files for the given role,
+// runtime backend, and tool provider. Uses ConfigAdapter for provider-specific
+// file layout (prompt file, config dir, MCP setup, plugins).
+func SetupAgentFromRoleWithRuntime(workspacePath, agentName, roleName, targetDir, runtimeBackend string, toolName ...string) error {
+	tool := ""
+	if len(toolName) > 0 {
+		tool = toolName[0]
+	}
+	return setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBackend, tool)
 }
 
 // SetupAgentFromRole sets up agent workspace files for the given role.
 // Defaults to tmux runtime (all MCP transports available).
 func SetupAgentFromRole(workspacePath, agentName, roleName, targetDir string) error {
-	return setupAgentFromRole(workspacePath, agentName, roleName, targetDir, "tmux")
+	return setupAgentFromRole(workspacePath, agentName, roleName, targetDir, "tmux", "")
 }
 
-func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBackend string) error {
+func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBackend, toolName string) error {
 	stateDir := filepath.Join(workspacePath, ".bc")
 	rm := workspace.NewRoleManager(stateDir)
 
@@ -53,56 +59,65 @@ func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBa
 		return nil
 	}
 
+	// Resolve the ConfigAdapter for this provider.
+	adapter := resolveConfigAdapter(toolName)
+
 	secrets := loadSecrets(workspacePath, resolved.Secrets)
 	var errs []string
 
-	// CLAUDE.md (project-level prompt)
+	// Write prompt file (CLAUDE.md, .cursorrules, GEMINI.md, etc.)
 	if resolved.Prompt != "" {
-		if e := writeTextFile(targetDir, "CLAUDE.md", resolved.Prompt); e != nil {
+		promptFile := adapter.PromptFile()
+		if e := writeTextFile(targetDir, promptFile, resolved.Prompt); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
 
-	// .mcp.json (project-level MCP config)
+	// MCP config via adapter (claude mcp add, .mcp.json, .cursor/mcp.json, etc.)
 	if e := writeMCPJSON(workspacePath, agentName, resolved, secrets, targetDir, runtimeBackend); e != nil {
 		errs = append(errs, e.Error())
 	}
 
-	// .claude/settings.json (project-level settings)
-	// Merge role settings into existing settings.json to preserve hooks
-	// written by WriteWorkspaceHookSettings (called before role setup).
-	if len(resolved.Settings) > 0 {
-		if e := mergeSettingsJSON(filepath.Join(targetDir, ".claude"), resolved.Settings); e != nil {
+	// Provider config directory settings (e.g., .claude/settings.json)
+	configDir := adapter.ConfigDir()
+	if configDir != "" && len(resolved.Settings) > 0 {
+		if e := mergeSettingsJSON(filepath.Join(targetDir, configDir), resolved.Settings); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
 
-	// Write plugin config to the agent's Claude home dir (~/.claude/ in container).
-	// This is the "claude/" dir that gets mounted as /home/agent/.claude.
-	agentClaudeDir := filepath.Join(workspacePath, ".bc", "agents", agentName, "claude")
+	// Plugins via adapter
+	agentDir := filepath.Join(workspacePath, ".bc", "agents", agentName)
 	if len(resolved.Plugins) > 0 {
-		if e := writePluginConfig(agentClaudeDir, resolved.Plugins); e != nil {
+		if e := adapter.SetupPlugins(agentDir, resolved.Plugins); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
 
-	// .claude/commands/*.md, skills/*.md, agents/*.md, rules/*.md
-	claudeDir := filepath.Join(targetDir, ".claude")
-	for _, pair := range []struct {
-		files map[string]string
-		dir   string
-	}{
-		{resolved.Commands, "commands"},
-		{resolved.Skills, "skills"},
-		{resolved.Agents, "agents"},
-		{resolved.Rules, "rules"},
-	} {
-		subDir := filepath.Join(claudeDir, pair.dir)
-		if e := cleanStaleMDFiles(subDir, pair.files); e != nil {
-			errs = append(errs, e.Error())
+	// Rules, commands, skills, agents — written to provider config dir
+	if configDir != "" {
+		providerDir := filepath.Join(targetDir, configDir)
+		type mdFiles struct {
+			files     map[string]string
+			dir       string
+			supported bool
 		}
-		if e := writeMDFiles(subDir, pair.files); e != nil {
-			errs = append(errs, e.Error())
+		for _, pair := range []mdFiles{
+			{resolved.Commands, "commands", adapter.SupportsCommands()},
+			{resolved.Skills, "skills", adapter.SupportsSkills()},
+			{resolved.Agents, "agents", adapter.SupportsCommands()}, // agents follow commands support
+			{resolved.Rules, "rules", adapter.SupportsRules()},
+		} {
+			if !pair.supported {
+				continue
+			}
+			subDir := filepath.Join(providerDir, pair.dir)
+			if e := cleanStaleMDFiles(subDir, pair.files); e != nil {
+				errs = append(errs, e.Error())
+			}
+			if e := writeMDFiles(subDir, pair.files); e != nil {
+				errs = append(errs, e.Error())
+			}
 		}
 	}
 
@@ -601,4 +616,20 @@ func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEnt
 	}
 
 	return allOK
+}
+
+// resolveConfigAdapter returns the ConfigAdapter for the given tool name.
+// Falls back to Claude adapter (default) if tool is empty or unknown.
+func resolveConfigAdapter(toolName string) provider.ConfigAdapter {
+	if toolName == "" {
+		toolName = "claude" // default provider
+	}
+	p, ok := provider.DefaultRegistry.Get(toolName)
+	if !ok {
+		return provider.NewGenericAdapter(toolName)
+	}
+	if adapter := provider.GetConfigAdapter(p); adapter != nil {
+		return adapter
+	}
+	return provider.NewGenericAdapter(toolName)
 }

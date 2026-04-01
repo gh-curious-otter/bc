@@ -951,7 +951,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if err := WriteWorkspaceHookSettings(wtDir); err != nil {
 		log.Error("failed to write hook settings", "dir", wtDir, "error", err)
 	}
-	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(existing.Role), wtDir, agentRuntime); setupErr != nil {
+	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool); setupErr != nil {
 		log.Warn("role setup failed on restart", "agent", name, "error", setupErr)
 	}
 
@@ -1142,8 +1142,8 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		log.Warn("failed to write hook settings", "dir", wtDir, "error", err)
 	}
 
-	// Write role files (CLAUDE.md, .mcp.json, etc.) to the worktree
-	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(role), wtDir, agentRuntime); setupErr != nil {
+	// Write role files (prompt, MCP, rules, etc.) to the worktree using provider adapter
+	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(role), wtDir, agentRuntime, effectiveTool); setupErr != nil {
 		log.Warn("role setup failed", "agent", name, "error", setupErr)
 		agent.Task = fmt.Sprintf("role setup failed: %v", setupErr)
 	}
@@ -1702,7 +1702,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		if agentRuntime == "" {
 			agentRuntime = "tmux"
 		}
-		if setupErr := SetupAgentFromRoleWithRuntime(wsPath, newName, string(agent.Role), newWorktreeDir, agentRuntime); setupErr != nil {
+		if setupErr := SetupAgentFromRoleWithRuntime(wsPath, newName, string(agent.Role), newWorktreeDir, agentRuntime, agent.Tool); setupErr != nil {
 			log.Warn("rename: failed to regenerate role files", "agent", newName, "error", setupErr)
 		}
 	}
