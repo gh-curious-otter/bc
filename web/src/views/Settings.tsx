@@ -25,11 +25,11 @@ const INPUT_CLS = "w-full px-2.5 py-1 text-xs rounded border border-bc-border bg
 
 function Field({ label, children, suffix }: { label: string; children: React.ReactNode; suffix?: string }) {
   return (
-    <div className="flex items-center gap-3">
-      <label className="text-xs text-bc-muted w-28 shrink-0">{label}</label>
-      <div className="flex-1 flex items-center gap-2">
+    <div className="space-y-1">
+      <label className="text-[11px] text-bc-muted block">{label}</label>
+      <div className="flex items-center gap-2">
         {children}
-        {suffix && <span className="text-xs text-bc-muted shrink-0">{suffix}</span>}
+        {suffix && <span className="text-[11px] text-bc-muted shrink-0">{suffix}</span>}
       </div>
     </div>
   );
@@ -166,7 +166,7 @@ function Section({
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
       </button>
-      {open && <div className="px-4 pb-4 pt-2 space-y-2.5 border-t border-bc-border">{children}</div>}
+      {open && <div className="px-4 pb-4 pt-3 space-y-3 border-t border-bc-border">{children}</div>}
     </div>
   );
 }
@@ -265,12 +265,18 @@ function ProvidersSection({ data, onChange }: { data: Record<string, unknown>; o
           {providerKeys.map((k) => <option key={k} value={k}>{k}</option>)}
         </select>
       </Field>
-      <div className="border-t border-bc-border/50 pt-2 mt-1 space-y-2">
+      <div className="space-y-2 mt-2">
         {providerKeys.map((k) => (
-          <Field key={k} label={k}>
+          <div key={k} className="rounded border border-bc-border bg-bc-bg p-3 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${k === defaultProvider ? "bg-bc-accent" : "bg-bc-muted"}`} />
+              <span className="text-[11px] font-medium text-bc-text">{k}</span>
+              {k === defaultProvider && <span className="text-[9px] text-bc-accent bg-bc-accent/10 px-1.5 py-0.5 rounded">default</span>}
+            </div>
             <input className={INPUT_CLS} value={String(providers[k]?.command ?? "")}
-              onChange={(e) => onChange(["providers", "providers", k, "command"], e.target.value)} />
-          </Field>
+              onChange={(e) => onChange(["providers", "providers", k, "command"], e.target.value)}
+              placeholder="command" />
+          </div>
         ))}
       </div>
     </>
@@ -282,18 +288,23 @@ function GatewayCard({ name, gw, onChange }: { name: string; gw: Record<string, 
   const basePath = ["gateways", name];
 
   return (
-    <div className="rounded border border-bc-border bg-bc-bg p-3 space-y-2">
+    <div className={`rounded-lg border p-4 space-y-3 transition-colors ${enabled ? "border-bc-accent/30 bg-bc-bg" : "border-bc-border bg-bc-bg/50 opacity-75"}`}>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-bc-text uppercase">{name}</span>
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${enabled ? "bg-green-500" : "bg-bc-muted"}`} />
+          <span className="text-xs font-semibold text-bc-text uppercase tracking-wide">{name}</span>
+        </div>
         <Toggle checked={enabled} onChange={(v) => onChange([...basePath, "enabled"], v)} />
       </div>
-      {Object.entries(gw).filter(([k]) => k !== "enabled").map(([k, v]) => {
-        const path = [...basePath, k];
-        if (k.includes("token")) {
-          return <Field key={k} label={k.replace(/_/g, " ")}><TokenField value={String(v ?? "")} onChange={(val) => onChange(path, val)} /></Field>;
-        }
-        return <Field key={k} label={k.replace(/_/g, " ")}><input className={INPUT_CLS} value={String(v ?? "")} onChange={(e) => onChange(path, e.target.value)} /></Field>;
-      })}
+      <div className="space-y-2.5">
+        {Object.entries(gw).filter(([k]) => k !== "enabled").map(([k, v]) => {
+          const path = [...basePath, k];
+          if (k.includes("token")) {
+            return <Field key={k} label={k.replace(/_/g, " ")}><TokenField value={String(v ?? "")} onChange={(val) => onChange(path, val)} /></Field>;
+          }
+          return <Field key={k} label={k.replace(/_/g, " ")}><input className={INPUT_CLS} value={String(v ?? "")} onChange={(e) => onChange(path, e.target.value)} /></Field>;
+        })}
+      </div>
     </div>
   );
 }
@@ -301,7 +312,7 @@ function GatewayCard({ name, gw, onChange }: { name: string; gw: Record<string, 
 function GatewaysSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
   const g = (data.gateways ?? {}) as Record<string, Record<string, unknown>>;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="space-y-3">
       {Object.entries(g).map(([name, gw]) => (
         <GatewayCard key={name} name={name} gw={gw} onChange={onChange} />
       ))}
@@ -412,7 +423,7 @@ export function Settings() {
   const version = edited.version;
 
   return (
-    <div className="p-6 space-y-3 max-w-4xl">
+    <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-1">
         <div>
           <h1 className="text-lg font-bold text-bc-text">System Configuration</h1>
@@ -459,7 +470,7 @@ export function Settings() {
       )}
 
       {/* Row 1: Server + Storage */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Section title="server" dirty={dirtySections.includes("server")}>
           <ServerSection data={edited} onChange={handleChange} />
         </Section>
@@ -474,7 +485,7 @@ export function Settings() {
       </Section>
 
       {/* Row 3: Gateways + Providers */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Section title="gateways" dirty={dirtySections.includes("gateways")}>
           <GatewaysSection data={edited} onChange={handleChange} />
         </Section>
@@ -484,7 +495,7 @@ export function Settings() {
       </div>
 
       {/* Row 4: Cron + Logs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Section title="cron" dirty={dirtySections.includes("cron")}>
           <CronSection data={edited} onChange={handleChange} />
         </Section>
