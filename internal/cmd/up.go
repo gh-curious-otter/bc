@@ -250,11 +250,32 @@ func runUpDaemon(ws *workspace.Workspace) error {
 	cmd.Dir = ws.RootDir
 	cmd.Env = os.Environ()
 
-	// If bc-db container is running, set DATABASE_URL so bcd uses Postgres.
-	// This matches the behavior of `bc up` (Docker mode) which passes DATABASE_URL.
+	// Auto-start bc-db if the container exists (stopped or running).
+	// This ensures daemon mode always uses Postgres when bc-db is available.
 	//nolint:gosec // trusted
 	dbCheck, _ := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", "bc-db").Output()
-	if strings.TrimSpace(string(dbCheck)) == "true" {
+	dbRunning := strings.TrimSpace(string(dbCheck)) == "true"
+	if !dbRunning {
+		// Check if container exists but is stopped
+		//nolint:gosec // trusted
+		dbExists, _ := exec.Command("docker", "inspect", "-f", "{{.State.Status}}", "bc-db").Output()
+		if strings.TrimSpace(string(dbExists)) != "" {
+			fmt.Print("  Starting bc-db... ")
+			//nolint:gosec // trusted
+			if startErr := exec.Command("docker", "start", "bc-db").Run(); startErr == nil {
+				// Wait for postgres to be ready
+				if waitErr := waitPG(context.Background(), "bc-db", 15*time.Second); waitErr == nil {
+					dbRunning = true
+					fmt.Println(ui.GreenText("ready"))
+				} else {
+					fmt.Println(ui.YellowText("started but not ready"))
+				}
+			} else {
+				fmt.Println(ui.YellowText("failed"))
+			}
+		}
+	}
+	if dbRunning {
 		dbURL := "postgres://bc:bc@localhost:5432/bc"
 		cmd.Env = append(cmd.Env,
 			"DATABASE_URL="+dbURL,

@@ -56,7 +56,9 @@ func runDown(cmd *cobra.Command, _ []string) error {
 
 	// Stop local daemon if running via PID file
 	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
+	wasDaemon := false
 	if pidData, readErr := os.ReadFile(pidPath); readErr == nil {
+		wasDaemon = true
 		pid := strings.TrimSpace(string(pidData))
 		fmt.Printf("  Stopping local bcd (PID %s)... ", pid)
 		killCmd := exec.CommandContext(ctx, "kill", pid) //nolint:gosec // trusted
@@ -69,8 +71,14 @@ func runDown(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
+	containers := []string{daemonName}
+	if !wasDaemon {
+		// Only stop bc-db in full Docker mode (bc up without -d)
+		containers = append(containers, "bc-db")
+	}
+
 	var stopped int
-	for _, name := range []string{daemonName, "bc-db"} {
+	for _, name := range containers {
 		//nolint:gosec // trusted
 		out, _ := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}}", name).Output()
 		if strings.TrimSpace(string(out)) != "true" {
