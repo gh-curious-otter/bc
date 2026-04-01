@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { api } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
@@ -7,6 +7,9 @@ import { EmptyState } from "../components/EmptyState";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const SENSITIVE_KEYS = /token|password|secret|key/i;
+
+const SECTION_ORDER = ["server", "storage", "runtime", "gateways", "providers", "cron", "logs"];
+const RESTART_SECTIONS = new Set(["server", "storage", "runtime"]);
 
 function formatLabel(key: string): string {
   return key.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -192,7 +195,7 @@ function JsonEditor({
                 value={v}
                 onChange={onChange}
                 path={[...path, k]}
-                readOnly={readOnly || k === "version"}
+                readOnly={readOnly}
               />
             </div>
           </div>
@@ -205,40 +208,21 @@ function JsonEditor({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Collapsible section with save button                                */
+/*  Collapsible section (no per-section save button)                    */
 /* ------------------------------------------------------------------ */
 
 function ConfigSection({
   sectionKey,
-  original,
   edited,
+  dirty,
   onChange,
-  onSave,
 }: {
   sectionKey: string;
-  original: unknown;
   edited: unknown;
+  dirty: boolean;
   onChange: (path: string[], newValue: unknown) => void;
-  onSave: (key: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(true);
-  const [status, setStatus] = useState<SaveStatus>("idle");
-  const dirty = !deepEqual(original, edited);
-  const isVersion = sectionKey === "version";
-
-  const save = async () => {
-    setStatus("saving");
-    try {
-      await onSave(sectionKey);
-      setStatus("saved");
-      setTimeout(() => setStatus("idle"), 2000);
-    } catch {
-      setStatus("error");
-    }
-  };
-
-  const label =
-    status === "saving" ? "Saving..." : status === "saved" ? "Saved!" : status === "error" ? "Error - Retry" : "Save";
 
   return (
     <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden">
@@ -280,30 +264,12 @@ function ConfigSection({
                     value={v}
                     onChange={onChange}
                     path={[sectionKey, k]}
-                    readOnly={isVersion}
                   />
                 </div>
               </div>
             ))
           ) : (
-            <JsonEditor value={edited} onChange={onChange} path={[sectionKey]} readOnly={isVersion} />
-          )}
-          {!isVersion && (
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={save}
-                disabled={!dirty || status === "saving"}
-                className={`px-4 py-1.5 rounded text-sm font-medium transition-all disabled:opacity-50 ${
-                  status === "error"
-                    ? "bg-red-600 text-white hover:bg-red-700"
-                    : status === "saved"
-                      ? "bg-green-600 text-white"
-                      : "bg-bc-accent text-white hover:opacity-90"
-                }`}
-              >
-                {label}
-              </button>
-            </div>
+            <JsonEditor value={edited} onChange={onChange} path={[sectionKey]} />
           )}
         </div>
       )}
@@ -321,6 +287,8 @@ export function Settings() {
 
   const [edited, setEdited] = useState<Record<string, unknown> | null>(null);
   const [original, setOriginal] = useState<Record<string, unknown> | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [restartWarning, setRestartWarning] = useState(false);
 
   useEffect(() => {
     if (config) {
@@ -329,6 +297,13 @@ export function Settings() {
       setEdited((prev) => (prev === null ? deepClone(raw) : prev));
     }
   }, [config]);
+
+  const dirtySections = useMemo(() => {
+    if (!edited || !original) return [];
+    return SECTION_ORDER.filter(
+      (key) => key in edited && !deepEqual(original[key], edited[key])
+    );
+  }, [edited, original]);
 
   const handleChange = (path: string[], newValue: unknown) => {
     if (!edited || path.length === 0) return;
@@ -345,17 +320,33 @@ export function Settings() {
     setEdited(next);
   };
 
-  const handleSave = async (sectionKey: string) => {
-    if (!edited) return;
-    const patch = { [sectionKey]: edited[sectionKey] };
-    await api.updateSettings(patch);
-    refresh();
-    setOriginal((prev) => {
-      if (!prev) return prev;
-      const next = deepClone(prev);
-      next[sectionKey] = deepClone(edited[sectionKey]);
-      return next;
-    });
+  const handleSaveAll = async () => {
+    if (!edited || dirtySections.length === 0) return;
+    setSaveStatus("saving");
+    try {
+      const patch: Record<string, unknown> = {};
+      for (const key of dirtySections) {
+        patch[key] = edited[key];
+      }
+      await api.updateSettings(patch);
+      const needsRestart = dirtySections.some((k) => RESTART_SECTIONS.has(k));
+      refresh();
+      setOriginal((prev) => {
+        if (!prev) return prev;
+        const next = deepClone(prev);
+        for (const key of dirtySections) {
+          next[key] = deepClone(edited[key]);
+        }
+        return next;
+      });
+      setSaveStatus("saved");
+      if (needsRestart) {
+        setRestartWarning(true);
+      }
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch {
+      setSaveStatus("error");
+    }
   };
 
   if (loading && !config)
@@ -378,7 +369,8 @@ export function Settings() {
     );
   if (!config || !edited || !original) return null;
 
-  const sectionKeys = Object.keys(edited);
+  const version = edited.version;
+  const orderedKeys = SECTION_ORDER.filter((key) => key in edited);
 
   return (
     <div className="p-6 space-y-4 max-w-3xl">
@@ -386,18 +378,53 @@ export function Settings() {
         <div>
           <h1 className="text-xl font-bold text-bc-text">System Configuration</h1>
           <p className="text-xs text-bc-muted mt-0.5">
-            settings.json{typeof edited.version !== "undefined" ? ` v${edited.version}` : ""}
+            settings.json{typeof version !== "undefined" ? ` v${version}` : ""}
           </p>
         </div>
       </div>
-      {sectionKeys.map((key) => (
+
+      {/* Sticky save bar */}
+      {dirtySections.length > 0 && (
+        <div className="sticky top-0 z-20 rounded-lg border border-orange-500/50 bg-orange-500/10 backdrop-blur px-5 py-3 flex items-center justify-between">
+          <div className="text-sm text-bc-text">
+            <span className="font-medium">Unsaved changes:</span>{" "}
+            <span className="text-bc-muted">{dirtySections.join(", ")}</span>
+          </div>
+          <button
+            onClick={handleSaveAll}
+            disabled={saveStatus === "saving"}
+            className={`px-4 py-1.5 rounded text-sm font-medium transition-all disabled:opacity-50 ${
+              saveStatus === "error"
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-orange-500 text-white hover:bg-orange-600"
+            }`}
+          >
+            {saveStatus === "saving" ? "Saving..." : saveStatus === "error" ? "Error - Retry" : "Save Changes"}
+          </button>
+        </div>
+      )}
+
+      {/* Saved + restart warning */}
+      {saveStatus === "saved" && dirtySections.length === 0 && !restartWarning && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-5 py-2 text-sm text-green-400">
+          Changes saved.
+        </div>
+      )}
+
+      {/* Restart required banner */}
+      {restartWarning && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-5 py-2 text-sm text-red-400">
+          Changes saved. Restart bcd to apply (<code className="font-mono text-xs">bc down &amp;&amp; bc up -d</code>)
+        </div>
+      )}
+
+      {orderedKeys.map((key) => (
         <ConfigSection
           key={key}
           sectionKey={key}
-          original={original[key]}
           edited={edited[key]}
+          dirty={dirtySections.includes(key)}
           onChange={handleChange}
-          onSave={handleSave}
         />
       ))}
     </div>
