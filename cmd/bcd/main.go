@@ -61,6 +61,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "enable verbose logging")
 	logFormat := flag.String("log-format", "text", "log output format (text|json)")
 	corsOrigin := flag.String("cors-origin", "*", "CORS allowed origin (* for permissive, or specific origin)")
+	apiKey := flag.String("api-key", os.Getenv("BC_API_KEY"), "API key for Bearer token auth (or set BC_API_KEY env var)")
 	flag.Parse()
 
 	if *logFormat == "json" {
@@ -70,13 +71,13 @@ func main() {
 		log.SetVerbose(true)
 	}
 
-	if err := run(*addr, *wsRoot, *corsOrigin); err != nil {
+	if err := run(*addr, *wsRoot, *corsOrigin, *apiKey); err != nil {
 		fmt.Fprintf(os.Stderr, "bcd: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(addr, wsRoot, corsOrigin string) error {
+func run(addr, wsRoot, corsOrigin, apiKey string) error {
 	ws, err := bcworkspace.Load(wsRoot)
 	if err != nil {
 		ws, err = bcworkspace.Init(wsRoot)
@@ -357,6 +358,10 @@ func run(addr, wsRoot, corsOrigin string) error {
 		cfg.Addr = addr
 	}
 	cfg.CORSOrigin = corsOrigin
+	cfg.APIKey = apiKey
+	if apiKey != "" {
+		log.Info("API key authentication enabled")
+	}
 	cfg.Build = server.BuildInfo{
 		Commit:  commit,
 		BuiltAt: date,
