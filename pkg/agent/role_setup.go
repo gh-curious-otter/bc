@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -397,4 +398,53 @@ func writeMDFiles(dir string, files map[string]string) error {
 		}
 	}
 	return nil
+}
+
+// validateAgentTools checks that CLI tools listed in the role config are available.
+// Returns a list of issues found (empty = all good).
+func validateAgentTools(workspacePath, roleName string) []string {
+	if roleName == "" {
+		return nil
+	}
+
+	stateDir := filepath.Join(workspacePath, ".bc")
+	rm := workspace.NewRoleManager(stateDir)
+
+	resolved, err := rm.ResolveRole(roleName)
+	if err != nil {
+		return []string{fmt.Sprintf("cannot resolve role %q: %v", roleName, err)}
+	}
+
+	var issues []string
+
+	// Check CLI tools from role config
+	for _, toolName := range resolved.CLITools {
+		if _, err := execLookPath(toolName); err != nil {
+			issues = append(issues, fmt.Sprintf("CLI tool %q not found in PATH", toolName))
+		}
+	}
+
+	// Check MCP servers from role config (verify store has definitions)
+	mcpStore, mcpErr := pkgmcp.NewStore(workspacePath)
+	if mcpErr != nil {
+		issues = append(issues, fmt.Sprintf("MCP store unavailable: %v", mcpErr))
+		return issues
+	}
+	defer mcpStore.Close() //nolint:errcheck
+
+	for _, name := range resolved.MCPServers {
+		def, getErr := mcpStore.Get(name)
+		if getErr != nil || def == nil {
+			issues = append(issues, fmt.Sprintf("MCP server %q not defined in store", name))
+		}
+	}
+
+	return issues
+}
+
+// execLookPath is a testable wrapper around exec.LookPath.
+var execLookPath = defaultLookPath
+
+func defaultLookPath(name string) (string, error) {
+	return exec.LookPath(name)
 }
