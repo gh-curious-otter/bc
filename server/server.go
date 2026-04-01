@@ -52,6 +52,7 @@ type Config struct {
 	Build      BuildInfo // build-time metadata
 	Addr       string    // default "127.0.0.1:9374"
 	CORSOrigin string    // allowed origin (default "*")
+	APIKey     string    // optional API key for Bearer token auth (empty = disabled)
 	CORS       bool      // enable permissive CORS headers (safe for loopback)
 }
 
@@ -313,7 +314,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Middleware chain (outermost runs first):
-	// RateLimit → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → mux
+	// RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → mux
 	var handler http.Handler = mux
 	if cfg.CORS {
 		origin := cfg.CORSOrigin
@@ -327,6 +328,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	handler = handlers.Recovery(handler)
 	handler = handlers.RequestLogger(handler)
 	handler = handlers.RequestID(handler)
+	handler = handlers.APIKeyAuth(cfg.APIKey)(handler)
 	limiter := handlers.NewRateLimiter(100, 200)
 	handler = handlers.RateLimit(limiter)(handler)
 
