@@ -228,16 +228,39 @@ func runUpDaemon(ws *workspace.Workspace) error {
 		// Check if process is still alive
 		checkCmd := exec.Command("kill", "-0", pid) //nolint:gosec // trusted
 		if checkCmd.Run() == nil {
+			host := "127.0.0.1"
+			port := upPort
+			if ws.Config != nil {
+				if ws.Config.Server.Host != "" {
+					host = ws.Config.Server.Host
+				}
+				if ws.Config.Server.Port > 0 && upPort == "9374" {
+					port = fmt.Sprintf("%d", ws.Config.Server.Port)
+				}
+			}
 			fmt.Printf("  bcd already running (PID %s)\n", pid)
-			fmt.Printf("  http://127.0.0.1:%s\n", upPort)
+			fmt.Printf("  http://%s:%s\n", host, port)
 			return nil
 		}
 	}
 
 	logPath := filepath.Join(ws.StateDir(), "bcd.log")
 
+	// Read server config from settings.json
+	host := "127.0.0.1"
+	port := upPort
+	if ws.Config != nil {
+		if ws.Config.Server.Host != "" {
+			host = ws.Config.Server.Host
+		}
+		if ws.Config.Server.Port > 0 && upPort == "9374" {
+			// Only use settings.json port if --port flag wasn't explicitly set
+			port = fmt.Sprintf("%d", ws.Config.Server.Port)
+		}
+	}
+
 	// Start bcd in background
-	args := []string{bcdPath, "--addr", "127.0.0.1:" + upPort, "--workspace", ws.RootDir}
+	args := []string{bcdPath, "--addr", host + ":" + port, "--workspace", ws.RootDir}
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) //nolint:gosec // controlled path
 	if err != nil {
@@ -250,38 +273,66 @@ func runUpDaemon(ws *workspace.Workspace) error {
 	cmd.Dir = ws.RootDir
 	cmd.Env = os.Environ()
 
-	// Auto-start bc-db if the container exists (stopped or running).
-	// This ensures daemon mode always uses Postgres when bc-db is available.
-	//nolint:gosec // trusted
-	dbCheck, _ := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", "bc-db").Output()
-	dbRunning := strings.TrimSpace(string(dbCheck)) == "true"
-	if !dbRunning {
-		// Check if container exists but is stopped
+	// Check storage config — if timescale, auto-start bc-db and set DATABASE_URL.
+	useTimescale := ws.Config != nil && (ws.Config.Storage.Default == "timescale" || ws.Config.Storage.Default == "sql")
+	if useTimescale {
+		// Build DSN from settings.json
+		ts := ws.Config.Storage.Timescale
+		dbHost := ts.Host
+		if dbHost == "" {
+			dbHost = "localhost"
+		}
+		dbPort := ts.Port
+		if dbPort == 0 {
+			dbPort = 5432
+		}
+		dbUser := ts.User
+		if dbUser == "" {
+			dbUser = "bc"
+		}
+		dbPass := ts.Password
+		if dbPass == "" {
+			dbPass = "bc"
+		}
+		dbName := ts.Database
+		if dbName == "" {
+			dbName = "bc"
+		}
+		dbURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s", dbUser, dbPass, dbHost, dbPort, dbName)
+
+		// Auto-start bc-db container if it exists
 		//nolint:gosec // trusted
-		dbExists, _ := exec.Command("docker", "inspect", "-f", "{{.State.Status}}", "bc-db").Output()
-		if strings.TrimSpace(string(dbExists)) != "" {
-			fmt.Print("  Starting bc-db... ")
+		dbCheck, _ := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", "bc-db").Output()
+		dbRunning := strings.TrimSpace(string(dbCheck)) == "true"
+		if !dbRunning {
 			//nolint:gosec // trusted
-			if startErr := exec.Command("docker", "start", "bc-db").Run(); startErr == nil {
-				// Wait for postgres to be ready
-				if waitErr := waitPG(context.Background(), "bc-db", 15*time.Second); waitErr == nil {
-					dbRunning = true
-					fmt.Println(ui.GreenText("ready"))
+			dbExists, _ := exec.Command("docker", "inspect", "-f", "{{.State.Status}}", "bc-db").Output()
+			if strings.TrimSpace(string(dbExists)) != "" {
+				fmt.Print("  Starting bc-db... ")
+				//nolint:gosec // trusted
+				if startErr := exec.Command("docker", "start", "bc-db").Run(); startErr == nil {
+					if waitErr := waitPG(context.Background(), "bc-db", 15*time.Second); waitErr == nil {
+						dbRunning = true
+						fmt.Println(ui.GreenText("ready"))
+					} else {
+						fmt.Println(ui.YellowText("started but not ready"))
+					}
 				} else {
-					fmt.Println(ui.YellowText("started but not ready"))
+					fmt.Println(ui.YellowText("failed"))
 				}
-			} else {
-				fmt.Println(ui.YellowText("failed"))
 			}
 		}
-	}
-	if dbRunning {
-		dbURL := "postgres://bc:bc@localhost:5432/bc"
-		cmd.Env = append(cmd.Env,
-			"DATABASE_URL="+dbURL,
-			"STATS_DATABASE_URL="+dbURL,
-		)
-		fmt.Printf("  bc-db detected — using Postgres\n")
+		if dbRunning {
+			cmd.Env = append(cmd.Env,
+				"DATABASE_URL="+dbURL,
+				"STATS_DATABASE_URL="+dbURL,
+			)
+			fmt.Printf("  storage: timescale (%s:%d)\n", dbHost, dbPort)
+		} else {
+			fmt.Printf("  %s storage=timescale but bc-db not available, bcd will read settings.json\n", ui.YellowText("warning"))
+		}
+	} else {
+		fmt.Printf("  storage: sqlite\n")
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -299,7 +350,7 @@ func runUpDaemon(ws *workspace.Workspace) error {
 	_ = cmd.Process.Release()
 
 	fmt.Printf("  %s bcd started (PID %d)\n", ui.GreenText("ok"), cmd.Process.Pid)
-	fmt.Printf("  bcd:  http://127.0.0.1:%s\n", upPort)
+	fmt.Printf("  bcd:  http://%s:%s\n", host, port)
 	fmt.Printf("  logs: %s\n", logPath)
 	fmt.Printf("  pid:  %s\n", pidPath)
 	fmt.Println()
