@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gh-curious-otter/bc/pkg/channel"
 )
 
 // definedTools returns the static list of tools this server exposes.
@@ -284,12 +286,26 @@ func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*too
 				IsError: true,
 			}, nil
 		}
-		// Best-effort delivery to channel members via agent manager
+		// Best-effort delivery to channel members via agent manager.
+		// Respect @mention-only delivery: if message has @mentions,
+		// only deliver to mentioned agents.
 		if s.agents != nil {
 			members, _ := s.chans.GetMembers(args.Channel)
 			formatted := fmt.Sprintf("[bc-mcp][%s][#%s] %s: %s", time.Now().UTC().Format(time.RFC3339), args.Channel, sender, args.Message)
+
+			// Extract mentions for filtering
+			mentionedAgents, _ := channel.ExtractMentionedAgents(args.Message)
+			hasMentions := len(mentionedAgents) > 0
+			mentionSet := make(map[string]bool, len(mentionedAgents))
+			for _, m := range mentionedAgents {
+				mentionSet[m] = true
+			}
+
 			for _, member := range members {
 				if member == sender {
+					continue
+				}
+				if hasMentions && !mentionSet[member] {
 					continue
 				}
 				_ = s.agents.SendToAgent(context.Background(), member, formatted) //nolint:errcheck // best-effort
