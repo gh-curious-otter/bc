@@ -25,7 +25,7 @@ export function Channels() {
     refresh,
     timedOut,
   } = usePolling(fetcher, 10000);
-  const { roleMap } = useAgentRoles();
+  const { roleMap, stateMap } = useAgentRoles();
   const [selected, setSelected] = useState<string | null>(paramChannel ?? null);
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
 
@@ -89,6 +89,7 @@ export function Channels() {
               channelName={selected}
               channel={selectedChannel}
               agentRoles={roleMap}
+              agentStates={stateMap}
               onPeekAgent={setPeekAgent}
               onChannelUpdated={refresh}
             />
@@ -97,6 +98,7 @@ export function Channels() {
               channelName={selected}
               channel={selectedChannel}
               agentRoles={roleMap}
+              agentStates={stateMap}
               onPeekAgent={setPeekAgent}
               onChannelUpdated={refresh}
             />

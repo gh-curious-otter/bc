@@ -3,13 +3,43 @@ import { api } from "../../api/client";
 import type { Channel } from "../../api/client";
 import { AgentAvatar, RoleBadge } from "./AgentAvatar";
 
+function AgentStatusDot({ state }: { state?: string }) {
+  const s = state ?? "unknown";
+  const colors: Record<string, string> = {
+    working: "bg-bc-success",
+    running: "bg-bc-success",
+    idle: "bg-bc-warning",
+    waiting: "bg-bc-warning",
+    stopped: "bg-bc-muted",
+    error: "bg-bc-error",
+    stuck: "bg-bc-error",
+  };
+  const labels: Record<string, string> = {
+    working: "Online",
+    running: "Online",
+    idle: "Idle",
+    waiting: "Waiting",
+    stopped: "Offline",
+    error: "Error",
+    stuck: "Stuck",
+  };
+  return (
+    <span
+      className={`w-2 h-2 rounded-full shrink-0 ${colors[s] ?? "bg-bc-muted"}`}
+      title={labels[s] ?? s}
+    />
+  );
+}
+
 export function MemberPanel({
   channel,
   agentRoles,
+  agentStates,
   onChannelUpdated,
 }: {
   channel: Channel;
   agentRoles: Record<string, string>;
+  agentStates?: Record<string, string>;
   onChannelUpdated: () => void;
 }) {
   const [addingMember, setAddingMember] = useState(false);
@@ -56,6 +86,14 @@ export function MemberPanel({
         <h3 className="text-xs font-semibold text-bc-muted uppercase tracking-wider">
           Members ({channel.member_count})
         </h3>
+        {agentStates && (
+          <p className="text-[10px] text-bc-muted mt-0.5">
+            {(channel.members ?? []).filter((m) => {
+              const s = agentStates[m];
+              return s === "working" || s === "running";
+            }).length}/{channel.member_count} online
+          </p>
+        )}
       </div>
       <div className="p-2 space-y-1">
         {(channel.members ?? []).map((m) => (
@@ -64,8 +102,9 @@ export function MemberPanel({
             className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bc-surface/50 transition-colors group"
           >
             <AgentAvatar name={m} role={agentRoles[m]} size="sm" />
-            <div className="flex-1 min-w-0">
-              <span className="text-sm text-bc-text truncate block">{m}</span>
+            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+              <AgentStatusDot state={agentStates?.[m]} />
+              <span className="text-sm text-bc-text truncate">{m}</span>
             </div>
             <RoleBadge role={agentRoles[m]} />
             <button
