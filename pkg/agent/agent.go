@@ -469,6 +469,10 @@ type Manager struct {
 	BootstrapDelay time.Duration
 
 	mu sync.RWMutex // protects maps (agents, agentLocks) only
+
+	// toolHealthCancel stops the background tool health check loop.
+	toolHealthCancel context.CancelFunc
+	toolHealthMu     sync.Mutex // protects toolHealthCancel
 }
 
 // SetOnStateChange registers a callback invoked whenever an agent's state

@@ -145,6 +145,12 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 		go runContainerStatsCollector(ctx, containerBackend, agentMgr)
 	}
 
+	// Background tool health loop: periodically checks that each running
+	// agent's tool binary is still available, marking agents as stuck if
+	// their tool disappears. Runs every 30s.
+	agentMgr.StartToolHealthLoop(ctx, bcagent.DefaultToolHealthInterval)
+	defer agentMgr.StopToolHealthLoop()
+
 	var channelSvc *bcchannel.ChannelService
 	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {
 		log.Warn("channel store unavailable", "error", err)
