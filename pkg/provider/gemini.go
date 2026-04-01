@@ -7,19 +7,21 @@ import (
 
 // GeminiProvider implements the Provider interface for Google Gemini CLI.
 type GeminiProvider struct {
-	name        string
-	description string
-	command     string
-	binary      string
+	*GenericAdapter // GEMINI.md prompt, no special config
+	name           string
+	description    string
+	command        string
+	binary         string
 }
 
 // NewGeminiProvider creates a new Gemini provider.
 func NewGeminiProvider() *GeminiProvider {
 	return &GeminiProvider{
-		name:        "gemini",
-		description: "Google Gemini CLI",
-		command:     "gemini --yolo",
-		binary:      "gemini",
+		GenericAdapter: NewGenericAdapter("gemini"),
+		name:           "gemini",
+		description:    "Google Gemini CLI",
+		command:        "gemini --yolo",
+		binary:         "gemini",
 	}
 }
 

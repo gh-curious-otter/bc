@@ -10,6 +10,7 @@ import (
 //
 // Issue #1479: Codex CLI Provider Integration
 type CodexProvider struct {
+	*GenericAdapter
 	name        string
 	description string
 	command     string
@@ -19,10 +20,11 @@ type CodexProvider struct {
 // NewCodexProvider creates a new Codex provider.
 func NewCodexProvider() *CodexProvider {
 	return &CodexProvider{
-		name:        "codex",
-		description: "OpenAI Codex CLI",
-		command:     "codex --full-auto",
-		binary:      "codex",
+		GenericAdapter: NewGenericAdapter("codex"),
+		name:           "codex",
+		description:    "OpenAI Codex CLI",
+		command:        "codex --full-auto",
+		binary:         "codex",
 	}
 }
 
