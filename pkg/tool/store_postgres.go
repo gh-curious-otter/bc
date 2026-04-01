@@ -48,7 +48,7 @@ func (p *PostgresStore) Close() error {
 	return nil
 }
 
-// SeedBuiltins seeds built-in tools if they don't exist.
+// SeedBuiltins seeds built-in tools and MCP servers if they don't exist.
 func (p *PostgresStore) SeedBuiltins(ctx context.Context) error {
 	for _, t := range builtinTools {
 		t := t
@@ -61,6 +61,19 @@ func (p *PostgresStore) SeedBuiltins(ctx context.Context) error {
 		}
 		if err := p.add(ctx, &t); err != nil {
 			return fmt.Errorf("failed to seed %s: %w", t.Name, err)
+		}
+	}
+	for _, t := range builtinMCPServers {
+		t := t
+		existing, err := p.Get(ctx, t.Name)
+		if err != nil {
+			return fmt.Errorf("failed to check MCP %s: %w", t.Name, err)
+		}
+		if existing != nil {
+			continue
+		}
+		if err := p.add(ctx, &t); err != nil {
+			return fmt.Errorf("failed to seed MCP %s: %w", t.Name, err)
 		}
 	}
 	return nil

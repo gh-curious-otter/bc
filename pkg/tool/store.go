@@ -184,8 +184,8 @@ func (s *Store) Open() error {
 // migrateMCPServers reads the old mcp_servers table and inserts entries into tools
 // with type=mcp. Idempotent — skips entries that already exist by name.
 func (s *Store) migrateMCPServers() {
-	if s.db == nil {
-		return
+	if s.db == nil || s.pg != nil {
+		return // skip migration for Postgres — old mcp_servers table is SQLite-only
 	}
 	rows, err := s.db.QueryContext(context.Background(),
 		"SELECT name, transport, command, url, args, env, enabled FROM mcp_servers")
@@ -270,6 +270,11 @@ func initSchema(db *sql.DB) error {
 }
 
 func (s *Store) seedBuiltins(ctx context.Context) error {
+	// Delegate to PostgresStore when using timescale (uses $1 placeholders).
+	if s.pg != nil {
+		return s.pg.SeedBuiltins(ctx)
+	}
+
 	// Seed provider tools (claude, gemini, cursor, etc.)
 	for _, t := range builtinTools {
 		t := t

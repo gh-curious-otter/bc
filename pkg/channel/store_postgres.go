@@ -80,10 +80,10 @@ func (s *PostgresStore) InitSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_reactions_user    ON reactions(user_id)`,
 
 		// Seed default channels
-		`INSERT INTO channels (name, type, description) VALUES
-			('general',     'group', 'General discussion for all agents'),
-			('engineering', 'group', 'Engineering team coordination'),
-			('all',         'group', 'Broadcast channel for announcements')
+		`INSERT INTO channels (name, type, description, created_at, updated_at) VALUES
+			('general',     'group', 'General discussion for all agents',  NOW(), NOW()),
+			('engineering', 'group', 'Engineering team coordination',      NOW(), NOW()),
+			('all',         'group', 'Broadcast channel for announcements', NOW(), NOW())
 		ON CONFLICT (name) DO NOTHING`,
 	}
 
