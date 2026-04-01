@@ -6,7 +6,7 @@ This guide covers the bc configuration system: how settings are stored, how to v
 
 bc uses a layered configuration system:
 
-1. **Workspace config** (`.bc/settings.toml`) — project-specific settings, the primary config file
+1. **Workspace config** (`.bc/settings.json`) — project-specific settings, the primary config file
 2. **User config** (`~/.bcrc`) — user-level defaults that apply across all workspaces
 3. **CLI** (`bc config` commands) — read and write config from the terminal
 4. **API** (`/api/settings` endpoints) — read and write config from the bcd HTTP server
@@ -19,7 +19,7 @@ Workspace config always takes precedence over user-level defaults.
 The workspace config file lives at:
 
 ```
-<project-root>/.bc/settings.toml
+<project-root>/.bc/settings.json
 ```
 
 It is created automatically when you run `bc init`. The file uses [TOML](https://toml.io/) format.
@@ -365,7 +365,7 @@ The config is validated on save (both CLI and API). Key rules:
 
 ## Example Config
 
-A complete `settings.toml` example:
+A complete `settings.json` example:
 
 ```toml
 [workspace]

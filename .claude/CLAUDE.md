@@ -78,7 +78,7 @@ make clean-deps            # Remove artifacts + node_modules
 - **cmd/bc/main.go** → entry point, injects version via ldflags, delegates to internal/cmd
 - **internal/cmd/** → all Cobra CLI commands in a single package. Commands are `*Cmd` variables registered via `init()`. Access workspace via `getWorkspace(cmd)` helper.
 - **pkg/** → reusable packages (agent, workspace, channel, cost, events, memory, tmux, git, etc.)
-- **config/** → generated from config.toml via `make gen` (uses cfgx tool)
+- **config/** → configuration constants
 - **tui/src/** → React/Ink terminal UI with 14 views, compiled to CommonJS in tui/dist/
 - **prompts/** → default role prompt templates
 - **docker/** → per-provider Dockerfiles (claude, gemini, codex, aider, opencode, openclaw, cursor)
@@ -86,15 +86,15 @@ make clean-deps            # Remove artifacts + node_modules
 ### Key Concepts
 
 - **Agents**: Isolated AI assistants in tmux sessions, each with own git worktree. Have roles (root, engineer, manager) with capabilities. State in `.bc/agents/<name>/`.
-- **Workspace**: Project dir with `.bc/` subdirectory for config, state, logs. Supports v2 (TOML) and legacy v1 (JSON) config formats.
+- **Workspace**: Project dir with `.bc/` subdirectory for config, state, logs. Uses settings.json (v2) config format.
 - **Channels**: SQLite-backed persistent inter-agent communication with reactions.
 - **Memory**: Per-agent persistent knowledge (experiences, learnings).
-- **Runtime backends**: Agents run in either tmux sessions or Docker containers, configured via `[runtime]` in config.toml.
+- **Runtime backends**: Agents run in either tmux sessions or Docker containers, configured via `[runtime]` in settings.json.
 - **Roles**: Defined in `.bc/roles/*.md` with capabilities (create_agents, assign_work, implement_tasks, etc.) and hierarchy.
 
 ### Config Generation
 
-Config code is generated from `config.toml` using the `cfgx` tool (`go generate ./...`). The `make build` target runs `make gen-go` as a prerequisite. After modifying config.toml, always run `make gen-go`.
+Configuration is stored in `settings.json` (JSON format). The `make gen-go` target is currently a no-op.
 
 ## Implementation Details
 

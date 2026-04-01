@@ -103,7 +103,7 @@ Naming convention: `make <verb>-<component>[-<runtime>]` where `component` = `bc
 
 | Command | Description |
 |---------|-------------|
-| `make gen-go` | Generate Go code from config.toml |
+| `make gen-go` | Generate Go code from settings.json |
 | `make deps-go` | Download and tidy Go dependencies |
 | `make deps-ts` | Install all TS dependencies (bun install) |
 | `make scan-go` | Run govulncheck for Go vulnerabilities |

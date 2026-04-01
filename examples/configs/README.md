@@ -1,6 +1,6 @@
 # Example Workspace Configurations
 
-This directory contains example `config.toml` files for different use cases. Copy the appropriate configuration to your workspace's `.bc/config.toml`.
+This directory contains example `settings.json` files for different use cases. Copy the appropriate configuration to your workspace's `.bc/settings.json`.
 
 ## Available Configurations
 
@@ -9,7 +9,7 @@ This directory contains example `config.toml` files for different use cases. Cop
 Minimal setup for individual developers working alone.
 
 ```bash
-cp examples/configs/solo-developer.toml .bc/config.toml
+cp examples/configs/solo-developer.toml .bc/settings.json
 bc init
 ```
 
@@ -26,7 +26,7 @@ bc init
 Balanced setup for small development teams (2-5 developers).
 
 ```bash
-cp examples/configs/small-team.toml .bc/config.toml
+cp examples/configs/small-team.toml .bc/settings.json
 bc init
 ```
 
@@ -43,7 +43,7 @@ bc init
 Optimized for automated pipelines and continuous integration.
 
 ```bash
-cp examples/configs/ci-cd.toml .bc/config.toml
+cp examples/configs/ci-cd.toml .bc/settings.json
 bc init --quick
 ```
 
@@ -72,7 +72,7 @@ bc init --quick
 3. Or copy a config manually:
    ```bash
    mkdir -p .bc
-   cp examples/configs/small-team.toml .bc/config.toml
+   cp examples/configs/small-team.toml .bc/settings.json
    bc init
    ```
 

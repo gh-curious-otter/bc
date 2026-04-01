@@ -19,7 +19,7 @@ bc creates a per-project `.bc/` directory inside the workspace root:
 ```
 project/
   .bc/
-    settings.toml          # Workspace config (providers, runtime, defaults)
+    settings.json          # Workspace config (providers, runtime, defaults)
     agents/
       <name>/
         .claude/            # Claude config (mounted into containers)

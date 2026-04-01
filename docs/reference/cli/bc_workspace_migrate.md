@@ -4,12 +4,12 @@ Migrate a v1 workspace to v2
 
 ### Synopsis
 
-Migrate a bc v1 workspace (.bc/config.json) to v2 (.bc/settings.toml).
+Migrate a bc v1 workspace (.bc/config.json) to v2 (.bc/settings.json).
 
 bc v2 uses a TOML-based config format. The migration:
   - Reads .bc/config.json (v1 format)
   - Writes .bc/config.json.bak (backup of original)
-  - Writes .bc/settings.toml  (v2 format, best-effort field mapping)
+  - Writes .bc/settings.json  (v2 format, best-effort field mapping)
 
 Agent state (JSON files) are migrated automatically the next time they
 are opened — no manual step needed.

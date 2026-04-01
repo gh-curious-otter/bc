@@ -85,7 +85,7 @@ by `validateMount()` before being passed to `docker run`:
 ### Network
 
 The default Docker network is `bridge`. Network configuration is set via
-`[runtime.docker] network` in `config.toml`. To fully isolate agents from
+`[runtime.docker] network` in `settings.json`. To fully isolate agents from
 the network, set `network = "none"`.
 
 ### Resource Limits

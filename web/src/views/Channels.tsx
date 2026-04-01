@@ -88,10 +88,7 @@ export function Channels() {
             <GatewayFeed
               channelName={selected}
               channel={selectedChannel}
-              agentRoles={roleMap}
-              agentStates={stateMap}
               onPeekAgent={setPeekAgent}
-              onChannelUpdated={refresh}
             />
           ) : (
             <ChatRoom

@@ -51,7 +51,7 @@ bc agent create worker-01 --tool cursor
 | [Codex CLI](https://github.com/openai/codex) | `--tool codex` | ✅ Supported | OpenAI models |
 | [OpenCode](https://github.com/opencode-ai/opencode) | `--tool opencode` | ✅ Supported | Terminal agent |
 | [OpenClaw](https://github.com/openclaw/openclaw) | `--tool openclaw` | ✅ Supported | Autonomous agent |
-| Custom agents | Configure in config.toml | ✅ Supported | Any CLI tool |
+| Custom agents | Configure in settings.json | ✅ Supported | Any CLI tool |
 
 ## Installation
 
@@ -285,7 +285,7 @@ bc down
 
 ## Configuration
 
-Configuration is stored in `.bc/config.toml`. Key settings:
+Configuration is stored in `.bc/settings.json`. Key settings:
 
 ```toml
 [workspace]

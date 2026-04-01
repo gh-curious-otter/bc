@@ -12,7 +12,7 @@ Minimal setup for individual developers:
 - Simple channel structure
 
 ```bash
-cp examples/solo-developer.toml .bc/config.toml
+cp examples/solo-developer.toml .bc/settings.json
 bc init
 ```
 
@@ -25,7 +25,7 @@ Full-featured setup for teams:
 - GitHub integration
 
 ```bash
-cp examples/team-workspace.toml .bc/config.toml
+cp examples/team-workspace.toml .bc/settings.json
 bc init
 bc agent create eng-01 --role engineer
 bc agent create eng-02 --role engineer
@@ -42,7 +42,7 @@ Optimized for CI/CD pipelines:
 
 ```bash
 # In your CI pipeline:
-cp examples/ci-cd-integration.toml .bc/config.toml
+cp examples/ci-cd-integration.toml .bc/settings.json
 bc init --quick
 bc up --headless
 bc agent send eng-01 "run tests and report results"
@@ -69,7 +69,7 @@ User settings are merged with workspace settings, with workspace taking preceden
 ## Quick Start
 
 1. Choose a configuration that matches your use case
-2. Copy it to your project's `.bc/config.toml`
+2. Copy it to your project's `.bc/settings.json`
 3. Initialize the workspace with `bc init`
 4. Start working with `bc up`
 

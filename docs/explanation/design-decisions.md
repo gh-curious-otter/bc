@@ -45,7 +45,7 @@ tools (Claude Code, Gemini, etc.) that expect a terminal. The system must
 work for local development and for isolated, reproducible builds.
 
 **Decision:** Support two runtime backends — tmux (local) and Docker
-(isolated) — selectable via `[runtime] backend` in `config.toml`.
+(isolated) — selectable via `[runtime] backend` in `settings.json`.
 
 **Rationale:**
 

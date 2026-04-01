@@ -116,7 +116,7 @@ bc init
 
 # Expected output:
 # ✓ Workspace initialized at /Users/you/my-project/.bc/
-# ✓ Config created: .bc/config.json
+# ✓ Config created: .bc/settings.json
 # ✓ Queue initialized: .bc/queue.json
 ```
 
@@ -584,7 +584,7 @@ bc config show
 ```
 my-project/
 ├── .bc/                          # bc state directory
-│   ├── config.json              # Workspace configuration
+│   ├── settings.json              # Workspace configuration
 │   ├── queue.json               # Work queue
 │   ├── events.jsonl             # Event log
 │   ├── agents/                  # Agent state

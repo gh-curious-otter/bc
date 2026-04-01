@@ -101,7 +101,7 @@ Returns the full workspace configuration.
 
 Partial update of the full configuration. Send only the sections you want to change. Unspecified sections remain unchanged.
 
-The merged config is validated before saving. On success, the updated config is persisted to `.bc/settings.toml`.
+The merged config is validated before saving. On success, the updated config is persisted to `.bc/settings.json`.
 
 **Request body:** JSON object with one or more config sections.
 

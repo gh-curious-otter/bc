@@ -4,7 +4,7 @@ Manage workspace configuration
 
 ### Synopsis
 
-Manage workspace configuration (.bc/settings.toml).
+Manage workspace configuration (.bc/settings.json).
 
 Examples:
   bc workspace config show                    # Show full config

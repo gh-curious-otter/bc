@@ -83,7 +83,7 @@ bc init
 
 ### Config File Errors
 
-**Cause**: Invalid TOML syntax in settings.toml.
+**Cause**: Invalid TOML syntax in settings.json.
 
 **Solution**:
 ```bash
@@ -91,7 +91,7 @@ bc init
 bc config show
 
 # Check for syntax errors
-cat .bc/settings.toml
+cat .bc/settings.json
 
 # Regenerate default config
 bc config reset

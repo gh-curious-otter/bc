@@ -6,7 +6,7 @@ Manage workspace environment variables
 
 Configure environment variables for agent sessions.
 
-Environment variables are stored in settings.toml and injected into agent
+Environment variables are stored in settings.json and injected into agent
 sessions at startup. Use --provider to set per-provider env vars.
 
 Priority (highest wins): agent --env file > provider env > workspace env.
