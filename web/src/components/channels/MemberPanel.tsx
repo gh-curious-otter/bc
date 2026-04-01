@@ -8,7 +8,7 @@ function AgentStatusDot({ state }: { state?: string }) {
   const colors: Record<string, string> = {
     working: "bg-bc-success",
     running: "bg-bc-success",
-    idle: "bg-bc-warning",
+    idle: "bg-bc-success",
     waiting: "bg-bc-warning",
     stopped: "bg-bc-muted",
     error: "bg-bc-error",
@@ -17,7 +17,7 @@ function AgentStatusDot({ state }: { state?: string }) {
   const labels: Record<string, string> = {
     working: "Online",
     running: "Online",
-    idle: "Idle",
+    idle: "Online (idle)",
     waiting: "Waiting",
     stopped: "Offline",
     error: "Error",
@@ -77,7 +77,7 @@ export function MemberPanel({
           <p className="text-[10px] text-bc-muted mt-0.5">
             {(channel.members ?? []).filter((m) => {
               const s = agentStates[m];
-              return s === "working" || s === "running";
+              return s === "working" || s === "running" || s === "idle";
             }).length}/{channel.member_count} online
           </p>
         )}
