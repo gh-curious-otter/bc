@@ -43,11 +43,8 @@ func (p *PostgresStore) InitSchema() error {
 	return nil
 }
 
-// Close closes the database connection.
+// Close is a no-op — the shared DB is owned by the caller.
 func (p *PostgresStore) Close() error {
-	if p.db != nil {
-		return p.db.Close()
-	}
 	return nil
 }
 
@@ -240,31 +237,27 @@ func (p *PostgresStore) SetEnabled(ctx context.Context, name string, enabled boo
 	return nil
 }
 
-// OpenStore opens the tool store for the workspace.
-// Priority: DATABASE_URL (Postgres) > SQLite (.bc/tools.db).
+// OpenStore opens the tool store using the shared workspace database.
+// Uses the shared driver type to determine the backend (timescale or sqlite).
 func OpenStore(stateDir string) (*Store, error) {
-	if bcdb.IsPostgresEnabled() {
-		pgDB, err := bcdb.TryOpenPostgres()
-		if err != nil {
-			log.Warn("failed to connect to Postgres for tool store, falling back to SQLite", "error", err)
-		} else if pgDB != nil {
-			pg := NewPostgresStore(pgDB)
-			if schemaErr := pg.InitSchema(); schemaErr != nil {
-				_ = pg.Close()
-				log.Warn("failed to init Postgres tool schema, falling back to SQLite", "error", schemaErr)
-			} else {
-				if seedErr := pg.SeedBuiltins(context.Background()); seedErr != nil {
-					_ = pg.Close()
-					log.Warn("failed to seed builtins in Postgres, falling back to SQLite", "error", seedErr)
-				} else {
-					log.Debug("tool store: using Postgres backend")
-					return &Store{pg: pg}, nil
-				}
-			}
+	driver := bcdb.SharedDriver()
+	if driver == "timescale" {
+		shared := bcdb.Shared()
+		if shared == nil {
+			return nil, fmt.Errorf("tool store: shared timescale connection is nil")
 		}
+		pg := NewPostgresStore(shared)
+		if schemaErr := pg.InitSchema(); schemaErr != nil {
+			return nil, fmt.Errorf("tool store: init timescale schema: %w", schemaErr)
+		}
+		if seedErr := pg.SeedBuiltins(context.Background()); seedErr != nil {
+			return nil, fmt.Errorf("tool store: seed builtins: %w", seedErr)
+		}
+		log.Debug("tool store: using TimescaleDB backend")
+		return &Store{pg: pg}, nil
 	}
 
-	// SQLite fallback
+	// SQLite via shared DB
 	s := NewStore(stateDir)
 	if err := s.Open(); err != nil {
 		return nil, err

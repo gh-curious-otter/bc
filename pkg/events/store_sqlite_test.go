@@ -4,11 +4,29 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
-func TestSQLiteLog_AppendAndRead(t *testing.T) {
+// setupSharedDB creates a temporary SQLite shared database for tests.
+func setupSharedDB(t *testing.T) {
+	t.Helper()
 	dir := t.TempDir()
-	log, err := NewSQLiteLog(filepath.Join(dir, "state.db"))
+	dbPath := filepath.Join(dir, "bc.db")
+	d, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	db.SetShared(d.DB, "sqlite")
+	t.Cleanup(func() {
+		db.SetShared(nil, "")
+		_ = d.Close()
+	})
+}
+
+func TestSQLiteLog_AppendAndRead(t *testing.T) {
+	setupSharedDB(t)
+	log, err := NewSQLiteLog("unused")
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}
@@ -41,8 +59,8 @@ func TestSQLiteLog_AppendAndRead(t *testing.T) {
 }
 
 func TestSQLiteLog_ReadLast(t *testing.T) {
-	dir := t.TempDir()
-	log, err := NewSQLiteLog(filepath.Join(dir, "state.db"))
+	setupSharedDB(t)
+	log, err := NewSQLiteLog("unused")
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}
@@ -71,8 +89,8 @@ func TestSQLiteLog_ReadLast(t *testing.T) {
 }
 
 func TestSQLiteLog_ReadByAgent(t *testing.T) {
-	dir := t.TempDir()
-	log, err := NewSQLiteLog(filepath.Join(dir, "state.db"))
+	setupSharedDB(t)
+	log, err := NewSQLiteLog("unused")
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}
@@ -92,8 +110,8 @@ func TestSQLiteLog_ReadByAgent(t *testing.T) {
 }
 
 func TestSQLiteLog_EventData(t *testing.T) {
-	dir := t.TempDir()
-	log, err := NewSQLiteLog(filepath.Join(dir, "state.db"))
+	setupSharedDB(t)
+	log, err := NewSQLiteLog("unused")
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}
@@ -116,8 +134,8 @@ func TestSQLiteLog_EventData(t *testing.T) {
 }
 
 func TestSQLiteLog_ImplementsEventStore(t *testing.T) {
-	dir := t.TempDir()
-	log, err := NewSQLiteLog(filepath.Join(dir, "state.db"))
+	setupSharedDB(t)
+	log, err := NewSQLiteLog("unused")
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}

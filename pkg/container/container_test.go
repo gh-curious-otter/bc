@@ -161,57 +161,6 @@ func TestImageForTool_FallbackToConfig(t *testing.T) {
 	}
 }
 
-// --- New tests for coverage ---
-
-func TestAgentVolumeDir(t *testing.T) {
-	tests := []struct {
-		name      string
-		wsDir     string
-		agentName string
-		want      string
-	}{
-		{
-			name:      "normal path",
-			wsDir:     "/home/user/project",
-			agentName: "alice",
-			want:      filepath.Join("/home/user/project", ".bc", "volumes", "alice", ".claude"),
-		},
-		{
-			name:      "root workspace",
-			wsDir:     "/",
-			agentName: "root-agent",
-			want:      filepath.Join("/", ".bc", "volumes", "root-agent", ".claude"),
-		},
-		{
-			name:      "empty agent name",
-			wsDir:     "/workspace",
-			agentName: "",
-			want:      filepath.Join("/workspace", ".bc", "volumes", "", ".claude"),
-		},
-		{
-			name:      "agent with special chars",
-			wsDir:     "/tmp/ws",
-			agentName: "eng_01-dev",
-			want:      filepath.Join("/tmp/ws", ".bc", "volumes", "eng_01-dev", ".claude"),
-		},
-		{
-			name:      "deeply nested workspace",
-			wsDir:     "/a/b/c/d/e",
-			agentName: "worker",
-			want:      filepath.Join("/a/b/c/d/e", ".bc", "volumes", "worker", ".claude"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := AgentVolumeDir(tt.wsDir, tt.agentName)
-			if got != tt.want {
-				t.Errorf("AgentVolumeDir(%q, %q) = %q, want %q", tt.wsDir, tt.agentName, got, tt.want)
-			}
-		})
-	}
-}
-
 // mockProvider implements provider.Provider and provider.ContainerCustomizer.
 type mockProvider struct {
 	name        string

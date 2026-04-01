@@ -10,7 +10,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // Postgres driver via pgx
 )
 
-// DefaultPostgresDSN is the connection string for the bcdb container.
+// DefaultPostgresDSN is the connection string for the bcdb (TimescaleDB) container.
 const DefaultPostgresDSN = "postgres://bc:bc@localhost:5432/bc"
 
 // PostgresDSN returns the Postgres connection string from DATABASE_URL env var,

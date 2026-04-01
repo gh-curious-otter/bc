@@ -318,15 +318,16 @@ func (w *Workspace) GetRolePrompt(name string) string {
 	return role.Prompt
 }
 
-// openRoleStore creates a RoleStore using the shared Postgres connection if
-// DATABASE_URL is set, otherwise falls back to SQLite at .bc/bc.db.
+// openRoleStore creates a RoleStore using the shared database connection.
+// Uses the shared driver type to determine the backend (timescale or sqlite).
 func openRoleStore(stateDir string) (*RoleStore, error) {
-	if db.IsPostgresEnabled() {
-		pgDB, pgErr := db.TryOpenPostgres()
-		if pgErr != nil {
-			return nil, fmt.Errorf("open postgres for roles: %w", pgErr)
+	driver := db.SharedDriver()
+	if driver == "timescale" {
+		shared := db.Shared()
+		if shared == nil {
+			return nil, fmt.Errorf("role store: shared timescale connection is nil")
 		}
-		return NewRoleStoreFromDB(pgDB, "postgres")
+		return NewRoleStoreFromDB(shared, "timescale")
 	}
 
 	dbPath := filepath.Join(stateDir, "bc.db")

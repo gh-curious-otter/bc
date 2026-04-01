@@ -1,18 +1,26 @@
 package mcp
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
 func setupTestStore(t *testing.T) *Store {
 	t.Helper()
+	// Set up shared SQLite DB (required after fallback removal)
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
+	d, err := db.Open(dir + "/bc.db")
+	if err != nil {
 		t.Fatal(err)
 	}
+	db.SetShared(d.DB, "sqlite")
+	t.Cleanup(func() {
+		db.SetShared(nil, "")
+		_ = d.Close()
+	})
+
 	s, err := NewStore(dir)
 	if err != nil {
 		t.Fatal(err)

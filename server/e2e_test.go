@@ -20,6 +20,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/cron"
+	bcdb "github.com/gh-curious-otter/bc/pkg/db"
 
 	"github.com/gh-curious-otter/bc/pkg/events"
 	pkgmcp "github.com/gh-curious-otter/bc/pkg/mcp"
@@ -60,6 +61,16 @@ func newE2EServer(t *testing.T) *e2eServer {
 	if err != nil {
 		t.Fatalf("workspace load: %v", err)
 	}
+
+	// Set up shared database for all stores
+	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(ws.RootDir, nil)
+	if dbErr != nil {
+		t.Fatalf("open shared db: %v", dbErr)
+	}
+	bcdb.SetShared(sharedDB, sharedDriver)
+	t.Cleanup(func() {
+		_ = bcdb.CloseShared()
+	})
 
 	// SSE hub
 	hub := ws_hub(t)

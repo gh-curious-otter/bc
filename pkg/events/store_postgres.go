@@ -122,11 +122,8 @@ func (p *PostgresLog) ReadByAgent(name string) ([]Event, error) {
 	return pgScanEventRows(rows)
 }
 
-// Close closes the database connection.
+// Close is a no-op — the shared DB is owned by the caller.
 func (p *PostgresLog) Close() error {
-	if p.db != nil {
-		return p.db.Close()
-	}
 	return nil
 }
 
@@ -167,25 +164,23 @@ func pgNilStr(s string) *string {
 	return &s
 }
 
-// OpenLog opens the event log for the workspace.
-// Priority: DATABASE_URL (Postgres) > SQLite (.bc/events.db).
+// OpenLog opens the event log for the workspace using the shared database.
+// Uses the shared driver type to determine the backend (timescale or sqlite).
 func OpenLog(workspacePath string, dbPath string) (EventStore, error) {
-	if bcdb.IsPostgresEnabled() {
-		pgDB, err := bcdb.TryOpenPostgres()
-		if err != nil {
-			log.Warn("failed to connect to Postgres for events store, falling back to SQLite", "error", err)
-		} else if pgDB != nil {
-			pg := NewPostgresLog(pgDB)
-			if schemaErr := pg.InitSchema(); schemaErr != nil {
-				_ = pg.Close()
-				log.Warn("failed to init Postgres events schema, falling back to SQLite", "error", schemaErr)
-			} else {
-				log.Debug("events store: using Postgres backend")
-				return pg, nil
-			}
+	driver := bcdb.SharedDriver()
+	if driver == "timescale" {
+		shared := bcdb.Shared()
+		if shared == nil {
+			return nil, fmt.Errorf("events store: shared timescale connection is nil")
 		}
+		pg := NewPostgresLog(shared)
+		if schemaErr := pg.InitSchema(); schemaErr != nil {
+			return nil, fmt.Errorf("events store: init timescale schema: %w", schemaErr)
+		}
+		log.Debug("events store: using TimescaleDB backend")
+		return pg, nil
 	}
 
-	// SQLite fallback
+	// SQLite via shared DB
 	return NewSQLiteLog(dbPath)
 }

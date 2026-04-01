@@ -3,22 +3,27 @@ package cron
 import (
 	"context"
 	"io"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
 // openTestStore creates a temporary cron store for testing.
 func openTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	wsDir := filepath.Join(dir, "ws")
-	if err := os.MkdirAll(wsDir, 0750); err != nil {
-		t.Fatal(err)
+	d, err := db.Open(dir + "/bc.db")
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
 	}
-	store, err := Open(wsDir)
+	db.SetShared(d.DB, "sqlite")
+	t.Cleanup(func() {
+		db.SetShared(nil, "")
+		_ = d.Close()
+	})
+	store, err := Open("")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

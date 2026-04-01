@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,55 +11,37 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
-// Store is a cron job store backed by SQLite or Postgres.
+// Store is a cron job store backed by SQLite or TimescaleDB (Postgres).
 type Store struct {
-	db   *db.DB
-	pg   *PostgresStore // non-nil when using Postgres via OpenStore
-	path string
+	db *db.DB
+	pg *PostgresStore // non-nil when using Postgres via OpenStore
 }
 
-// Open opens (or creates) the cron store for the given workspace.
-// Uses the shared bc.db connection if available, falls back to cron.db.
+// Open opens the cron store using the shared workspace database.
+// Returns an error if no shared database is available.
 func Open(workspacePath string) (*Store, error) {
-	// Try shared database first
-	if shared := db.SharedWrapped(); shared != nil {
-		s := &Store{db: shared}
-		// Skip initSchema on Postgres — init.sql handles table creation.
-		// The SQLite-specific schema (AUTOINCREMENT, DATETIME) breaks on Postgres.
-		if db.SharedDriver() != "postgres" {
-			if err := s.initSchema(); err != nil {
-				return nil, fmt.Errorf("init cron schema on shared db: %w", err)
-			}
+	shared := db.SharedWrapped()
+	if shared == nil {
+		return nil, fmt.Errorf("cron store requires shared database (none available for workspace %s)", workspacePath)
+	}
+
+	s := &Store{db: shared}
+	// Skip initSchema on TimescaleDB — init.sql handles table creation.
+	// The SQLite-specific schema (AUTOINCREMENT, DATETIME) breaks on Postgres.
+	if db.SharedDriver() != "timescale" {
+		if err := s.initSchema(); err != nil {
+			return nil, fmt.Errorf("init cron schema on shared db: %w", err)
 		}
-		return s, nil
-	}
-
-	// Fallback: open own database
-	path := filepath.Join(workspacePath, ".bc", "cron.db")
-	database, err := db.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("open cron database: %w", err)
-	}
-
-	s := &Store{db: database, path: path}
-	if err := s.initSchema(); err != nil {
-		_ = database.Close()
-		return nil, fmt.Errorf("init cron schema: %w", err)
 	}
 	return s, nil
 }
 
-// Close closes the database connection.
-// If using the shared bc.db, this is a no-op — CloseShared() handles it.
+// Close is a no-op — the shared DB is owned by the caller.
 func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()
 	}
-	// Don't close shared DB — it's owned by the shared connection manager.
-	if s.path == "" {
-		return nil // shared DB, no-op
-	}
-	return s.db.Close()
+	return nil
 }
 
 func (s *Store) initSchema() error {

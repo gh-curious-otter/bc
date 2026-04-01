@@ -2,14 +2,32 @@ package tool
 
 import (
 	"context"
-	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
-func TestStore_CRUD(t *testing.T) {
+// setupSharedDB creates a temporary SQLite shared database for tests.
+func setupSharedDB(t *testing.T) {
+	t.Helper()
 	dir := t.TempDir()
-	s := NewStore(dir)
+	dbPath := filepath.Join(dir, "bc.db")
+	d, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	db.SetShared(d.DB, "sqlite")
+	t.Cleanup(func() {
+		db.SetShared(nil, "")
+		_ = d.Close()
+	})
+}
+
+func TestStore_CRUD(t *testing.T) {
+	setupSharedDB(t)
+	s := NewStore("")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -140,11 +158,11 @@ func TestStore_CRUD(t *testing.T) {
 }
 
 func TestStore_SeededOnce(t *testing.T) {
-	dir := t.TempDir()
+	setupSharedDB(t)
 
 	// Open twice — built-ins should not duplicate
 	for i := range 2 {
-		s := NewStore(dir)
+		s := NewStore("")
 		if err := s.Open(); err != nil {
 			t.Fatalf("Open %d: %v", i, err)
 		}
@@ -169,8 +187,8 @@ func TestStore_SeededOnce(t *testing.T) {
 }
 
 func TestStore_ListOrdering(t *testing.T) {
-	dir := t.TempDir()
-	s := NewStore(dir)
+	setupSharedDB(t)
+	s := NewStore("")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -202,8 +220,8 @@ func TestStore_ListOrdering(t *testing.T) {
 }
 
 func TestStore_RequiredFields(t *testing.T) {
-	dir := t.TempDir()
-	s := NewStore(dir)
+	setupSharedDB(t)
+	s := NewStore("")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -219,21 +237,17 @@ func TestStore_RequiredFields(t *testing.T) {
 	}
 }
 
-func TestStore_DatabaseFile(t *testing.T) {
-	dir := t.TempDir()
-	s := NewStore(dir)
-	if err := s.Open(); err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	s.Close() //nolint:errcheck // test cleanup
-
-	// Database file should exist
-	if _, err := os.Stat(s.path); err != nil {
-		t.Errorf("expected database file at %s: %v", s.path, err)
+func TestStore_SharedDBRequired(t *testing.T) {
+	// Without a shared DB, Open should return an error
+	db.SetShared(nil, "")
+	s := NewStore("")
+	if err := s.Open(); err == nil {
+		t.Error("expected error when shared DB is not available")
 	}
 }
 
 func TestTool_JSONSerialization(t *testing.T) {
+	setupSharedDB(t)
 	original := &Tool{
 		Name:       "test",
 		Command:    "test --yes",
@@ -246,8 +260,7 @@ func TestTool_JSONSerialization(t *testing.T) {
 		CreatedAt:  time.Now().Truncate(time.Second),
 	}
 
-	dir := t.TempDir()
-	s := NewStore(dir)
+	s := NewStore("")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Open: %v", err)
 	}

@@ -16,7 +16,7 @@ func BCDBPath(workspaceRoot string) string {
 // Set via SetShared() at app startup, used by all stores.
 var (
 	sharedDB     *sql.DB
-	sharedDriver string // "sqlite" or "postgres"
+	sharedDriver string // "sqlite" or "timescale"
 	sharedMu     sync.RWMutex
 )
 
@@ -48,7 +48,7 @@ func SharedWrapped() *DB {
 	return &DB{DB: sharedDB}
 }
 
-// SharedDriver returns "sqlite" or "postgres".
+// SharedDriver returns "sqlite" or "timescale".
 func SharedDriver() string {
 	sharedMu.RLock()
 	defer sharedMu.RUnlock()
@@ -58,9 +58,9 @@ func SharedDriver() string {
 // StorageSettings holds the storage configuration from settings.json.
 // Used by OpenWorkspaceDB to determine the database backend.
 type StorageSettings struct {
-	Default  string // "sqlite" or "sql"
-	SQLite   SQLiteSettings
-	Postgres PostgresSettings
+	Default   string // "sqlite" or "timescale"
+	SQLite    SQLiteSettings
+	Timescale TimescaleSettings
 }
 
 // SQLiteSettings configures the SQLite database path.
@@ -68,8 +68,8 @@ type SQLiteSettings struct {
 	Path string // base directory for bc.db (default: workspace .bc/ dir)
 }
 
-// PostgresSettings configures the Postgres connection.
-type PostgresSettings struct {
+// TimescaleSettings configures the TimescaleDB (Postgres) connection.
+type TimescaleSettings struct {
 	Host     string
 	Port     int
 	User     string
@@ -78,7 +78,7 @@ type PostgresSettings struct {
 }
 
 // DSN builds a Postgres connection string from config fields.
-func (p PostgresSettings) DSN() string {
+func (p TimescaleSettings) DSN() string {
 	host := p.Host
 	if host == "" {
 		host = "localhost"
@@ -116,19 +116,20 @@ func OpenWorkspaceDBWithConfig(workspaceRoot string, cfg *StorageSettings) (*sql
 	if IsPostgresEnabled() {
 		db, err := OpenPostgres(PostgresDSN())
 		if err != nil {
-			return nil, "", fmt.Errorf("open postgres: %w", err)
+			return nil, "", fmt.Errorf("open timescale: %w", err)
 		}
-		return db, "postgres", nil
+		return db, "timescale", nil
 	}
 
 	// Priority 2: settings.json storage config
-	if cfg != nil && cfg.Default == "sql" {
-		dsn := cfg.Postgres.DSN()
+	// Accept both "timescale" and legacy "sql" for backward compatibility
+	if cfg != nil && (cfg.Default == "timescale" || cfg.Default == "sql") {
+		dsn := cfg.Timescale.DSN()
 		db, err := OpenPostgres(dsn)
 		if err != nil {
-			return nil, "", fmt.Errorf("open postgres from config: %w", err)
+			return nil, "", fmt.Errorf("open timescale from config: %w", err)
 		}
-		return db, "postgres", nil
+		return db, "timescale", nil
 	}
 
 	// Priority 3: SQLite (default)

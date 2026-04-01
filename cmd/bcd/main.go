@@ -93,12 +93,12 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 		storageCfg = &bcdb.StorageSettings{
 			Default: ws.Config.Storage.Default,
 			SQLite:  bcdb.SQLiteSettings{Path: ws.Config.Storage.SQLite.Path},
-			Postgres: bcdb.PostgresSettings{
-				Host:     ws.Config.Storage.SQL.Host,
-				Port:     ws.Config.Storage.SQL.Port,
-				User:     ws.Config.Storage.SQL.User,
-				Password: ws.Config.Storage.SQL.Password,
-				Database: ws.Config.Storage.SQL.Database,
+			Timescale: bcdb.TimescaleSettings{
+				Host:     ws.Config.Storage.Timescale.Host,
+				Port:     ws.Config.Storage.Timescale.Port,
+				User:     ws.Config.Storage.Timescale.User,
+				Password: ws.Config.Storage.Timescale.Password,
+				Database: ws.Config.Storage.Timescale.Database,
 			},
 		}
 	}

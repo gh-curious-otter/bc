@@ -58,11 +58,8 @@ func (p *PostgresStore) InitSchema() error {
 	return nil
 }
 
-// Close closes the database connection.
+// Close is a no-op — the shared DB is owned by the caller.
 func (p *PostgresStore) Close() error {
-	if p.db != nil {
-		return p.db.Close()
-	}
 	return nil
 }
 
@@ -330,25 +327,22 @@ func pgNullTime(t *time.Time) sql.NullTime {
 	return sql.NullTime{Time: *t, Valid: true}
 }
 
-// OpenStore opens the cron store for the workspace.
-// Priority: DATABASE_URL (Postgres) > SQLite (.bc/cron.db).
+// OpenStore opens the cron store using the shared workspace database.
+// Uses the shared driver type to determine the backend (timescale or sqlite).
 func OpenStore(workspacePath string) (*Store, error) {
-	if bcdb.IsPostgresEnabled() {
-		pgDB, err := bcdb.TryOpenPostgres()
-		if err != nil {
-			log.Warn("failed to connect to Postgres for cron store, falling back to SQLite", "error", err)
-		} else if pgDB != nil {
-			pg := NewPostgresStore(pgDB)
-			if schemaErr := pg.InitSchema(); schemaErr != nil {
-				_ = pg.Close()
-				log.Warn("failed to init Postgres cron schema, falling back to SQLite", "error", schemaErr)
-			} else {
-				log.Debug("cron store: using Postgres backend")
-				return &Store{pg: pg}, nil
-			}
+	driver := bcdb.SharedDriver()
+	if driver == "timescale" {
+		shared := bcdb.Shared()
+		if shared == nil {
+			return nil, fmt.Errorf("cron store: shared timescale connection is nil")
 		}
+		pg := NewPostgresStore(shared)
+		if schemaErr := pg.InitSchema(); schemaErr != nil {
+			return nil, fmt.Errorf("cron store: init timescale schema: %w", schemaErr)
+		}
+		log.Debug("cron store: using TimescaleDB backend")
+		return &Store{pg: pg}, nil
 	}
 
-	// SQLite fallback
 	return Open(workspacePath)
 }

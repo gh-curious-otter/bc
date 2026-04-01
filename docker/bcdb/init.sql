@@ -42,8 +42,8 @@ CREATE TABLE IF NOT EXISTS channels (
     name          TEXT NOT NULL UNIQUE,
     type          TEXT DEFAULT 'group',
     description   TEXT DEFAULT '',
-    created_at    TEXT NOT NULL,
-    updated_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    updated_at    TEXT NOT NULL DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 );
 
 CREATE TABLE IF NOT EXISTS channel_members (
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS messages (
     content       TEXT NOT NULL,
     type          TEXT DEFAULT 'text',
     metadata      TEXT DEFAULT '',
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 );
 
 CREATE TABLE IF NOT EXISTS cost_records (
@@ -91,14 +91,14 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE TABLE IF NOT EXISTS cron_jobs (
     name          TEXT PRIMARY KEY,
     schedule      TEXT NOT NULL,
-    agent_name    TEXT NOT NULL,
+    agent_name    TEXT,
     prompt        TEXT,
     command       TEXT,
     enabled       INTEGER NOT NULL DEFAULT 1,
     last_run      TEXT,
     next_run      TEXT,
     run_count     INTEGER NOT NULL DEFAULT 0,
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 );
 
 CREATE TABLE IF NOT EXISTS mcp_servers (
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
     url           TEXT,
     env           TEXT,
     enabled       INTEGER NOT NULL DEFAULT 1,
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 );
 
 CREATE TABLE IF NOT EXISTS secrets (
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS secrets (
 
 CREATE TABLE IF NOT EXISTS tools (
     name          TEXT PRIMARY KEY,
-    command       TEXT NOT NULL,
+    command       TEXT NOT NULL DEFAULT '',
     install_cmd   TEXT,
     upgrade_cmd   TEXT,
     slash_cmds    TEXT,
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS tools (
     config        TEXT,
     builtin       INTEGER NOT NULL DEFAULT 0,
     enabled       INTEGER NOT NULL DEFAULT 1,
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 );
 
 CREATE TABLE IF NOT EXISTS daemons (
@@ -148,6 +148,13 @@ CREATE TABLE IF NOT EXISTS daemons (
     started_at    TEXT,
     stopped_at    TEXT
 );
+
+-- Seed default channels
+INSERT INTO channels (name, type, description) VALUES
+    ('general',     'group', 'General discussion for all agents'),
+    ('engineering', 'group', 'Engineering team coordination'),
+    ('all',         'group', 'Broadcast channel for announcements')
+ON CONFLICT (name) DO NOTHING;
 
 -- Relational indexes
 CREATE INDEX IF NOT EXISTS idx_agents_state ON agents(state);

@@ -85,10 +85,8 @@ func (p *PostgresStore) InitKey(passphrase string) error {
 }
 
 // Close closes the database connection.
+// Close is a no-op — the shared DB is owned by the caller.
 func (p *PostgresStore) Close() error {
-	if p.db != nil {
-		return p.db.Close()
-	}
 	return nil
 }
 
@@ -255,28 +253,27 @@ func findIndex(s, substr string) int {
 	return -1
 }
 
-// OpenStore opens the secrets store for the workspace.
-// Priority: DATABASE_URL (Postgres) > SQLite (.bc/secrets.db).
+// OpenStore opens the secrets store using the shared workspace database.
+// Uses the shared driver type to determine the backend (timescale or sqlite).
+// The secret store keeps encryption isolation — its own salt and key derivation.
 func OpenStore(workspacePath, passphrase string) (*Store, error) {
-	if bcdb.IsPostgresEnabled() {
-		pgDB, err := bcdb.TryOpenPostgres()
-		if err != nil {
-			log.Warn("failed to connect to Postgres for secrets store, falling back to SQLite", "error", err)
-		} else if pgDB != nil {
-			pg := NewPostgresStore(pgDB)
-			if schemaErr := pg.InitSchema(); schemaErr != nil {
-				_ = pg.Close()
-				log.Warn("failed to init Postgres secrets schema, falling back to SQLite", "error", schemaErr)
-			} else if keyErr := pg.InitKey(passphrase); keyErr != nil {
-				_ = pg.Close()
-				log.Warn("failed to init encryption key in Postgres, falling back to SQLite", "error", keyErr)
-			} else {
-				log.Debug("secrets store: using Postgres backend")
-				return &Store{pg: pg}, nil
-			}
+	driver := bcdb.SharedDriver()
+	if driver == "timescale" {
+		shared := bcdb.Shared()
+		if shared == nil {
+			return nil, fmt.Errorf("secrets store: shared timescale connection is nil")
 		}
+		pg := NewPostgresStore(shared)
+		if schemaErr := pg.InitSchema(); schemaErr != nil {
+			return nil, fmt.Errorf("secrets store: init timescale schema: %w", schemaErr)
+		}
+		if keyErr := pg.InitKey(passphrase); keyErr != nil {
+			return nil, fmt.Errorf("secrets store: init encryption key: %w", keyErr)
+		}
+		log.Debug("secrets store: using TimescaleDB backend")
+		return &Store{pg: pg}, nil
 	}
 
-	// SQLite fallback
+	// SQLite fallback (still uses its own file for encryption isolation)
 	return NewStore(workspacePath, passphrase)
 }

@@ -117,9 +117,9 @@ type CronConfig struct {
 
 // StorageConfig configures persistent storage.
 type StorageConfig struct {
-	Default string              `json:"default"` // "sqlite" or "sql"
-	SQLite  SQLiteStorageConfig `json:"sqlite"`
-	SQL     SQLStorageConfig    `json:"sql"`
+	Default   string                  `json:"default"` // "sqlite" or "timescale"
+	SQLite    SQLiteStorageConfig     `json:"sqlite"`
+	Timescale TimescaleStorageConfig  `json:"timescale"`
 }
 
 // SQLiteStorageConfig configures SQLite storage.
@@ -127,8 +127,8 @@ type SQLiteStorageConfig struct {
 	Path string `json:"path"`
 }
 
-// SQLStorageConfig configures SQL (Postgres/TimescaleDB) storage.
-type SQLStorageConfig struct {
+// TimescaleStorageConfig configures TimescaleDB (Postgres) storage.
+type TimescaleStorageConfig struct {
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
 	User     string `json:"user"`
@@ -212,7 +212,7 @@ func DefaultConfig() Config {
 			SQLite: SQLiteStorageConfig{
 				Path: ".bc",
 			},
-			SQL: SQLStorageConfig{
+			Timescale: TimescaleStorageConfig{
 				Host:     "localhost",
 				Port:     5432,
 				User:     "bc",
@@ -350,11 +350,12 @@ func (c *Config) validateServer() error {
 
 // validateStorage validates storage configuration.
 func (c *Config) validateStorage() error {
-	if c.Storage.Default != "" && c.Storage.Default != "sqlite" && c.Storage.Default != "sql" {
-		return fmt.Errorf("storage.default must be 'sqlite' or 'sql', got %q", c.Storage.Default)
+	// Accept "timescale" and legacy "sql" for backward compatibility
+	if c.Storage.Default != "" && c.Storage.Default != "sqlite" && c.Storage.Default != "timescale" && c.Storage.Default != "sql" {
+		return fmt.Errorf("storage.default must be 'sqlite' or 'timescale', got %q", c.Storage.Default)
 	}
-	if c.Storage.SQL.Port != 0 && (c.Storage.SQL.Port < 1 || c.Storage.SQL.Port > 65535) {
-		return fmt.Errorf("storage.sql.port must be between 1 and 65535, got %d", c.Storage.SQL.Port)
+	if c.Storage.Timescale.Port != 0 && (c.Storage.Timescale.Port < 1 || c.Storage.Timescale.Port > 65535) {
+		return fmt.Errorf("storage.timescale.port must be between 1 and 65535, got %d", c.Storage.Timescale.Port)
 	}
 	return nil
 }

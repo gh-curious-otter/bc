@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -43,27 +42,16 @@ type Store struct {
 }
 
 // NewStore creates a new MCP store for the given workspace path.
-// Uses shared bc.db if available, falls back to mcp.db.
+// Uses the shared workspace database; returns an error if unavailable.
 func NewStore(workspacePath string) (*Store, error) {
-	// Try shared database first
-	if shared := db.SharedWrapped(); shared != nil {
-		s := &Store{db: shared, shared: true}
-		if err := s.initSchema(); err != nil {
-			return nil, fmt.Errorf("init mcp schema on shared db: %w", err)
-		}
-		return s, nil
+	shared := db.SharedWrapped()
+	if shared == nil {
+		return nil, fmt.Errorf("mcp store requires shared database (none available for workspace %s)", workspacePath)
 	}
 
-	dbPath := filepath.Join(workspacePath, ".bc", "mcp.db")
-	d, err := db.Open(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("open mcp database: %w", err)
-	}
-
-	s := &Store{db: d}
+	s := &Store{db: shared, shared: true}
 	if err := s.initSchema(); err != nil {
-		_ = d.Close()
-		return nil, fmt.Errorf("init mcp schema: %w", err)
+		return nil, fmt.Errorf("init mcp schema on shared db: %w", err)
 	}
 	return s, nil
 }

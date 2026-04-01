@@ -2,21 +2,29 @@ package cron
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
-func TestStore_AddGetList(t *testing.T) {
+func setupSharedDB(t *testing.T) {
+	t.Helper()
 	dir := t.TempDir()
-	// Open expects a workspace with a .bc subdir — create it.
-	wsDir := filepath.Join(dir, "ws")
-	if err := os.MkdirAll(wsDir, 0750); err != nil {
-		t.Fatal(err)
+	d, err := db.Open(dir + "/bc.db")
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
 	}
+	db.SetShared(d.DB, "sqlite")
+	t.Cleanup(func() {
+		db.SetShared(nil, "")
+		_ = d.Close()
+	})
+}
 
-	store, err := Open(wsDir)
+func TestStore_AddGetList(t *testing.T) {
+	setupSharedDB(t)
+	store, err := Open("")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -77,8 +85,8 @@ func TestStore_AddGetList(t *testing.T) {
 }
 
 func TestStore_SetEnabled(t *testing.T) {
-	dir := t.TempDir()
-	store, err := Open(dir)
+	setupSharedDB(t)
+	store, err := Open("")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -126,8 +134,8 @@ func TestStore_SetEnabled(t *testing.T) {
 }
 
 func TestStore_Delete(t *testing.T) {
-	dir := t.TempDir()
-	store, err := Open(dir)
+	setupSharedDB(t)
+	store, err := Open("")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -160,8 +168,8 @@ func TestStore_Delete(t *testing.T) {
 }
 
 func TestStore_RecordManualTrigger(t *testing.T) {
-	dir := t.TempDir()
-	store, err := Open(dir)
+	setupSharedDB(t)
+	store, err := Open("")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -193,8 +201,8 @@ func TestStore_RecordManualTrigger(t *testing.T) {
 }
 
 func TestStore_GetLogs(t *testing.T) {
-	dir := t.TempDir()
-	store, err := Open(dir)
+	setupSharedDB(t)
+	store, err := Open("")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -142,48 +141,35 @@ var builtinMCPServers = []Tool{
 	},
 }
 
-// Store provides tool management backed by SQLite or Postgres.
+// Store provides tool management backed by SQLite or TimescaleDB (Postgres).
 type Store struct {
-	db   *db.DB
-	pg   *PostgresStore // non-nil when using Postgres via OpenStore
-	path string
+	db *db.DB
+	pg *PostgresStore // non-nil when using Postgres via OpenStore
 }
 
 // NewStore creates a new tool store for the given workspace state directory.
 func NewStore(stateDir string) *Store {
-	return &Store{
-		path: filepath.Join(stateDir, "tools.db"),
-	}
+	return &Store{}
 }
 
 // Open initializes the database and seeds built-in tools.
-// Uses shared bc.db if available, falls back to tools.db.
+// Uses the shared workspace database; returns an error if unavailable.
 func (s *Store) Open() error {
-	var database *db.DB
-	var err error
-	if shared := db.SharedWrapped(); shared != nil {
-		database = shared
-	} else {
-		database, err = db.Open(s.path)
-		if err != nil {
-			return fmt.Errorf("failed to open database: %w", err)
-		}
+	shared := db.SharedWrapped()
+	if shared == nil {
+		return fmt.Errorf("tool store requires shared database (none available)")
 	}
 
-	// Skip schema init on Postgres — init.sql handles table creation.
-	if db.SharedDriver() != "postgres" {
-		if err := initSchema(database.DB); err != nil {
-			if db.SharedWrapped() == nil {
-				_ = database.Close()
-			}
+	// Skip schema init on TimescaleDB — init.sql handles table creation.
+	if db.SharedDriver() != "timescale" {
+		if err := initSchema(shared.DB); err != nil {
 			return fmt.Errorf("failed to initialize schema: %w", err)
 		}
 	}
 
-	s.db = database
+	s.db = shared
 
 	if err := s.seedBuiltins(context.Background()); err != nil {
-		_ = database.Close()
 		return fmt.Errorf("failed to seed built-in tools: %w", err)
 	}
 
@@ -229,17 +215,10 @@ func (s *Store) migrateMCPServers() {
 	}
 }
 
-// Close closes the database connection.
+// Close is a no-op — the shared DB is owned by the caller.
 func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()
-	}
-	// Don't close shared DB — CloseShared() handles it.
-	if db.SharedWrapped() != nil && s.db == db.SharedWrapped() {
-		return nil
-	}
-	if s.db != nil {
-		return s.db.Close()
 	}
 	return nil
 }

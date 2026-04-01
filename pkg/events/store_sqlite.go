@@ -15,18 +15,12 @@ type SQLiteLog struct {
 	db *db.DB
 }
 
-// NewSQLiteLog opens (or creates) the events table.
-// Uses shared bc.db if available, falls back to dbPath.
+// NewSQLiteLog opens the events table using the shared workspace database.
+// Returns an error if no shared database is available.
 func NewSQLiteLog(dbPath string) (*SQLiteLog, error) {
-	var d *db.DB
-	var err error
-	if shared := db.SharedWrapped(); shared != nil {
-		d = shared
-	} else {
-		d, err = db.Open(dbPath)
-		if err != nil {
-			return nil, fmt.Errorf("open events db: %w", err)
-		}
+	d := db.SharedWrapped()
+	if d == nil {
+		return nil, fmt.Errorf("events store requires shared database (none available, path hint: %s)", dbPath)
 	}
 
 	schema := `
@@ -124,9 +118,9 @@ func (l *SQLiteLog) ReadByAgent(name string) ([]Event, error) {
 	return scanEventRows(rows)
 }
 
-// Close closes the database.
+// Close is a no-op — the shared DB is owned by the caller.
 func (l *SQLiteLog) Close() error {
-	return l.db.Close()
+	return nil
 }
 
 // --- helpers ---

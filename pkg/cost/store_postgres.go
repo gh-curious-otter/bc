@@ -71,11 +71,8 @@ func (s *PostgresStore) InitSchema() error {
 	return nil
 }
 
-// Close closes the database connection.
+// Close is a no-op — the shared DB is owned by the caller.
 func (s *PostgresStore) Close() error {
-	if s.db != nil {
-		return s.db.Close()
-	}
 	return nil
 }
 

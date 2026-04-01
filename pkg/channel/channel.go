@@ -51,27 +51,24 @@ func NewStore(workspacePath string) *Store {
 	return &Store{backend: sqlite}
 }
 
-// OpenStore opens the channel store for the workspace.
-// Priority: DATABASE_URL (Postgres) > SQLite (.bc/bc.db).
+// OpenStore opens the channel store using the shared workspace database.
+// Uses the shared driver type to determine the backend (timescale or sqlite).
 func OpenStore(workspacePath string) (*Store, error) {
-	// Try Postgres first when DATABASE_URL is set
-	if db.IsPostgresEnabled() {
-		pgDB, err := db.TryOpenPostgres()
-		if err != nil {
-			log.Warn("failed to connect to Postgres, falling back to SQLite", "error", err)
-		} else if pgDB != nil {
-			pg := NewPostgresStore(pgDB)
-			if schemaErr := pg.InitSchema(); schemaErr != nil {
-				_ = pg.Close()
-				log.Warn("failed to init Postgres channel schema, falling back to SQLite", "error", schemaErr)
-			} else {
-				log.Debug("channel store: using Postgres backend")
-				return &Store{backend: pg}, nil
-			}
+	driver := db.SharedDriver()
+	if driver == "timescale" {
+		shared := db.Shared()
+		if shared == nil {
+			return nil, fmt.Errorf("channel store: shared timescale connection is nil")
 		}
+		pg := NewPostgresStore(shared)
+		if schemaErr := pg.InitSchema(); schemaErr != nil {
+			return nil, fmt.Errorf("channel store: init timescale schema: %w", schemaErr)
+		}
+		log.Debug("channel store: using TimescaleDB backend")
+		return &Store{backend: pg}, nil
 	}
 
-	// SQLite backend
+	// SQLite backend via shared DB
 	s := NewSQLiteStore(workspacePath)
 	if err := s.Open(); err != nil {
 		return nil, fmt.Errorf("open channel store: %w", err)

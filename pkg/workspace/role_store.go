@@ -17,7 +17,7 @@ import (
 // It supports both SQLite and Postgres via the driver field.
 type RoleStore struct {
 	sqlDB  *sql.DB
-	driver string // "sqlite" or "postgres"
+	driver string // "sqlite" or "timescale"
 	owned  bool   // true if we opened the connection (and should close it)
 }
 
@@ -52,7 +52,7 @@ func NewRoleStoreFromDB(sqlDB *sql.DB, driver string) (*RoleStore, error) {
 // Uses driver-appropriate column types.
 func (s *RoleStore) InitSchema() error {
 	var schema string
-	if s.driver == "postgres" {
+	if s.driver == "timescale" {
 		schema = `
 		CREATE TABLE IF NOT EXISTS roles (
 			name          TEXT PRIMARY KEY,
@@ -116,7 +116,7 @@ func (s *RoleStore) InitSchema() error {
 
 // placeholder returns the appropriate placeholder for the given 1-based index.
 func (s *RoleStore) placeholder(n int) string {
-	if s.driver == "postgres" {
+	if s.driver == "timescale" {
 		return fmt.Sprintf("$%d", n)
 	}
 	return "?"
@@ -181,7 +181,7 @@ func (s *RoleStore) Save(role *Role) error {
 	now := time.Now().Format(time.RFC3339)
 
 	ctx := context.Background()
-	if s.driver == "postgres" {
+	if s.driver == "timescale" {
 		_, err = s.sqlDB.ExecContext(ctx, `
 		INSERT INTO roles
 		(name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
