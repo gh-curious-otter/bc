@@ -294,36 +294,23 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Ensure host.docker.internal resolves on Linux (macOS/Windows get this automatically)
 	args = append(args, "--add-host=host.docker.internal:host-gateway")
 
-	// Mount 1: Isolated agent workspace.
-	// Project root mounted read-only at /repo (for git state).
-	// Agent worktree mounted read-write at /workspace (agent works here).
-	// This prevents agents from modifying the main branch.
+	// Mount 1: Project root at /workspace.
+	// The full project is mounted so git worktrees resolve naturally
+	// (worktree .git files can traverse back to .git/ for objects/refs).
+	// If the agent has an isolated worktree, we set -w to that subdirectory.
 	hostRoot := b.hostWorkspacePath
 	if hostRoot == "" {
 		hostRoot = b.workspacePath
 	}
-	args = append(args, "-v", hostRoot+":/repo:ro") // read-only project root
+	args = append(args, "-v", hostRoot+":/workspace")
 
 	containerWorkdir := "/workspace"
 	if dir != "" && dir != b.workspacePath {
-		// Agent has an isolated worktree — mount it as /workspace (read-write)
+		// Agent has an isolated worktree — set working directory to it.
 		rel, relErr := filepath.Rel(b.workspacePath, dir)
 		if relErr == nil && !strings.HasPrefix(rel, "..") {
-			hostWorktree := filepath.Join(hostRoot, rel)
-			args = append(args, "-v", hostWorktree+":/workspace")
+			containerWorkdir = filepath.Join("/workspace", rel)
 		}
-
-		// Set git env vars so git operations work with the split mount.
-		// The worktree's .git file references /workspace/.git/worktrees/<name>
-		// but project root is at /repo, not /workspace.
-		worktreeName := filepath.Base(dir)
-		args = append(args,
-			"-e", "GIT_DIR=/repo/.git/worktrees/"+worktreeName,
-			"-e", "GIT_WORK_TREE=/workspace",
-		)
-	} else {
-		// No worktree — mount project root directly (fallback)
-		args = append(args, "-v", hostRoot+":/workspace")
 	}
 	args = append(args, "-w", containerWorkdir)
 
