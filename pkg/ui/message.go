@@ -10,6 +10,15 @@ import (
 // Default output writer (can be overridden for testing).
 var output io.Writer = os.Stdout
 
+// SetOutput overrides the output writer (for testing). Pass nil to reset to stdout.
+func SetOutput(w io.Writer) {
+	if w == nil {
+		output = os.Stdout
+	} else {
+		output = w
+	}
+}
+
 // Message prefixes with colors.
 const (
 	successPrefix = "✓"

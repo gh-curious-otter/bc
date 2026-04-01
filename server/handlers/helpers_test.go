@@ -210,8 +210,8 @@ func TestIsSSERequest(t *testing.T) {
 		want   bool
 	}{
 		{"events endpoint", "/api/events", "", true},
-		{"mcp sse", "/mcp/sse", "", true},
-		{"mcp message", "/mcp/message", "", true},
+		{"mcp sse", "/_mcp/sse", "", true},
+		{"mcp message", "/_mcp/message", "", true},
 		{"agent output", "/api/agents/alice/output", "", true},
 		{"accept event-stream", "/api/anything", "text/event-stream", true},
 		{"normal API", "/api/agents", "", false},

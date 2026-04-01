@@ -1513,7 +1513,9 @@ func TestToolHandler_MethodNotAllowed(t *testing.T) {
 	ts := buildTestServerWithServices(t, server.Services{Tools: store})
 	defer ts.Close()
 
-	resp := post(t, ts.URL+"/api/tools", "application/json", `{}`)
+	// POST is now valid (creates tools), test PATCH instead
+	req, _ := http.NewRequest(http.MethodPatch, ts.URL+"/api/tools", nil)
+	resp, _ := http.DefaultClient.Do(req)
 	assertStatus(t, resp, http.StatusMethodNotAllowed)
 	_ = resp.Body.Close()
 }
@@ -1609,8 +1611,8 @@ func TestToolHandler_ToolMethodNotAllowed(t *testing.T) {
 
 func TestEventHandler_ListEmpty(t *testing.T) {
 	dir := setupWorkspace(t)
-	logPath := filepath.Join(dir, ".bc", "events.log")
-	store := events.NewLog(logPath)
+	logPath := filepath.Join(dir, ".bc", "events.db")
+	store, _ := events.NewSQLiteLog(logPath)
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1627,8 +1629,8 @@ func TestEventHandler_ListEmpty(t *testing.T) {
 
 func TestEventHandler_AppendAndList(t *testing.T) {
 	dir := setupWorkspace(t)
-	logPath := filepath.Join(dir, ".bc", "events.log")
-	store := events.NewLog(logPath)
+	logPath := filepath.Join(dir, ".bc", "events.db")
+	store, _ := events.NewSQLiteLog(logPath)
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1656,8 +1658,8 @@ func TestEventHandler_AppendAndList(t *testing.T) {
 
 func TestEventHandler_ByAgent(t *testing.T) {
 	dir := setupWorkspace(t)
-	logPath := filepath.Join(dir, ".bc", "events.log")
-	store := events.NewLog(logPath)
+	logPath := filepath.Join(dir, ".bc", "events.db")
+	store, _ := events.NewSQLiteLog(logPath)
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1684,8 +1686,8 @@ func TestEventHandler_ByAgent(t *testing.T) {
 
 func TestEventHandler_MethodNotAllowed(t *testing.T) {
 	dir := setupWorkspace(t)
-	logPath := filepath.Join(dir, ".bc", "events.log")
-	store := events.NewLog(logPath)
+	logPath := filepath.Join(dir, ".bc", "events.db")
+	store, _ := events.NewSQLiteLog(logPath)
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1698,8 +1700,8 @@ func TestEventHandler_MethodNotAllowed(t *testing.T) {
 
 func TestEventHandler_AppendInvalidBody(t *testing.T) {
 	dir := setupWorkspace(t)
-	logPath := filepath.Join(dir, ".bc", "events.log")
-	store := events.NewLog(logPath)
+	logPath := filepath.Join(dir, ".bc", "events.db")
+	store, _ := events.NewSQLiteLog(logPath)
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1712,8 +1714,8 @@ func TestEventHandler_AppendInvalidBody(t *testing.T) {
 
 func TestEventHandler_EmptyAgentName(t *testing.T) {
 	dir := setupWorkspace(t)
-	logPath := filepath.Join(dir, ".bc", "events.log")
-	store := events.NewLog(logPath)
+	logPath := filepath.Join(dir, ".bc", "events.db")
+	store, _ := events.NewSQLiteLog(logPath)
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1726,8 +1728,8 @@ func TestEventHandler_EmptyAgentName(t *testing.T) {
 
 func TestEventHandler_ByAgentMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspace(t)
-	logPath := filepath.Join(dir, ".bc", "events.log")
-	store := events.NewLog(logPath)
+	logPath := filepath.Join(dir, ".bc", "events.db")
+	store, _ := events.NewSQLiteLog(logPath)
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})

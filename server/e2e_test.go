@@ -501,7 +501,7 @@ func TestE2E_MCP_SSE_ContentType(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	req, _ := http.NewRequestWithContext(ctx, "GET", s.URL+"/mcp/sse", nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", s.URL+"/_mcp/sse", nil)
 	req.Header.Set("Accept", "text/event-stream")
 
 	resp, err := http.DefaultClient.Do(req)

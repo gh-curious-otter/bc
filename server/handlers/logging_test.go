@@ -49,7 +49,7 @@ func TestRequestLoggerMiddleware(t *testing.T) {
 
 	t.Run("MCP sse path is skipped", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodGet, "/mcp/sse", nil)
+		r := httptest.NewRequest(http.MethodGet, "/_mcp/sse", nil)
 		handler.ServeHTTP(w, r)
 		if w.Code != http.StatusOK {
 			t.Errorf("expected 200, got %d", w.Code)
