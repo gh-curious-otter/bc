@@ -26,9 +26,13 @@ func (p *PostgresStore) InitSchema() error {
 
 	stmt := `CREATE TABLE IF NOT EXISTS tools (
 		name        TEXT PRIMARY KEY,
+		type        TEXT NOT NULL DEFAULT 'cli',
 		command     TEXT NOT NULL,
 		install_cmd TEXT,
 		upgrade_cmd TEXT,
+		version_cmd TEXT,
+		transport   TEXT,
+		url         TEXT,
 		slash_cmds  TEXT,
 		mcp_servers TEXT,
 		config      TEXT,
@@ -40,6 +44,20 @@ func (p *PostgresStore) InitSchema() error {
 	if _, err := p.db.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("postgres tools schema: %w", err)
 	}
+
+	// Migrate: add columns that may be missing on older schemas.
+	migrations := []string{
+		`ALTER TABLE tools ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'cli'`,
+		`ALTER TABLE tools ADD COLUMN IF NOT EXISTS version_cmd TEXT`,
+		`ALTER TABLE tools ADD COLUMN IF NOT EXISTS transport TEXT`,
+		`ALTER TABLE tools ADD COLUMN IF NOT EXISTS url TEXT`,
+	}
+	for _, m := range migrations {
+		if _, err := p.db.ExecContext(ctx, m); err != nil {
+			log.Debug("tool schema migration (may already exist): %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -128,18 +146,19 @@ func (p *PostgresStore) Add(ctx context.Context, t *Tool) error {
 // Get returns a tool by name. Returns nil, nil if not found.
 func (p *PostgresStore) Get(ctx context.Context, name string) (*Tool, error) {
 	row := p.db.QueryRowContext(ctx,
-		`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
+		`SELECT name, type, command, install_cmd, upgrade_cmd, version_cmd, transport, url, slash_cmds, mcp_servers, config, builtin, enabled, created_at
 		 FROM tools WHERE name = $1`, name)
 	return pgScanTool(row)
 }
 
 func pgScanTool(row *sql.Row) (*Tool, error) {
 	var t Tool
-	var installCmd, upgradeCmd, slashCmds, mcpServers, config sql.NullString
+	var toolType, installCmd, upgradeCmd, versionCmd, transport, url, slashCmds, mcpServers, config sql.NullString
 	var createdAt time.Time
 	if err := row.Scan(
-		&t.Name, &t.Command,
-		&installCmd, &upgradeCmd,
+		&t.Name, &toolType, &t.Command,
+		&installCmd, &upgradeCmd, &versionCmd,
+		&transport, &url,
 		&slashCmds, &mcpServers, &config,
 		&t.Builtin, &t.Enabled, &createdAt,
 	); err != nil {
@@ -149,8 +168,12 @@ func pgScanTool(row *sql.Row) (*Tool, error) {
 		return nil, err
 	}
 	t.CreatedAt = createdAt
+	t.Type = toolType.String
 	t.InstallCmd = installCmd.String
 	t.UpgradeCmd = upgradeCmd.String
+	t.VersionCmd = versionCmd.String
+	t.Transport = transport.String
+	t.URL = url.String
 	t.SlashCmds = unmarshalStrings(slashCmds.String)
 	t.MCPServers = unmarshalStrings(mcpServers.String)
 	t.Config = unmarshalMap(config.String)
@@ -160,7 +183,7 @@ func pgScanTool(row *sql.Row) (*Tool, error) {
 // List returns all tools.
 func (p *PostgresStore) List(ctx context.Context) ([]*Tool, error) {
 	rows, err := p.db.QueryContext(ctx,
-		`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
+		`SELECT name, type, command, install_cmd, upgrade_cmd, version_cmd, transport, url, slash_cmds, mcp_servers, config, builtin, enabled, created_at
 		 FROM tools ORDER BY builtin DESC, name ASC`)
 	if err != nil {
 		return nil, err
@@ -170,19 +193,24 @@ func (p *PostgresStore) List(ctx context.Context) ([]*Tool, error) {
 	var tools []*Tool
 	for rows.Next() {
 		var t Tool
-		var installCmd, upgradeCmd, slashCmds, mcpServers, config sql.NullString
+		var toolType, installCmd, upgradeCmd, versionCmd, transport, url, slashCmds, mcpServers, config sql.NullString
 		var createdAt time.Time
 		if scanErr := rows.Scan(
-			&t.Name, &t.Command,
-			&installCmd, &upgradeCmd,
+			&t.Name, &toolType, &t.Command,
+			&installCmd, &upgradeCmd, &versionCmd,
+			&transport, &url,
 			&slashCmds, &mcpServers, &config,
 			&t.Builtin, &t.Enabled, &createdAt,
 		); scanErr != nil {
 			return nil, scanErr
 		}
 		t.CreatedAt = createdAt
+		t.Type = toolType.String
 		t.InstallCmd = installCmd.String
 		t.UpgradeCmd = upgradeCmd.String
+		t.VersionCmd = versionCmd.String
+		t.Transport = transport.String
+		t.URL = url.String
 		t.SlashCmds = unmarshalStrings(slashCmds.String)
 		t.MCPServers = unmarshalStrings(mcpServers.String)
 		t.Config = unmarshalMap(config.String)
@@ -211,9 +239,10 @@ func (p *PostgresStore) Update(ctx context.Context, t *Tool) error {
 		enabledInt = 1
 	}
 	res, err := p.db.ExecContext(ctx,
-		`UPDATE tools SET command=$1, install_cmd=$2, upgrade_cmd=$3, slash_cmds=$4, mcp_servers=$5, config=$6, enabled=$7
-		 WHERE name=$8`,
-		t.Command, t.InstallCmd, t.UpgradeCmd,
+		`UPDATE tools SET type=$1, command=$2, install_cmd=$3, upgrade_cmd=$4, version_cmd=$5, transport=$6, url=$7, slash_cmds=$8, mcp_servers=$9, config=$10, enabled=$11
+		 WHERE name=$12`,
+		string(t.Type), t.Command, t.InstallCmd, t.UpgradeCmd, t.VersionCmd,
+		t.Transport, t.URL,
 		slashCmds, mcpServers, config, enabledInt,
 		t.Name,
 	)

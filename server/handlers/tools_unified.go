@@ -13,15 +13,17 @@ import (
 
 // UnifiedTool represents a tool (MCP or CLI) with its status.
 type UnifiedTool struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`      // "mcp" or "cli"
-	Status    string `json:"status"`    // "connected", "installed", "not_installed", "error", "unknown"
-	Transport string `json:"transport,omitempty"` // for MCP: "sse" or "stdio"
-	Command   string `json:"command,omitempty"`   // for CLI or stdio MCP
-	URL       string `json:"url,omitempty"`       // for SSE MCP
-	Version   string `json:"version,omitempty"`   // for CLI tools
-	Error     string `json:"error,omitempty"`     // if status is "error"
-	Required  bool   `json:"required"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`                  // "mcp" or "cli"
+	Status     string `json:"status"`                // "connected", "installed", "not_installed", "error", "unknown"
+	Transport  string `json:"transport,omitempty"`    // for MCP: "sse" or "stdio"
+	Command    string `json:"command,omitempty"`      // for CLI or stdio MCP
+	URL        string `json:"url,omitempty"`          // for SSE MCP
+	Version    string `json:"version,omitempty"`      // for CLI tools
+	Error      string `json:"error,omitempty"`        // if status is "error"
+	Required   bool   `json:"required"`
+	InstallCmd string `json:"install_cmd,omitempty"`  // install command
+	UpgradeCmd string `json:"upgrade_cmd,omitempty"`  // upgrade command
 }
 
 // UnifiedToolsHandler handles the merged /api/tools endpoint.
@@ -116,18 +118,41 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			for _, t := range builtins {
 				if t.Builtin {
+					toolType := "cli"
+					if t.Type != "" {
+						toolType = t.Type
+					}
 					status := "installed"
-					if path, lookErr := exec.LookPath(t.Command); lookErr == nil {
-						_ = path
-					} else {
+					if toolType == "mcp" {
+						status = "configured"
+						if !t.Enabled {
+							status = "disabled"
+						}
+					} else if _, lookErr := exec.LookPath(t.Command); lookErr != nil {
 						status = "not_installed"
 					}
-					tools = append(tools, UnifiedTool{
-						Name:    t.Name,
-						Type:    "cli",
-						Command: t.Command,
-						Status:  status,
-					})
+					ut := UnifiedTool{
+						Name:       t.Name,
+						Type:       toolType,
+						Command:    t.Command,
+						Transport:  t.Transport,
+						URL:        t.URL,
+						Status:     status,
+						InstallCmd: t.InstallCmd,
+						UpgradeCmd: t.UpgradeCmd,
+					}
+					// Try to get version for CLI tools
+					if toolType == "cli" && status == "installed" && t.VersionCmd != "" {
+						parts := strings.Fields(t.VersionCmd)
+						if out, verr := exec.Command(parts[0], parts[1:]...).Output(); verr == nil {
+							ver := strings.TrimSpace(string(out))
+							if len(ver) > 80 {
+								ver = ver[:80]
+							}
+							ut.Version = ver
+						}
+					}
+					tools = append(tools, ut)
 				}
 			}
 		}

@@ -304,11 +304,11 @@ export function Workspace() {
               {settings.storage.default === "sqlite" && (
                 <ConfigRow label="SQLite Path" value={settings.storage.sqlite.path} />
               )}
-              {settings.storage.default === "sql" && (
+              {(settings.storage.default === "timescale" || settings.storage.default === "sql") && (
                 <>
-                  <ConfigRow label="Host" value={settings.storage.sql.host} />
-                  <ConfigRow label="Port" value={settings.storage.sql.port} />
-                  <ConfigRow label="Database" value={settings.storage.sql.database} />
+                  <ConfigRow label="Host" value={(settings.storage.timescale ?? settings.storage.sql)?.host ?? ""} />
+                  <ConfigRow label="Port" value={(settings.storage.timescale ?? settings.storage.sql)?.port ?? ""} />
+                  <ConfigRow label="Database" value={(settings.storage.timescale ?? settings.storage.sql)?.database ?? ""} />
                 </>
               )}
               <ConfigRow label="Log Path" value={settings.logs.path} />

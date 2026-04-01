@@ -165,6 +165,8 @@ export interface UnifiedTool {
   version?: string;
   error?: string;
   required?: boolean;
+  install_cmd?: string;
+  upgrade_cmd?: string;
 }
 
 export interface EventLogEntry {
@@ -361,7 +363,8 @@ export interface SettingsConfig {
   storage: {
     default: string;
     sqlite: { path: string };
-    sql: { host: string; port: number; user: string; password: string; database: string };
+    sql?: { host: string; port: number; user: string; password: string; database: string };
+    timescale?: { host: string; port: number; user: string; password: string; database: string };
   };
   logs: { path: string; max_bytes: number };
   ui: { theme: string; mode: string; default_view: string };

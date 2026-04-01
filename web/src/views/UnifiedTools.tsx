@@ -31,9 +31,17 @@ function ToolCard({
   onRemove: () => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
   const cfg = getStatusConfig(tool.status);
   const isMCP = tool.type === "mcp";
   const isDisabled = tool.status === "disabled";
+
+  const copyCmd = (cmd: string, label: string) => {
+    navigator.clipboard.writeText(cmd).then(() => {
+      setCopied(label);
+      setTimeout(() => setCopied(null), 2000);
+    }).catch(() => { /* clipboard not available */ });
+  };
 
   return (
     <div className={`rounded border bg-bc-surface p-4 flex items-start gap-3 ${
@@ -66,11 +74,41 @@ function ToolCard({
         {isMCP && tool.transport && (
           <span className="text-[10px] text-bc-muted ml-2">transport: {tool.transport}</span>
         )}
+        {tool.status === "not_installed" && tool.install_cmd && (
+          <p className="mt-1 text-[10px] text-bc-muted font-mono">
+            install: <span className="text-bc-text">{tool.install_cmd}</span>
+          </p>
+        )}
         {tool.error && (
           <p className="mt-1 text-[10px] text-bc-error">{tool.error}</p>
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {copied && (
+          <span className="text-[10px] text-bc-success animate-pulse">
+            {copied} copied
+          </span>
+        )}
+        {tool.status === "not_installed" && tool.install_cmd && (
+          <button
+            type="button"
+            onClick={() => copyCmd(tool.install_cmd!, "Install cmd")}
+            className="text-xs px-2 py-1 rounded bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors"
+            aria-label={`Install ${tool.name}`}
+          >
+            Install
+          </button>
+        )}
+        {tool.status === "installed" && tool.upgrade_cmd && (
+          <button
+            type="button"
+            onClick={() => copyCmd(tool.upgrade_cmd!, "Update cmd")}
+            className="text-xs px-2 py-1 rounded bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+            aria-label={`Update ${tool.name}`}
+          >
+            Update
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggle}
