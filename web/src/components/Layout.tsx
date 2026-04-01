@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { useTheme } from "../context/ThemeContext";
+import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
 
@@ -22,11 +22,6 @@ const NAV_ITEMS = [
   { to: "/settings", label: "Settings", icon: "\u2699" },
 ] as const;
 
-const THEME_LABELS = {
-  dark: "Dark",
-  light: "Light",
-  system: "System",
-} as const;
 
 function readCollapsed(): boolean {
   try {
