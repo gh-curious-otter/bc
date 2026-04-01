@@ -7,6 +7,7 @@ import (
 
 // CursorProvider implements the Provider interface for Cursor Agent.
 type CursorProvider struct {
+	CursorConfigAdapter
 	name        string
 	description string
 	command     string
