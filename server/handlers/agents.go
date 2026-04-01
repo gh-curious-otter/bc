@@ -78,6 +78,7 @@ type agentDTO struct {
 	Task         string           `json:"task,omitempty"`
 	Team         string           `json:"team,omitempty"`
 	Tool         string           `json:"tool,omitempty"`
+	Runtime      string           `json:"runtime,omitempty"`
 	Session      string           `json:"session,omitempty"`
 	SessionID    string           `json:"session_id,omitempty"`
 	ParentID     string           `json:"parent_id,omitempty"`
@@ -109,6 +110,7 @@ func toDTO(a *agent.Agent) agentDTO {
 		Task:      a.Task,
 		Team:      a.Team,
 		Tool:      a.Tool,
+		Runtime:   a.RuntimeBackend,
 		Session:   a.Session,
 		SessionID: a.SessionID,
 		ParentID:  a.ParentID,
