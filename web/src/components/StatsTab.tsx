@@ -1,250 +1,299 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, BarChart, Bar, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api/client";
-import type { Agent, AgentMetricTS, TokenMetricTS } from "../api/client";
+import type { Agent, AgentStatsSummary, AgentMetricTS, TokenMetricTS } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
+import { calculateCost } from "../views/Stats";
 
-const C = {
-  emerald: "#10b981", blue: "#3b82f6", amber: "#f59e0b", red: "#ef4444",
-  surface: "#1e1a16", border: "#2a2420", text: "#f5f0eb",
+// ── Constants ────────────────────────────────────────────────────────────────────
+
+const COLORS = ["#FF6B35", "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
+const RANGES = [
+  { label: "1h", seconds: 3600 },
+  { label: "6h", seconds: 21600 },
+  { label: "12h", seconds: 43200 },
+  { label: "24h", seconds: 86400 },
+] as const;
+
+const TT: React.CSSProperties = {
+  backgroundColor: "var(--color-bc-surface)", border: "1px solid var(--color-bc-border)",
+  borderRadius: "6px", color: "var(--color-bc-text)", fontSize: "12px",
 };
-const TT: React.CSSProperties = { backgroundColor: C.surface, border: `1px solid ${C.border}`, borderRadius: "6px", color: C.text, fontSize: "12px" };
-const fmtTime = (iso: string) => { try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return iso; } };
+const AX = { axisLine: false as const, tickLine: false as const };
+const TICK = { fill: "var(--color-bc-muted)", fontSize: 10 };
 
-function formatUptime(startedAt?: string): string {
-  if (!startedAt) return "\u2014";
-  const start = new Date(startedAt);
-  if (isNaN(start.getTime())) return "\u2014";
-  const diffMs = Date.now() - start.getTime();
-  if (diffMs < 0) return "\u2014";
-  const seconds = Math.floor(diffMs / 1000);
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days}d`);
-  if (hours > 0) parts.push(`${hours}h`);
-  parts.push(`${minutes}m`);
-  return parts.join(" ");
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────────
 
-function pctColor(p: number): string {
-  if (p >= 80) return "bg-bc-error";
-  if (p >= 60) return "bg-bc-warning";
-  return "bg-bc-success";
-}
-
-function ProgressBar({ label, value, detail }: { label: string; value: number; detail?: string }) {
-  const clamped = Math.min(100, Math.max(0, value));
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <span className="text-bc-muted">{label}</span>
-        <span>{clamped.toFixed(1)}%{detail ? ` (${detail})` : ""}</span>
-      </div>
-      <div className="h-2 rounded-full bg-bc-border overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-300 ${pctColor(clamped)}`}
-          style={{ width: `${clamped}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function Chart({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded border border-bc-border bg-bc-surface p-4">
-      <p className="text-xs text-bc-muted uppercase tracking-wide mb-4">{title}</p>
-      {children}
-    </div>
-  );
-}
-
-function fmtBytes(b: number): string {
+const fmtTime = (iso: string) => {
+  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  catch { return iso; }
+};
+const fmtBytes = (b: number) => {
   if (!b) return "0 B";
   const u = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(b) / Math.log(1024));
   return `${(b / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
+};
+const fmtMB = (b: number) => (b / 1024 / 1024).toFixed(1);
+const fmtTokens = (n: number) => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+};
+const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
+const fromParam = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
+
+// ── Primitives ───────────────────────────────────────────────────────────────────
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded border border-bc-border bg-bc-surface overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-bc-border bg-bc-bg/50">
+        <span className="text-[11px] font-medium text-bc-muted uppercase tracking-wider">{title}</span>
+      </div>
+      <div className="p-3">{children}</div>
+    </div>
+  );
 }
 
+function Empty({ msg = "No data yet" }: { msg?: string }) {
+  return <div className="flex items-center justify-center h-[200px] text-sm text-bc-muted">{msg}</div>;
+}
+
+function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
+  return (
+    <div className="rounded border border-bc-border bg-bc-surface p-3">
+      <p className="text-[11px] text-bc-muted uppercase tracking-wider">{label}</p>
+      <p className={`mt-1 text-xl font-bold ${accent ? "text-[#FF6B35]" : ""}`}>{value}</p>
+      {sub && <p className="text-[10px] text-bc-muted">{sub}</p>}
+    </div>
+  );
+}
+
+// ── Data types ───────────────────────────────────────────────────────────────────
+
+interface TabData {
+  summary: AgentStatsSummary | null;
+  cpu: AgentMetricTS[];
+  mem: AgentMetricTS[];
+  net: AgentMetricTS[];
+  tokens: TokenMetricTS[];
+}
+
+// ── Component ────────────────────────────────────────────────────────────────────
+
 export function StatsTab({ agent }: { agent: Agent }) {
-  const [cpuData, setCpuData] = useState<AgentMetricTS[]>([]);
-  const [tokenData, setTokenData] = useState<TokenMetricTS[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [range, setRange] = useState(0);
+  const from = useMemo(() => fromParam(RANGES[range]?.seconds ?? 3600), [range]);
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const now = new Date();
-      const from = new Date(now.getTime() - 60 * 60 * 1000); // last hour
-      const params = {
-        from: from.toISOString(),
-        to: now.toISOString(),
-        interval: "1m",
-        agent: agent.name,
-      };
-      const [cpu, tokens] = await Promise.allSettled([
-        api.getAgentStats("cpu", params),
-        api.getAgentTokenStats({ ...params }),
-      ]);
-      if (cpu.status === "fulfilled") setCpuData(cpu.value);
-      if (tokens.status === "fulfilled") setTokenData(tokens.value);
-      setError(null);
-    } catch {
-      setError("Failed to load stats");
-    } finally {
-      setLoading(false);
+  const fetcher = useCallback(async (): Promise<TabData> => {
+    const p = { from, agent: agent.name };
+    const [r0, r1, r2, r3, r4] = await Promise.allSettled([
+      api.getAgentStatsSummary(agent.name, { from }),
+      api.getAgentStats("cpu", p),
+      api.getAgentStats("mem", p),
+      api.getAgentStats("net", p),
+      api.getAgentTokenStats(p),
+    ]);
+    return {
+      summary: r0.status === "fulfilled" ? r0.value : null,
+      cpu: r1.status === "fulfilled" ? (r1.value ?? []) : [],
+      mem: r2.status === "fulfilled" ? (r2.value ?? []) : [],
+      net: r3.status === "fulfilled" ? (r3.value ?? []) : [],
+      tokens: r4.status === "fulfilled" ? (r4.value ?? []) : [],
+    };
+  }, [agent.name, from]);
+
+  const { data, loading } = usePolling(fetcher, 10000);
+  const s = data?.summary;
+
+  // ── Derived chart data ───────────────────────────────────────────────────────
+
+  const cpuChart = useMemo(() =>
+    (data?.cpu ?? []).map(m => ({ time: fmtTime(m.time), cpu: parseFloat(m.cpu_percent.toFixed(2)) })),
+    [data?.cpu],
+  );
+
+  const memChart = useMemo(() =>
+    (data?.mem ?? []).map(m => ({ time: fmtTime(m.time), mem: parseFloat(fmtMB(m.mem_used_bytes)) })),
+    [data?.mem],
+  );
+
+  const netChart = useMemo(() =>
+    (data?.net ?? []).map(m => ({ time: fmtTime(m.time), rx: m.net_rx_bytes, tx: m.net_tx_bytes })),
+    [data?.net],
+  );
+
+  const tokenChart = useMemo(() => {
+    const buckets = new Map<string, { time: string; input: number; output: number }>();
+    for (const t of data?.tokens ?? []) {
+      const k = fmtTime(t.time);
+      const b = buckets.get(k) ?? { time: k, input: 0, output: 0 };
+      b.input += t.input_tokens;
+      b.output += t.output_tokens;
+      buckets.set(k, b);
     }
-  }, [agent.name]);
+    return Array.from(buckets.values());
+  }, [data?.tokens]);
 
-  useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
-  }, [fetchStats]);
+  const costBarData = useMemo(() =>
+    (s?.cost_by_model ?? [])
+      .map(m => ({
+        name: trunc(m.model || "unknown", 24),
+        cost: parseFloat(calculateCost(m.model, m.input_tokens, m.output_tokens).toFixed(4)),
+      }))
+      .filter(d => d.cost > 0)
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, 8),
+    [s?.cost_by_model],
+  );
 
-  // Derive latest values
-  const latest = cpuData.length > 0 ? cpuData[cpuData.length - 1] : null;
-  const cpuPct = latest?.cpu_percent ?? 0;
-  const memPct = latest?.mem_percent ?? 0;
-  const memDetail = latest ? `${fmtBytes(latest.mem_used_bytes)} / ${fmtBytes(latest.mem_limit_bytes)}` : undefined;
+  // ── Summary values ─────────────────────────────────────────────────────────
 
-  // Token totals
-  const totalInput = tokenData.reduce((sum, t) => sum + t.input_tokens, 0);
-  const totalOutput = tokenData.reduce((sum, t) => sum + t.output_tokens, 0);
+  const cpuAvg = s?.cpu_avg ?? 0;
+  const cpuMax = s?.cpu_max ?? 0;
+  const memAvgMB = s ? parseFloat(fmtMB(s.mem_avg_bytes)) : 0;
+  const memMaxMB = s ? parseFloat(fmtMB(s.mem_max_bytes)) : 0;
+  const totalIn = s?.input_tokens ?? 0;
+  const totalOut = s?.output_tokens ?? 0;
+  const totalCost = s?.total_cost_usd ?? 0;
 
-  // Chart data
-  const cpuChartData = cpuData.map(m => ({
-    time: fmtTime(m.time),
-    cpu: parseFloat(m.cpu_percent.toFixed(2)),
-    mem: parseFloat(m.mem_percent.toFixed(2)),
-  }));
+  // ── Render ─────────────────────────────────────────────────────────────────
 
-  const tokenChartData = tokenData.map(m => ({
-    time: fmtTime(m.time),
-    input: m.input_tokens,
-    output: m.output_tokens,
-  }));
+  if (loading && !data) {
+    return <div className="p-4 text-sm text-bc-muted">Loading stats for {agent.name}...</div>;
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Current Resource Usage */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-          Resource Usage
-        </h2>
-        <div className="rounded border border-bc-border bg-bc-surface p-4">
-          {loading ? (
-            <p className="text-sm text-bc-muted">Loading resource metrics...</p>
-          ) : error ? (
-            <p className="text-sm text-bc-muted italic">
-              Stats collection unavailable — ensure TimescaleDB is running
-            </p>
-          ) : !latest ? (
-            <p className="text-sm text-bc-muted italic">
-              No resource samples collected yet — data appears after ~30s
-            </p>
-          ) : (
-            <div className="space-y-4">
-              <ProgressBar label="CPU" value={cpuPct} />
-              <ProgressBar label="Memory" value={memPct} detail={memDetail} />
-              <div className="grid grid-cols-2 gap-2 text-xs text-bc-muted pt-2 border-t border-bc-border/30">
-                <span>Net RX: {fmtBytes(latest.net_rx_bytes)}</span>
-                <span>Net TX: {fmtBytes(latest.net_tx_bytes)}</span>
-                <span>Disk Read: {fmtBytes(latest.disk_read_bytes)}</span>
-                <span>Disk Write: {fmtBytes(latest.disk_write_bytes)}</span>
+    <div className="space-y-4">
+      {/* Time range selector */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-bc-muted">{agent.name} <span className="text-bc-muted/60">({agent.role})</span></span>
+        <div className="flex gap-1">
+          {RANGES.map((r, i) => (
+            <button key={r.label} type="button" onClick={() => setRange(i)}
+              className={`px-2.5 py-1 text-xs rounded border transition-colors ${
+                i === range
+                  ? "border-bc-accent bg-bc-accent/10 text-bc-accent"
+                  : "border-bc-border text-bc-muted hover:text-bc-text hover:border-bc-muted"
+              }`}
+            >{r.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Row 1: Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="CPU" value={`${cpuAvg.toFixed(1)}%`} sub={`max ${cpuMax.toFixed(1)}%`} />
+        <StatCard label="Memory" value={`${memAvgMB} MB`} sub={`max ${memMaxMB} MB`} />
+        <StatCard label="Tokens" value={fmtTokens(totalIn + totalOut)} sub={`In: ${fmtTokens(totalIn)} / Out: ${fmtTokens(totalOut)}`} />
+        <StatCard label="Cost" value={`$${totalCost.toFixed(2)}`} accent />
+      </div>
+
+      {/* Row 2: CPU + Memory charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Panel title="CPU (%)">
+          {cpuChart.length < 2 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={cpuChart} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK} {...AX} />
+                <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => `${v}%`} />
+                <Tooltip contentStyle={TT} />
+                <Area type="monotone" dataKey="cpu" name="CPU %" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Memory (MB)">
+          {memChart.length < 2 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={memChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK} {...AX} />
+                <YAxis tick={TICK} {...AX} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
+                <Area type="monotone" dataKey="mem" name="Memory MB" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+      </div>
+
+      {/* Row 3: Network I/O + Token Usage */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Panel title="Network I/O">
+          {netChart.length < 2 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK} {...AX} />
+                <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
+                <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
+                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="tx" name="TX" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Token Usage">
+          {tokenChart.length < 2 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK} {...AX} />
+                <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
+                <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
+                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+                <Area type="monotone" dataKey="output" name="Output" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+      </div>
+
+      {/* Row 4: Cost by Model + Tool Usage */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Panel title="Cost by Model">
+          {costBarData.length === 0 ? <Empty msg="No cost data" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart layout="vertical" data={costBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
+                <XAxis type="number" tick={TICK} {...AX} tickFormatter={(v: number) => `$${v}`} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={120} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
+                <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
+                  {costBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="I/O Summary">
+          {!s ? <Empty /> : (
+            <div className="grid grid-cols-2 gap-3 py-4">
+              <div className="text-center">
+                <p className="text-[11px] text-bc-muted uppercase">Net RX</p>
+                <p className="text-lg font-bold text-[#10B981]">{fmtBytes(s.net_rx_bytes)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[11px] text-bc-muted uppercase">Net TX</p>
+                <p className="text-lg font-bold text-[#FF6B35]">{fmtBytes(s.net_tx_bytes)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[11px] text-bc-muted uppercase">Disk Read</p>
+                <p className="text-lg font-bold text-[#3B82F6]">{fmtBytes(s.disk_read_bytes)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[11px] text-bc-muted uppercase">Disk Write</p>
+                <p className="text-lg font-bold text-[#A855F7]">{fmtBytes(s.disk_write_bytes)}</p>
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* CPU/Memory Chart */}
-      {cpuChartData.length > 1 && (
-        <Chart title="CPU & Memory (last hour)">
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={cpuChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="time" tick={{ fill: C.text, fontSize: 10 }} />
-              <YAxis tick={{ fill: C.text, fontSize: 10 }} domain={[0, 100]} unit="%" />
-              <Tooltip contentStyle={TT} />
-              <Area type="monotone" dataKey="cpu" name="CPU %" stroke={C.emerald} fill={C.emerald} fillOpacity={0.2} />
-              <Area type="monotone" dataKey="mem" name="Mem %" stroke={C.blue} fill={C.blue} fillOpacity={0.2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Chart>
-      )}
-
-      {/* Token Usage */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-          Token Usage
-        </h2>
-        <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-2">
-          <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Total Tokens</span>
-            <span className="text-sm font-medium">
-              {agent.total_tokens != null && agent.total_tokens > 0
-                ? agent.total_tokens.toLocaleString()
-                : "\u2014"}
-            </span>
-          </div>
-          <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Input Tokens</span>
-            <span className="text-sm">
-              {totalInput > 0 ? totalInput.toLocaleString() : "\u2014"}
-            </span>
-          </div>
-          <div className="flex items-start gap-2 py-1.5">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Output Tokens</span>
-            <span className="text-sm">
-              {totalOutput > 0 ? totalOutput.toLocaleString() : "\u2014"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Token Chart */}
-      {tokenChartData.length > 1 && (
-        <Chart title="Token Usage (last hour)">
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={tokenChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="time" tick={{ fill: C.text, fontSize: 10 }} />
-              <YAxis tick={{ fill: C.text, fontSize: 10 }} />
-              <Tooltip contentStyle={TT} />
-              <Area type="monotone" dataKey="input" name="Input" stroke={C.emerald} fill={C.emerald} fillOpacity={0.2} />
-              <Area type="monotone" dataKey="output" name="Output" stroke={C.amber} fill={C.amber} fillOpacity={0.2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Chart>
-      )}
-
-      {/* Session Info */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-          Session Info
-        </h2>
-        <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-2">
-          <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Uptime</span>
-            <span className="text-sm">{formatUptime(agent.started_at)}</span>
-          </div>
-          <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Session ID</span>
-            <span className="text-sm font-mono break-all">{agent.session_id || "\u2014"}</span>
-          </div>
-          <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Runtime</span>
-            <span className="text-sm">{latest?.runtime || "tmux"}</span>
-          </div>
-          <div className="flex items-start gap-2 py-1.5">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Tool</span>
-            <span className="text-sm">{agent.tool || "\u2014"}</span>
-          </div>
-        </div>
+        </Panel>
       </div>
     </div>
   );
