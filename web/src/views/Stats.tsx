@@ -1,13 +1,13 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  AreaChart, Area, BarChart, Bar, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api/client";
 import type {
   SystemStats, StatsSummary, CostSummary, ModelCostSummary, AgentCostSummary,
-  AgentStatsSummary,
-  SystemMetricTS, AgentMetricTS, TokenMetricTS, ChannelMetricTS,
+  AgentMetricTS, TokenMetricTS,
 } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
@@ -22,27 +22,79 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   "claude-haiku-4-5-20251001": { input: 0.80, output: 4 },
   "claude-3-5-sonnet-20241022": { input: 3, output: 15 },
   "claude-3-5-haiku-20241022": { input: 0.80, output: 4 },
-  // Fallback for unknown models
 };
 
 export function calculateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const pricing = MODEL_PRICING[model] ?? { input: 3, output: 15 }; // default to sonnet pricing
+  const pricing = MODEL_PRICING[model] ?? { input: 3, output: 15 };
   return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output;
 }
 
-// ── Theme ──────────────────────────────────────────────────────────────────────
+// ── Constants ───────────────────────────────────────────────────────────────────
 
-const C = {
-  bg: "#1a1714", surface: "#1e1a16", border: "#2a2420", muted: "#8c7e72", text: "#f5f0eb",
-  emerald: "#10b981", blue: "#3b82f6", amber: "#f59e0b", purple: "#a855f7",
-  orange: "#ea580c", cyan: "#06b6d4", pink: "#ec4899", lime: "#84cc16", red: "#ef4444",
+const COLORS = ["#FF6B35", "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
+const RANGES = [
+  { label: "1h", seconds: 3600 },
+  { label: "6h", seconds: 21600 },
+  { label: "12h", seconds: 43200 },
+  { label: "24h", seconds: 86400 },
+  { label: "7d", seconds: 604800 },
+] as const;
+
+const INFRA = ["bc-db", "bc-daemon", "bc-playwright"];
+const isInfra = (n: string) => INFRA.some(p => n === p || n.startsWith(p + "-")) || n.length <= 3;
+
+const TT: React.CSSProperties = {
+  backgroundColor: "var(--color-bc-surface)", border: "1px solid var(--color-bc-border)",
+  borderRadius: "6px", color: "var(--color-bc-text)", fontSize: "12px",
 };
+const AX = { axisLine: false as const, tickLine: false as const };
+const TICK_STYLE = { fill: "var(--color-bc-muted)", fontSize: 10 };
 
-const PIE_COLORS = [C.emerald, C.blue, C.amber, C.purple, C.orange, C.cyan, C.pink, C.lime];
-const TT: React.CSSProperties = { backgroundColor: C.surface, border: `1px solid ${C.border}`, borderRadius: "6px", color: C.text, fontSize: "12px" };
-const TICK = { axisLine: false as const, tickLine: false as const };
+// ── Helpers ─────────────────────────────────────────────────────────────────────
 
-// ── Data ───────────────────────────────────────────────────────────────────────
+const fmtTime = (iso: string) => {
+  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  catch { return iso; }
+};
+const fmtBytes = (b: number) => {
+  if (!b) return "0 B";
+  const u = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(b) / Math.log(1024));
+  return `${(b / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
+};
+const fmtUptime = (s: number) => {
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  return [d && `${d}d`, h && `${h}h`, `${m}m`].filter(Boolean).join(" ");
+};
+const fmtTokens = (n: number) => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+};
+const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
+
+function fromParam(seconds: number): string {
+  return new Date(Date.now() - seconds * 1000).toISOString();
+}
+
+// ── Primitives ──────────────────────────────────────────────────────────────────
+
+function Panel({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded border border-bc-border bg-bc-surface overflow-hidden ${className ?? ""}`}>
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-bc-border bg-bc-bg/50">
+        <span className="text-[11px] font-medium text-bc-muted uppercase tracking-wider">{title}</span>
+      </div>
+      <div className="p-3">{children}</div>
+    </div>
+  );
+}
+
+function Empty({ msg = "No data yet" }: { msg?: string }) {
+  return <div className="flex items-center justify-center h-[200px] text-sm text-bc-muted">{msg}</div>;
+}
+
+// ── Data ────────────────────────────────────────────────────────────────────────
 
 interface StatsData {
   system: SystemStats | null;
@@ -50,662 +102,351 @@ interface StatsData {
   costSummary: CostSummary | null;
   costByModel: ModelCostSummary[];
   costByAgent: AgentCostSummary[];
-  systemMetrics: SystemMetricTS[];
-  agentMetrics: AgentMetricTS[];
+  agentCpu: AgentMetricTS[];
+  agentMem: AgentMetricTS[];
+  agentNet: AgentMetricTS[];
+  agentDisk: AgentMetricTS[];
   tokenMetrics: TokenMetricTS[];
-  channelMetrics: ChannelMetricTS[];
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+type SortKey = "name" | "role" | "state" | "cpu" | "mem" | "tokens" | "cost";
 
-const fmtTime = (iso: string) => { try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return iso; } };
-const fmtBytes = (b: number) => { if (!b) return "0 B"; const u = ["B","KB","MB","GB","TB"]; const i = Math.floor(Math.log(b)/Math.log(1024)); return `${(b/Math.pow(1024,i)).toFixed(1)} ${u[i]}`; };
-const fmtUptime = (s: number) => { const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60); return [d&&`${d}d`,h&&`${h}h`,`${m}m`].filter(Boolean).join(" "); };
-const pctColor = (p: number) => p >= 80 ? C.red : p >= 60 ? C.amber : C.emerald;
-const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
-
-// ── Primitives ─────────────────────────────────────────────────────────────────
-
-function Stat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
-  return (
-    <div className="rounded border border-bc-border bg-bc-surface p-4">
-      <p className="text-xs text-bc-muted uppercase tracking-wide">{label}</p>
-      <p className="mt-1 text-2xl font-bold truncate" style={accent ? { color: accent } : undefined}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-bc-muted truncate" title={sub}>{sub}</p>}
-    </div>
-  );
-}
-
-function Chart({ title, children, wide }: { title: string; children: React.ReactNode; wide?: boolean }) {
-  return (
-    <div className={`rounded border border-bc-border bg-bc-surface p-4 ${wide ? "md:col-span-2" : ""}`}>
-      <p className="text-xs text-bc-muted uppercase tracking-wide mb-4">{title}</p>
-      {children}
-    </div>
-  );
-}
-
-function Empty({ msg = "No data yet" }: { msg?: string }) {
-  return <div className="flex items-center justify-center h-32 text-sm text-bc-muted">{msg}</div>;
-}
-
-// ── System Charts ──────────────────────────────────────────────────────────────
-
-function SystemCharts({ metrics, system }: { metrics: SystemMetricTS[]; system: SystemStats | null }) {
-  // Group by system_name for multi-line charts
-  const names = [...new Set(metrics.map(m => m.system_name))];
-  const colors: Record<string, string> = {};
-  names.forEach((n, i) => { colors[n] = PIE_COLORS[i % PIE_COLORS.length]!; });
-
-  // Pivot data for recharts: { time, "bc-sql_cpu": 0.5, "bc-stats_cpu": 0.7, ... }
-  type Pt = Record<string, string | number>;
-  const buckets = new Map<string, Pt>();
-  for (const m of metrics) {
-    const t = fmtTime(m.time);
-    const b = buckets.get(t) ?? { time: t };
-    b[`${m.system_name}_cpu`] = parseFloat(m.cpu_percent.toFixed(2));
-    b[`${m.system_name}_mem`] = parseFloat((m.mem_used_bytes / 1024 / 1024).toFixed(1));
-    b[`${m.system_name}_netrx`] = parseFloat((m.net_rx_bytes / 1024).toFixed(1));
-    b[`${m.system_name}_nettx`] = parseFloat((m.net_tx_bytes / 1024).toFixed(1));
-    buckets.set(t, b);
-  }
-  const data = Array.from(buckets.values());
-
-  if (data.length === 0 && !system) return null;
-
-  return (
-    <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">System Resources</h2>
-
-      {/* Current snapshot cards */}
-      {system && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <Stat label="CPU" value={`${system.cpu_usage_percent.toFixed(1)}%`} sub={`${system.cpus} cores`} accent={pctColor(system.cpu_usage_percent)} />
-          <Stat label="Memory" value={`${system.memory_usage_percent.toFixed(1)}%`} sub={`${fmtBytes(system.memory_used_bytes)} / ${fmtBytes(system.memory_total_bytes)}`} accent={pctColor(system.memory_usage_percent)} />
-          <Stat label="Disk" value={`${system.disk_usage_percent.toFixed(1)}%`} sub={`${fmtBytes(system.disk_used_bytes)} / ${fmtBytes(system.disk_total_bytes)}`} accent={pctColor(system.disk_usage_percent)} />
-          <Stat label="Goroutines" value={String(system.goroutines)} sub={`${system.os}/${system.arch}`} />
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* CPU per container */}
-        <Chart title="CPU by Container (%)">
-          {data.length === 0 ? <Empty /> : (
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
-                <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}%`} />
-                <Tooltip contentStyle={TT} />
-                <Legend wrapperStyle={{ fontSize: "11px" }} />
-                {names.map(n => (
-                  <Area key={n} type="monotone" dataKey={`${n}_cpu`} name={n} stroke={colors[n]} fill={colors[n]} fillOpacity={0.15} strokeWidth={2} dot={false} />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Chart>
-
-        {/* Memory per container */}
-        <Chart title="Memory by Container (MB)">
-          {data.length === 0 ? <Empty /> : (
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={data} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
-                <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}`} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0)} MB`]} />
-                <Legend wrapperStyle={{ fontSize: "11px" }} />
-                {names.map(n => (
-                  <Area key={n} type="monotone" dataKey={`${n}_mem`} name={n} stroke={colors[n]} fill={colors[n]} fillOpacity={0.15} strokeWidth={2} dot={false} />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Chart>
-
-        {/* Network */}
-        <Chart title="Network I/O (KB)" wide>
-          {data.length === 0 ? <Empty /> : (
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={data} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
-                <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0)} KB`]} />
-                <Legend wrapperStyle={{ fontSize: "11px" }} />
-                {names.map(n => (
-                  <Area key={`${n}_rx`} type="monotone" dataKey={`${n}_netrx`} name={`${n} rx`} stroke={colors[n]} fill="none" strokeWidth={2} dot={false} />
-                ))}
-                {names.map(n => (
-                  <Area key={`${n}_tx`} type="monotone" dataKey={`${n}_nettx`} name={`${n} tx`} stroke={colors[n]} fill="none" strokeWidth={1} strokeDasharray="4 2" dot={false} />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Chart>
-      </div>
-    </section>
-  );
-}
-
-// ── Per-Agent Cards ─────────────────────────────────────────────────────────
-
-interface AgentCard {
-  name: string;
-  role: string;
-  state: string;
-  cpu: number;
-  memMB: number;
-  memPct: number;
-  netRx: number;
-  netTx: number;
-  diskRead: number;
-  diskWrite: number;
-  tokens: number;
-  cost: number;
-}
-
-function AgentOverview({
-  metrics,
-  costByAgent,
-  tokenMetrics,
-  selectedAgent,
-  onSelectAgent,
-}: {
-  metrics: AgentMetricTS[];
-  costByAgent: AgentCostSummary[];
-  tokenMetrics: TokenMetricTS[];
-  selectedAgent: string | null;
-  onSelectAgent: (name: string | null) => void;
-}) {
-  // Filter out infrastructure containers — only show actual agents
-  const INFRA_PREFIXES = ["bc-db", "bc-daemon", "bc-playwright"];
-  const isInfra = (name: string) =>
-    INFRA_PREFIXES.some((p) => name === p || name.startsWith(p + "-")) ||
-    name.length <= 3; // filter truncated/garbage entries like "ght"
-
-  // Build per-agent latest metrics
-  const latest = new Map<string, AgentMetricTS>();
-  for (const m of metrics) {
-    if (!isInfra(m.agent_name)) latest.set(m.agent_name, m);
-  }
-
-  // Build cost lookup
-  const costMap = new Map<string, AgentCostSummary>();
-  for (const c of costByAgent) costMap.set(c.agent_id, c);
-
-  // Build token totals per agent
-  const tokenMap = new Map<string, number>();
-  for (const t of tokenMetrics) {
-    tokenMap.set(t.agent_name, (tokenMap.get(t.agent_name) ?? 0) + t.input_tokens + t.output_tokens);
-  }
-
-  const agents: AgentCard[] = Array.from(latest.values())
-    .map((m) => ({
-      name: m.agent_name,
-      role: m.role,
-      state: m.state,
-      cpu: m.cpu_percent,
-      memMB: m.mem_used_bytes / 1024 / 1024,
-      memPct: m.mem_percent,
-      netRx: m.net_rx_bytes,
-      netTx: m.net_tx_bytes,
-      diskRead: m.disk_read_bytes,
-      diskWrite: m.disk_write_bytes,
-      tokens: tokenMap.get(m.agent_name) ?? 0,
-      cost: costMap.get(m.agent_name)?.total_cost_usd ?? 0,
-    }))
-    .sort((a, b) => b.cost - a.cost);
-
-  if (agents.length === 0) return null;
-
-  return (
-    <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
-        Agents ({agents.length})
-      </h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {agents.map((a) => (
-          <button
-            key={a.name}
-            type="button"
-            onClick={() => onSelectAgent(selectedAgent === a.name ? null : a.name)}
-            className={`rounded border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${
-              selectedAgent === a.name
-                ? "border-bc-accent bg-bc-accent/5"
-                : "border-bc-border bg-bc-surface hover:border-bc-muted"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${a.state === "running" ? "bg-bc-success" : "bg-bc-muted"}`} />
-                <span className="text-sm font-medium truncate">{a.name}</span>
-              </div>
-              <span className="text-[10px] text-bc-muted">{a.role}</span>
-            </div>
-            <div className="grid grid-cols-4 gap-2 text-xs">
-              <div>
-                <span className="text-bc-muted block">CPU</span>
-                <span className="font-mono" style={{ color: pctColor(a.cpu) }}>{a.cpu.toFixed(1)}%</span>
-              </div>
-              <div>
-                <span className="text-bc-muted block">Mem</span>
-                <span className="font-mono" style={{ color: pctColor(a.memPct) }}>{a.memMB.toFixed(0)}MB</span>
-              </div>
-              <div>
-                <span className="text-bc-muted block">Tokens</span>
-                <span className="font-mono">{a.tokens >= 1000 ? `${(a.tokens / 1000).toFixed(0)}k` : a.tokens}</span>
-              </div>
-              <div>
-                <span className="text-bc-muted block">Cost</span>
-                <span className="font-mono" style={{ color: C.orange }}>${a.cost.toFixed(2)}</span>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// ── Agent Drill-Down ────────────────────────────────────────────────────────
-
-function AgentDrillDown({
-  agentName,
-  onClose,
-}: {
-  agentName: string;
-  onClose: () => void;
-}) {
-  const [summary, setSummary] = useState<AgentStatsSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    setSummary(null);
-    void (async () => {
-      try {
-        const data = await api.getAgentStatsSummary(agentName);
-        setSummary(data);
-      } catch {
-        // keep null
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [agentName]);
-
-  const modelCostData = (summary?.cost_by_model ?? [])
-    .filter((m) => m.total_cost_usd > 0)
-    .sort((a, b) => b.total_cost_usd - a.total_cost_usd)
-    .map((m, i) => ({
-      name: trunc(m.model || "unknown", 20),
-      cost: parseFloat(m.total_cost_usd.toFixed(4)),
-      color: PIE_COLORS[i % PIE_COLORS.length],
-    }));
-
-  return (
-    <section className="rounded border border-bc-accent bg-bc-surface p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold">{agentName}</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-xs text-bc-muted hover:text-bc-text px-2 py-1 rounded border border-bc-border"
-        >
-          Close
-        </button>
-      </div>
-
-      {loading && <Empty msg="Loading agent stats..." />}
-
-      {/* Resource snapshot */}
-      {summary && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
-            <Stat label="CPU (avg)" value={`${summary.cpu_avg.toFixed(1)}%`} sub={`max ${summary.cpu_max.toFixed(1)}%`} accent={pctColor(summary.cpu_avg)} />
-            <Stat label="Memory" value={fmtBytes(summary.mem_avg_bytes)} sub={`${summary.mem_percent.toFixed(1)}% · max ${fmtBytes(summary.mem_max_bytes)}`} accent={pctColor(summary.mem_percent)} />
-            <Stat label="Net RX" value={fmtBytes(summary.net_rx_bytes)} />
-            <Stat label="Net TX" value={fmtBytes(summary.net_tx_bytes)} />
-            <Stat label="Disk Read" value={fmtBytes(summary.disk_read_bytes)} />
-            <Stat label="Disk Write" value={fmtBytes(summary.disk_write_bytes)} />
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <Stat label="Input Tokens" value={summary.input_tokens.toLocaleString()} accent={C.amber} />
-            <Stat label="Output Tokens" value={summary.output_tokens.toLocaleString()} accent={C.purple} />
-            <Stat label="Total Cost" value={`$${summary.total_cost_usd.toFixed(2)}`} accent={C.orange} />
-            <Stat label="Cache" value={`R: ${(summary.cache_read ?? 0).toLocaleString()} / W: ${(summary.cache_create ?? 0).toLocaleString()}`} />
-          </div>
-        </>
-      )}
-
-      {/* Cost by model */}
-      {modelCostData.length > 0 && (
-        <Chart title="Cost by Model">
-          <ResponsiveContainer width="100%" height={Math.max(80, modelCostData.length * 28)}>
-            <BarChart layout="vertical" data={modelCostData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
-              <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `$${v}`} />
-              <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 9 }} {...TICK} width={120} />
-              <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(6)}`]} />
-              <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
-                {modelCostData.map((e, i) => <Cell key={i} fill={e.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Chart>
-      )}
-    </section>
-  );
-}
-
-// ── Agent Charts ───────────────────────────────────────────────────────────────
-
-function AgentCharts({ metrics, summary }: { metrics: AgentMetricTS[]; summary: StatsSummary | null }) {
-  const latest = new Map<string, AgentMetricTS>();
-  for (const m of metrics) latest.set(m.agent_name, m);
-  const agents = Array.from(latest.values()).sort((a, b) => b.cpu_percent - a.cpu_percent).slice(0, 10);
-
-  const barData = agents.map(a => ({
-    name: trunc(a.agent_name, 14),
-    cpu: parseFloat(a.cpu_percent.toFixed(2)),
-    mem: parseFloat((a.mem_used_bytes / 1024 / 1024).toFixed(1)),
-    state: a.state,
-  }));
-
-  const pie = summary ? [
-    { name: "Running", value: summary.agents_running, color: C.emerald },
-    { name: "Stopped", value: summary.agents_stopped, color: C.muted },
-  ].filter(d => d.value > 0) : [];
-
-  return (
-    <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">Agent Metrics</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Chart title="Agent CPU (%)">
-          {barData.length === 0 ? <Empty msg="No agent metrics yet — data appears after ~30s" /> : (
-            <ResponsiveContainer width="100%" height={Math.max(120, barData.length * 32)}>
-              <BarChart layout="vertical" data={barData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
-                <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}%`} />
-                <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 10 }} {...TICK} width={90} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0)}%`, "CPU"]} />
-                <Bar dataKey="cpu" fill={C.emerald} radius={[0, 3, 3, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Chart>
-
-        <Chart title="Agent Memory (MB)">
-          {barData.length === 0 ? <Empty msg="No agent metrics yet — data appears after ~30s" /> : (
-            <ResponsiveContainer width="100%" height={Math.max(120, barData.length * 32)}>
-              <BarChart layout="vertical" data={barData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
-                <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}MB`} />
-                <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 10 }} {...TICK} width={90} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0)} MB`, "Memory"]} />
-                <Bar dataKey="mem" fill={C.blue} radius={[0, 3, 3, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Chart>
-
-        {pie.length > 0 && (
-          <Chart title="Agent States">
-            <div className="flex items-center gap-6">
-              <ResponsiveContainer width={140} height={140}>
-                <PieChart>
-                  <Pie data={pie} cx="50%" cy="50%" innerRadius={38} outerRadius={58} paddingAngle={3} dataKey="value">
-                    {pie.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
-                  </Pie>
-                  <Tooltip contentStyle={TT} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-2">
-                {pie.map(e => (
-                  <div key={e.name} className="flex items-center gap-2 text-sm">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: e.color }} />
-                    <span>{e.name}</span>
-                    <span className="text-bc-muted font-mono">{e.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Chart>
-        )}
-      </div>
-    </section>
-  );
-}
-
-// ── Token Charts ───────────────────────────────────────────────────────────────
-
-function TokenCharts({ tokens, costSummary }: { tokens: TokenMetricTS[]; costSummary: CostSummary | null }) {
-  const buckets = new Map<string, { time: string; input: number; output: number; cost: number }>();
-  for (const t of tokens) {
-    const k = fmtTime(t.time);
-    const b = buckets.get(k) ?? { time: k, input: 0, output: 0, cost: 0 };
-    b.input += t.input_tokens;
-    b.output += t.output_tokens;
-    b.cost += t.cost_usd;
-    buckets.set(k, b);
-  }
-  const data = Array.from(buckets.values());
-
-  return (
-    <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">Token Usage</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Chart title="Input vs Output Tokens" wide>
-          {data.length === 0 ? <Empty msg="No token usage yet — start agents to see data" /> : (
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={data} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="g-in" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={C.amber} stopOpacity={0.4} /><stop offset="95%" stopColor={C.amber} stopOpacity={0} /></linearGradient>
-                  <linearGradient id="g-out" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={C.purple} stopOpacity={0.4} /><stop offset="95%" stopColor={C.purple} stopOpacity={0} /></linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
-                <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-                <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
-                <Legend wrapperStyle={{ fontSize: "11px" }} formatter={(v: string) => v === "input" ? "Input Tokens" : "Output Tokens"} />
-                <Area type="monotone" dataKey="input" stroke={C.amber} strokeWidth={2} fill="url(#g-in)" stackId="1" dot={false} />
-                <Area type="monotone" dataKey="output" stroke={C.purple} strokeWidth={2} fill="url(#g-out)" stackId="1" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Chart>
-
-        {costSummary && (
-          <>
-            <Stat label="Input Tokens" value={costSummary.input_tokens.toLocaleString()} accent={C.amber} />
-            <Stat label="Output Tokens" value={costSummary.output_tokens.toLocaleString()} accent={C.purple} />
-          </>
-        )}
-      </div>
-    </section>
-  );
-}
-
-// ── Channel Charts ─────────────────────────────────────────────────────────────
-
-function ChannelCharts({ metrics }: { metrics: ChannelMetricTS[] }) {
-  const latest = new Map<string, ChannelMetricTS>();
-  for (const m of metrics) {
-    const prev = latest.get(m.channel_name);
-    if (!prev || m.message_count > prev.message_count) latest.set(m.channel_name, m);
-  }
-  const data = Array.from(latest.values())
-    .sort((a, b) => b.message_count - a.message_count)
-    .map(m => ({ name: trunc(m.channel_name, 16), messages: Number(m.message_count), members: m.member_count }));
-
-  return (
-    <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">Channel Activity</h2>
-      <Chart title="Messages &amp; Members">
-        {data.length === 0 ? <Empty msg="No channel data" /> : (
-          <ResponsiveContainer width="100%" height={Math.max(140, data.length * 34)}>
-            <BarChart layout="vertical" data={data} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
-              <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
-              <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 10 }} {...TICK} width={100} />
-              <Tooltip contentStyle={TT} />
-              <Legend wrapperStyle={{ fontSize: "11px" }} />
-              <Bar dataKey="messages" name="Messages" fill={C.blue} radius={[0, 3, 3, 0]} />
-              <Bar dataKey="members" name="Members" fill={C.emerald} radius={[0, 3, 3, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </Chart>
-    </section>
-  );
-}
-
-// ── Cost Charts ────────────────────────────────────────────────────────────────
-
-function CostCharts({ costSummary, costByModel }: { costSummary: CostSummary | null; costByModel: ModelCostSummary[] }) {
-  const sorted = [...costByModel].sort((a, b) => b.total_cost_usd - a.total_cost_usd);
-  const pieData = sorted.filter(m => m.total_cost_usd > 0).map((m, i) => ({
-    name: m.model || "unknown", value: parseFloat(m.total_cost_usd.toFixed(6)), color: PIE_COLORS[i % PIE_COLORS.length],
-  }));
-
-  return (
-    <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">Cost Breakdown</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {costSummary && (
-          <>
-            <Stat label="Total Cost" value={`$${costSummary.total_cost_usd.toFixed(2)}`} sub={`${costSummary.record_count.toLocaleString()} records`} accent={C.orange} />
-            <Stat label="Total Tokens" value={costSummary.total_tokens.toLocaleString()} sub={`In: ${costSummary.input_tokens.toLocaleString()} / Out: ${costSummary.output_tokens.toLocaleString()}`} />
-          </>
-        )}
-
-        <Chart title="Cost by Model">
-          {pieData.length === 0 ? <Empty msg="No cost data" /> : (
-            <div className="flex items-center gap-4">
-              <ResponsiveContainer width={140} height={140}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={38} outerRadius={58} paddingAngle={2} dataKey="value">
-                    {pieData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
-                  </Pie>
-                  <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-1 flex-1 max-h-36 overflow-y-auto">
-                {pieData.map(e => (
-                  <div key={e.name} className="flex items-center gap-2 text-xs">
-                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: e.color }} />
-                    <span className="truncate flex-1" title={e.name}>{e.name}</span>
-                    <span className="text-bc-muted font-mono">${e.value.toFixed(4)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Chart>
-
-        <Chart title="Cost per Model (USD)">
-          {sorted.length === 0 ? <Empty msg="No cost data" /> : (
-            <ResponsiveContainer width="100%" height={Math.max(120, sorted.slice(0, 8).length * 28)}>
-              <BarChart layout="vertical" data={sorted.slice(0, 8).map(m => ({ name: trunc(m.model || "unknown", 20), cost: parseFloat(m.total_cost_usd.toFixed(4)) }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
-                <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `$${v}`} />
-                <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 9 }} {...TICK} width={120} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(6)}`]} />
-                <Bar dataKey="cost" fill={C.purple} radius={[0, 3, 3, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Chart>
-      </div>
-    </section>
-  );
-}
-
-// ── Main ───────────────────────────────────────────────────────────────────────
+// ── Main ────────────────────────────────────────────────────────────────────────
 
 export function Stats() {
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const [range, setRange] = useState(0); // index into RANGES
+  const [sortKey, setSortKey] = useState<SortKey>("cost");
+  const [sortAsc, setSortAsc] = useState(false);
+
+  const from = useMemo(() => fromParam(RANGES[range]?.seconds ?? 3600), [range]);
 
   const fetcher = useCallback(async (): Promise<StatsData> => {
-    const [r0, r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.allSettled([
+    const p = { from };
+    const [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9] = await Promise.allSettled([
       api.getStatsSystem(),
       api.getStatsSummary(),
       api.getCostSummary(),
       api.getCostByModel(),
-      api.getSystemStats("cpu"),
-      api.getAgentStats("cpu"),
-      api.getAgentTokenStats(),
-      api.getChannelStats("messages"),
       api.getCostByAgent(),
+      api.getAgentStats("cpu", p),
+      api.getAgentStats("mem", p),
+      api.getAgentStats("net", p),
+      api.getAgentStats("disk", p),
+      api.getAgentTokenStats(p),
     ]);
-
     return {
       system: r0.status === "fulfilled" ? r0.value : null,
       summary: r1.status === "fulfilled" ? r1.value : null,
       costSummary: r2.status === "fulfilled" ? r2.value : null,
       costByModel: r3.status === "fulfilled" ? r3.value : [],
-      systemMetrics: r4.status === "fulfilled" ? (r4.value ?? []) : [],
-      agentMetrics: r5.status === "fulfilled" ? (r5.value ?? []) : [],
-      tokenMetrics: r6.status === "fulfilled" ? (r6.value ?? []) : [],
-      channelMetrics: r7.status === "fulfilled" ? (r7.value ?? []) : [],
-      costByAgent: r8.status === "fulfilled" ? (r8.value ?? []) : [],
+      costByAgent: r4.status === "fulfilled" ? (r4.value ?? []) : [],
+      agentCpu: r5.status === "fulfilled" ? (r5.value ?? []) : [],
+      agentMem: r6.status === "fulfilled" ? (r6.value ?? []) : [],
+      agentNet: r7.status === "fulfilled" ? (r7.value ?? []) : [],
+      agentDisk: r8.status === "fulfilled" ? (r8.value ?? []) : [],
+      tokenMetrics: r9.status === "fulfilled" ? (r9.value ?? []) : [],
     };
-  }, []);
+  }, [from]);
 
   const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
+
+  // ── Derived data ────────────────────────────────────────────────────────────
+
+  const cpuChart = useMemo(() => pivotAgentMetric(data?.agentCpu ?? [], "cpu_percent"), [data?.agentCpu]);
+  const memChart = useMemo(() => pivotAgentMetric(data?.agentMem ?? [], "mem_mb"), [data?.agentMem]);
+  const netChart = useMemo(() => pivotNetOrDisk(data?.agentNet ?? [], "net"), [data?.agentNet]);
+  const diskChart = useMemo(() => pivotNetOrDisk(data?.agentDisk ?? [], "disk"), [data?.agentDisk]);
+  const tokenChart = useMemo(() => pivotTokens(data?.tokenMetrics ?? []), [data?.tokenMetrics]);
+
+  const costBarData = useMemo(() => {
+    return [...(data?.costByModel ?? [])]
+      .map(m => ({ name: trunc(m.model || "unknown", 24), cost: parseFloat(calculateCost(m.model, m.input_tokens, m.output_tokens).toFixed(4)) }))
+      .filter(d => d.cost > 0)
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, 8);
+  }, [data?.costByModel]);
+
+  const agentTable = useMemo(() => buildAgentTable(data, sortKey, sortAsc), [data, sortKey, sortAsc]);
+
+  const totalTokens = data?.costSummary?.total_tokens ?? 0;
+  const inputTokens = data?.costSummary?.input_tokens ?? 0;
+  const outputTokens = data?.costSummary?.output_tokens ?? 0;
+  const totalCost = data?.costSummary?.total_cost_usd ?? 0;
+  const uptime = data?.system?.uptime_seconds ?? data?.summary?.uptime_seconds ?? 0;
+  const running = data?.summary?.agents_running ?? 0;
+  const total = data?.summary?.agents_total ?? 0;
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   if (loading && !data) return <div className="p-6 space-y-6"><LoadingSkeleton variant="cards" rows={4} /></div>;
   if (timedOut && !data) return <div className="p-6"><EmptyState icon="!" title="Stats timed out" actionLabel="Retry" onAction={refresh} /></div>;
   if (error && !data) return <div className="p-6"><EmptyState icon="!" title="Failed to load stats" description={error} actionLabel="Retry" onAction={refresh} /></div>;
   if (!data) return null;
 
-  const uptime = data.system?.uptime_seconds ?? data.summary?.uptime_seconds ?? 0;
+  function handleSort(key: SortKey) {
+    if (sortKey === key) setSortAsc(!sortAsc);
+    else { setSortKey(key); setSortAsc(false); }
+  }
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-6 space-y-4">
+      {/* Header + time range */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Stats</h1>
-        <span className="text-xs text-bc-muted">Live &middot; 10s</span>
+        <h1 className="text-lg font-semibold">System Metrics</h1>
+        <div className="flex gap-1">
+          {RANGES.map((r, i) => (
+            <button key={r.label} type="button" onClick={() => setRange(i)}
+              className={`px-2.5 py-1 text-xs rounded border transition-colors ${
+                i === range
+                  ? "border-bc-accent bg-bc-accent/10 text-bc-accent"
+                  : "border-bc-border text-bc-muted hover:text-bc-text hover:border-bc-muted"
+              }`}
+            >{r.label}</button>
+          ))}
+        </div>
       </div>
 
-      {/* Overview */}
-      <section>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Agents" value={String(data.summary?.agents_total ?? 0)} sub={`${data.summary?.agents_running ?? 0} running`} accent={C.emerald} />
-          <Stat label="Cost" value={`$${(data.summary?.total_cost_usd ?? 0).toFixed(2)}`} accent={C.orange} />
-          <Stat label="Channels" value={String(data.summary?.channels_total ?? 0)} sub={`${(data.summary?.messages_total ?? 0).toLocaleString()} messages`} />
-          <Stat label="Uptime" value={fmtUptime(uptime)} sub={data.system?.hostname ?? ""} />
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded border border-bc-border bg-bc-surface p-3">
+          <p className="text-[11px] text-bc-muted uppercase tracking-wider">Agents</p>
+          <p className="mt-1 text-xl font-bold flex items-center gap-2">
+            {running > 0 && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
+            {running}/{total}
+          </p>
         </div>
-      </section>
+        <div className="rounded border border-bc-border bg-bc-surface p-3">
+          <p className="text-[11px] text-bc-muted uppercase tracking-wider">Tokens</p>
+          <p className="mt-1 text-xl font-bold">{fmtTokens(totalTokens)}</p>
+          <p className="text-[10px] text-bc-muted">In: {fmtTokens(inputTokens)} / Out: {fmtTokens(outputTokens)}</p>
+        </div>
+        <div className="rounded border border-bc-border bg-bc-surface p-3">
+          <p className="text-[11px] text-bc-muted uppercase tracking-wider">Cost</p>
+          <p className="mt-1 text-xl font-bold text-[#FF6B35]">${totalCost.toFixed(2)}</p>
+        </div>
+        <div className="rounded border border-bc-border bg-bc-surface p-3">
+          <p className="text-[11px] text-bc-muted uppercase tracking-wider">Uptime</p>
+          <p className="mt-1 text-xl font-bold">{fmtUptime(uptime)}</p>
+        </div>
+      </div>
 
-      {/* Per-Agent Stats — Primary view */}
-      <AgentOverview
-        metrics={data.agentMetrics}
-        costByAgent={data.costByAgent}
-        tokenMetrics={data.tokenMetrics}
-        selectedAgent={selectedAgent}
-        onSelectAgent={setSelectedAgent}
-      />
+      {/* Row 1: CPU + Memory */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Panel title="CPU by Agent (%)">
+          {cpuChart.data.length === 0 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={cpuChart.data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
+                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `${v}%`} />
+                <Tooltip contentStyle={TT} />
+                {cpuChart.agents.map((n, i) => (
+                  <Area key={n} type="monotone" dataKey={n} stroke={COLORS[i % COLORS.length]} fill={COLORS[i % COLORS.length]} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Memory by Agent (MB)">
+          {memChart.data.length === 0 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={memChart.data} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
+                <YAxis tick={TICK_STYLE} {...AX} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
+                {memChart.agents.map((n, i) => (
+                  <Area key={n} type="monotone" dataKey={n} stroke={COLORS[i % COLORS.length]} fill={COLORS[i % COLORS.length]} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+      </div>
 
-      {/* Agent Drill-Down */}
-      {selectedAgent && (
-        <AgentDrillDown
-          agentName={selectedAgent}
-          onClose={() => setSelectedAgent(null)}
-        />
+      {/* Row 2: Network + Disk */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Panel title="Network I/O">
+          {netChart.length === 0 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
+                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
+                <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
+                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="tx" name="TX" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Disk I/O">
+          {diskChart.length === 0 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={diskChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
+                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
+                <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
+                <Area type="monotone" dataKey="read" name="Read" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="write" name="Write" stroke="#A855F7" fill="#A855F7" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+      </div>
+
+      {/* Row 3: Tokens + Cost by Model */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Panel title="Token Usage">
+          {tokenChart.length === 0 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
+                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
+                <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
+                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+                <Area type="monotone" dataKey="output" name="Output" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Cost by Model">
+          {costBarData.length === 0 ? <Empty msg="No cost data" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart layout="vertical" data={costBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
+                <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v}`} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={120} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
+                <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
+                  {costBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+      </div>
+
+      {/* Agent Table */}
+      {agentTable.length > 0 && (
+        <Panel title={`Agents (${agentTable.length})`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-bc-muted text-left">
+                  {(["name", "role", "state", "cpu", "mem", "tokens", "cost"] as SortKey[]).map(k => (
+                    <th key={k} className="py-1.5 px-2 font-medium cursor-pointer hover:text-bc-text select-none" onClick={() => handleSort(k)}>
+                      {k === "cpu" ? "CPU%" : k === "mem" ? "Mem MB" : k.charAt(0).toUpperCase() + k.slice(1)}
+                      {sortKey === k && <span className="ml-1">{sortAsc ? "\u25B2" : "\u25BC"}</span>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {agentTable.map(a => (
+                  <tr key={a.name}
+                    className="border-t border-bc-border/50 hover:bg-bc-bg/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/agents/${encodeURIComponent(a.name)}`)}
+                  >
+                    <td className="py-1.5 px-2 font-medium">{a.name}</td>
+                    <td className="py-1.5 px-2 text-bc-muted">{a.role}</td>
+                    <td className="py-1.5 px-2">
+                      <span className="flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          a.state === "working" || a.state === "idle" || a.state === "running" ? "bg-green-500"
+                          : a.state === "stuck" ? "bg-orange-500" : "bg-bc-muted"
+                        }`} />
+                        {a.state}
+                      </span>
+                    </td>
+                    <td className="py-1.5 px-2 font-mono">{a.cpu.toFixed(1)}</td>
+                    <td className="py-1.5 px-2 font-mono">{a.mem.toFixed(0)}</td>
+                    <td className="py-1.5 px-2 font-mono">{fmtTokens(a.tokens)}</td>
+                    <td className="py-1.5 px-2 font-mono text-[#FF6B35]">${a.cost.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       )}
-
-      {/* Agent bar charts + state pie */}
-      <AgentCharts metrics={data.agentMetrics} summary={data.summary} />
-      <TokenCharts tokens={data.tokenMetrics} costSummary={data.costSummary} />
-      <CostCharts costSummary={data.costSummary} costByModel={data.costByModel} />
-      <ChannelCharts metrics={data.channelMetrics} />
-
-      {/* System Resources — moved to bottom */}
-      <SystemCharts metrics={data.systemMetrics} system={data.system} />
     </div>
   );
+}
+
+// ── Data Transforms ─────────────────────────────────────────────────────────────
+
+function pivotAgentMetric(metrics: AgentMetricTS[], mode: "cpu_percent" | "mem_mb") {
+  const agents = [...new Set(metrics.filter(m => !isInfra(m.agent_name)).map(m => m.agent_name))];
+  type Pt = Record<string, string | number>;
+  const buckets = new Map<string, Pt>();
+  for (const m of metrics) {
+    if (isInfra(m.agent_name)) continue;
+    const t = fmtTime(m.time);
+    const b = buckets.get(t) ?? { time: t };
+    b[m.agent_name] = mode === "cpu_percent"
+      ? parseFloat(m.cpu_percent.toFixed(2))
+      : parseFloat((m.mem_used_bytes / 1024 / 1024).toFixed(1));
+    buckets.set(t, b);
+  }
+  return { agents, data: Array.from(buckets.values()) };
+}
+
+function pivotNetOrDisk(metrics: AgentMetricTS[], kind: "net" | "disk") {
+  const buckets = new Map<string, { time: string; rx: number; tx: number; read: number; write: number }>();
+  for (const m of metrics) {
+    if (isInfra(m.agent_name)) continue;
+    const t = fmtTime(m.time);
+    const b = buckets.get(t) ?? { time: t, rx: 0, tx: 0, read: 0, write: 0 };
+    if (kind === "net") { b.rx += m.net_rx_bytes; b.tx += m.net_tx_bytes; }
+    else { b.read += m.disk_read_bytes; b.write += m.disk_write_bytes; }
+    buckets.set(t, b);
+  }
+  return Array.from(buckets.values());
+}
+
+function pivotTokens(tokens: TokenMetricTS[]) {
+  const buckets = new Map<string, { time: string; input: number; output: number }>();
+  for (const t of tokens) {
+    const k = fmtTime(t.time);
+    const b = buckets.get(k) ?? { time: k, input: 0, output: 0 };
+    b.input += t.input_tokens;
+    b.output += t.output_tokens;
+    buckets.set(k, b);
+  }
+  return Array.from(buckets.values());
+}
+
+interface AgentRow { name: string; role: string; state: string; cpu: number; mem: number; tokens: number; cost: number }
+
+function buildAgentTable(data: StatsData | null, sortKey: SortKey, sortAsc: boolean): AgentRow[] {
+  if (!data) return [];
+  const latest = new Map<string, AgentMetricTS>();
+  for (const m of data.agentCpu) { if (!isInfra(m.agent_name)) latest.set(m.agent_name, m); }
+
+  const costMap = new Map<string, AgentCostSummary>();
+  for (const c of data.costByAgent) costMap.set(c.agent_id, c);
+
+  const tokenMap = new Map<string, number>();
+  for (const t of data.tokenMetrics) tokenMap.set(t.agent_name, (tokenMap.get(t.agent_name) ?? 0) + t.input_tokens + t.output_tokens);
+
+  const memLatest = new Map<string, number>();
+  for (const m of data.agentMem) { if (!isInfra(m.agent_name)) memLatest.set(m.agent_name, m.mem_used_bytes / 1024 / 1024); }
+
+  const rows: AgentRow[] = Array.from(latest.values()).map(m => ({
+    name: m.agent_name, role: m.role, state: m.state,
+    cpu: m.cpu_percent, mem: memLatest.get(m.agent_name) ?? 0,
+    tokens: tokenMap.get(m.agent_name) ?? 0, cost: costMap.get(m.agent_name)?.total_cost_usd ?? 0,
+  }));
+
+  const dir = sortAsc ? 1 : -1;
+  rows.sort((a, b) => {
+    const av = a[sortKey], bv = b[sortKey];
+    if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dir;
+    return ((av as number) - (bv as number)) * dir;
+  });
+  return rows;
 }
