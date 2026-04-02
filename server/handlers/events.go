@@ -11,7 +11,8 @@ import (
 
 // EventHandler handles /api/logs (historical event log).
 type EventHandler struct {
-	store events.EventStore
+	store  events.EventStore
+	writer *events.JSONLWriter
 }
 
 // NewEventHandler creates an EventHandler.
@@ -19,10 +20,16 @@ func NewEventHandler(store events.EventStore) *EventHandler {
 	return &EventHandler{store: store}
 }
 
+// SetWriter attaches a JSONLWriter for the /api/events/history endpoint.
+func (h *EventHandler) SetWriter(w *events.JSONLWriter) {
+	h.writer = w
+}
+
 // Register mounts event log routes on mux.
 func (h *EventHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/logs", h.logs)
 	mux.HandleFunc("/api/logs/", h.byAgent)
+	mux.HandleFunc("/api/events/history", h.history)
 }
 
 func (h *EventHandler) logs(w http.ResponseWriter, r *http.Request) {
@@ -93,4 +100,45 @@ func (h *EventHandler) appendEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// history serves GET /api/events/history?limit=100&offset=0
+// Returns paginated SSE events from the JSONL persistence file.
+func (h *EventHandler) history(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	if h.writer == nil {
+		httpError(w, "event history not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	limit := 100
+	if s := r.URL.Query().Get("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	limit = clampInt(limit, 1, 10000)
+
+	offset := 0
+	if s := r.URL.Query().Get("offset"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+
+	evts, total, err := h.writer.ReadPage(limit, offset)
+	if err != nil {
+		httpInternalError(w, "read event history", err)
+		return
+	}
+	if evts == nil {
+		evts = []events.SSEEvent{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"events": evts,
+		"total":  total,
+	})
 }

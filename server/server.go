@@ -74,6 +74,7 @@ type Services struct {
 	Tools        *tool.Store
 	Stats        *stats.Store
 	EventLog     events.EventStore
+	EventWriter  *events.JSONLWriter
 	WS           *workspace.Workspace
 	Gateway      *gateway.Manager
 }
@@ -136,6 +137,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		writeJSON(map[string]any{"status": status, "checks": checks})
 	})
+
+	// Wire event persistence into the SSE hub
+	if hub != nil && svc.EventWriter != nil {
+		hub.SetWriter(svc.EventWriter)
+	}
 
 	// SSE event stream
 	if hub != nil {
@@ -271,8 +277,12 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	// Unified tools endpoint (MCP + CLI) — always registered
 	handlers.NewUnifiedToolsHandler(svc.MCP, svc.Tools, svc.Agents, svc.WS).Register(mux)
-	if svc.EventLog != nil {
-		handlers.NewEventHandler(svc.EventLog).Register(mux)
+	if svc.EventLog != nil || svc.EventWriter != nil {
+		eh := handlers.NewEventHandler(svc.EventLog)
+		if svc.EventWriter != nil {
+			eh.SetWriter(svc.EventWriter)
+		}
+		eh.Register(mux)
 	}
 	if svc.Gateway != nil {
 		gh := handlers.NewGatewayHandler(svc.Gateway, svc.WS)
