@@ -402,7 +402,7 @@ export function Dashboard() {
             state: agent.state,
             task: agent.task ?? "",
             tool: agent.tool,
-            role: agent.role,
+            role: agent.role ?? "",
             tokens: agent.total_tokens ?? 0,
             nodes: [],
             collapsed: agent.state === "stopped",
@@ -553,13 +553,18 @@ export function Dashboard() {
   useEffect(() => {
     const unsub = subscribe("agent.state_changed", (wsEvent) => {
       const d = wsEvent.data as Record<string, unknown>;
-      const name = d.agent as string;
+      const name = (d.name ?? d.agent) as string;
       const state = d.state as string;
       if (name && state) {
         setActivities((prev) => {
           const next = new Map(prev);
           const existing = next.get(name);
-          if (existing) next.set(name, { ...existing, state });
+          if (existing) {
+            const updates: Partial<AgentActivity> = { state };
+            if (d.task) updates.task = d.task as string;
+            if (d.role) updates.role = d.role as string;
+            next.set(name, { ...existing, ...updates });
+          }
           return next;
         });
       }

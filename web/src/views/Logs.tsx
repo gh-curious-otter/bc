@@ -361,7 +361,7 @@ export function Logs() {
               state: a.state,
               task: a.task ?? "",
               tool: a.tool,
-              role: a.role,
+              role: a.role ?? "",
               tokens: a.total_tokens ?? 0,
               nodes: [],
               collapsed: a.state === "stopped",
@@ -510,14 +510,19 @@ export function Logs() {
   useEffect(() => {
     const unsub = subscribe("agent.state_changed", (wsEvent) => {
       const d = wsEvent.data as Record<string, unknown>;
-      const name = d.agent as string;
+      const name = (d.name ?? d.agent) as string;
       const state = d.state as string;
       if (name && state) {
         setEventCount((c) => c + 1);
         setActivities((prev) => {
           const next = new Map(prev);
           const existing = next.get(name);
-          if (existing) next.set(name, { ...existing, state });
+          if (existing) {
+            const updates: Partial<AgentActivity> = { state };
+            if (d.task) updates.task = d.task as string;
+            if (d.role) updates.role = d.role as string;
+            next.set(name, { ...existing, ...updates });
+          }
           return next;
         });
       }
