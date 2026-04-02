@@ -94,6 +94,19 @@ func (p *PostgresStore) SeedBuiltins(ctx context.Context) error {
 			return fmt.Errorf("failed to seed MCP %s: %w", t.Name, err)
 		}
 	}
+	for _, t := range builtinCLITools {
+		t := t
+		existing, err := p.Get(ctx, t.Name)
+		if err != nil {
+			return fmt.Errorf("failed to check CLI %s: %w", t.Name, err)
+		}
+		if existing != nil {
+			continue
+		}
+		if err := p.add(ctx, &t); err != nil {
+			return fmt.Errorf("failed to seed CLI %s: %w", t.Name, err)
+		}
+	}
 	return nil
 }
 

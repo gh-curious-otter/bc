@@ -141,6 +141,22 @@ var builtinMCPServers = []Tool{
 	},
 }
 
+// builtinCLITools contains common system CLI tools that should be auto-detected.
+var builtinCLITools = []Tool{
+	{Name: "gh", Command: "gh", Type: ToolTypeCLI, Builtin: true, Enabled: true, InstallCmd: "brew install gh", VersionCmd: "gh --version"},
+	{Name: "git", Command: "git", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "git --version"},
+	{Name: "go", Command: "go", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "go version"},
+	{Name: "make", Command: "make", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "make --version"},
+	{Name: "docker", Command: "docker", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "docker --version"},
+	{Name: "bun", Command: "bun", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "bun --version"},
+	{Name: "node", Command: "node", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "node --version"},
+	{Name: "python3", Command: "python3", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "python3 --version"},
+	{Name: "curl", Command: "curl", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "curl --version"},
+	{Name: "jq", Command: "jq", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "jq --version"},
+	{Name: "aws", Command: "aws", Type: ToolTypeCLI, Builtin: true, Enabled: true, InstallCmd: "brew install awscli", VersionCmd: "aws --version"},
+	{Name: "tmux", Command: "tmux", Type: ToolTypeCLI, Builtin: true, Enabled: true, VersionCmd: "tmux -V"},
+}
+
 // Store provides tool management backed by SQLite or TimescaleDB (Postgres).
 type Store struct {
 	db *db.DB
@@ -301,6 +317,20 @@ func (s *Store) seedBuiltins(ctx context.Context) error {
 		}
 		if err := s.add(ctx, &t); err != nil {
 			return fmt.Errorf("failed to seed MCP %s: %w", t.Name, err)
+		}
+	}
+	// Seed CLI tools (gh, git, go, make, docker, etc.)
+	for _, t := range builtinCLITools {
+		t := t
+		existing, err := s.Get(ctx, t.Name)
+		if err != nil {
+			return fmt.Errorf("failed to check CLI %s: %w", t.Name, err)
+		}
+		if existing != nil {
+			continue
+		}
+		if err := s.add(ctx, &t); err != nil {
+			return fmt.Errorf("failed to seed CLI %s: %w", t.Name, err)
 		}
 	}
 	return nil
