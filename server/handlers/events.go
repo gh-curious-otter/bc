@@ -30,6 +30,7 @@ func (h *EventHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/logs", h.logs)
 	mux.HandleFunc("/api/logs/", h.byAgent)
 	mux.HandleFunc("/api/events/history", h.history)
+	mux.HandleFunc("/api/tasks/current", h.currentTasks)
 }
 
 func (h *EventHandler) logs(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +101,26 @@ func (h *EventHandler) appendEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// currentTasks serves GET /api/tasks/current
+// Returns the current task list derived from TaskCreate/TaskUpdate SSE events.
+func (h *EventHandler) currentTasks(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	if h.writer == nil {
+		httpError(w, "event history not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	tasks, err := h.writer.CurrentTasks()
+	if err != nil {
+		httpInternalError(w, "read current tasks", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, tasks)
 }
 
 // history serves GET /api/events/history?limit=100&offset=0

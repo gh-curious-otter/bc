@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -234,4 +235,180 @@ func (w *JSONLWriter) rotate() error {
 	}
 
 	return os.Rename(tmp, w.path)
+}
+
+// TaskItem represents a task extracted from SSE event history.
+type TaskItem struct {
+	ID          string `json:"id"`
+	Subject     string `json:"subject"`
+	Status      string `json:"status"`
+	Owner       string `json:"owner,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// CurrentTasks scans the JSONL event history for TaskCreate/TaskUpdate
+// events and builds the current task state. It returns all non-deleted tasks.
+func (w *JSONLWriter) CurrentTasks() ([]TaskItem, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	lines, err := w.readAllLines()
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []TaskItem{}, nil
+		}
+		return nil, err
+	}
+
+	// tasks keyed by id, preserving insertion order via separate slice
+	tasks := map[string]*TaskItem{}
+	var order []string
+
+	for _, line := range lines {
+		var evt SSEEvent
+		if err := json.Unmarshal(line, &evt); err != nil {
+			continue
+		}
+
+		// Only process agent.hook events
+		if evt.Type != "agent.hook" {
+			continue
+		}
+
+		data, ok := evt.Data.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		eventName, _ := data["event"].(string)
+		toolName, _ := data["tool_name"].(string)
+
+		// TaskCreate: extract from PostToolUse events
+		if eventName == "PostToolUse" && containsTaskCreate(toolName) {
+			task := extractTaskCreate(data)
+			if task != nil {
+				if _, exists := tasks[task.ID]; !exists {
+					order = append(order, task.ID)
+				}
+				tasks[task.ID] = task
+			}
+		}
+
+		// TaskUpdate: extract from Pre/PostToolUse events
+		if (eventName == "PreToolUse" || eventName == "PostToolUse") && containsTaskUpdate(toolName) {
+			id, status := extractTaskUpdate(data)
+			if id != "" && status != "" {
+				if t, exists := tasks[id]; exists {
+					t.Status = status
+				}
+			}
+		}
+	}
+
+	// Collect non-deleted tasks in insertion order
+	result := make([]TaskItem, 0, len(order))
+	for _, id := range order {
+		if t := tasks[id]; t != nil && t.Status != "deleted" {
+			result = append(result, *t)
+		}
+	}
+	return result, nil
+}
+
+func containsTaskCreate(s string) bool {
+	return strings.Contains(s, "TaskCreate")
+}
+
+func containsTaskUpdate(s string) bool {
+	return strings.Contains(s, "TaskUpdate")
+}
+
+func extractTaskCreate(data map[string]any) *TaskItem {
+	inp, _ := data["tool_input"].(map[string]any)
+	resp, _ := data["tool_response"].(map[string]any)
+	if inp == nil {
+		return nil
+	}
+
+	id := "task-" + fmt.Sprintf("%d", time.Now().UnixMilli())
+	if resp != nil {
+		if s, ok := resp["id"].(string); ok && s != "" {
+			id = s
+		} else if s, ok := resp["task_id"].(string); ok && s != "" {
+			id = s
+		}
+	}
+	// Also try parsing string response as JSON
+	if resp == nil {
+		if respStr, ok := data["tool_response"].(string); ok && respStr != "" {
+			var parsed map[string]any
+			if json.Unmarshal([]byte(respStr), &parsed) == nil {
+				if s, ok := parsed["id"].(string); ok && s != "" {
+					id = s
+				}
+			}
+		}
+	}
+
+	subject := "Untitled task"
+	if s, ok := inp["subject"].(string); ok && s != "" {
+		subject = s
+	} else if s, ok := inp["description"].(string); ok && s != "" {
+		subject = s
+	} else if s, ok := inp["title"].(string); ok && s != "" {
+		subject = s
+	}
+
+	description, _ := inp["description"].(string)
+	owner, _ := data["agent"].(string)
+
+	return &TaskItem{
+		ID:          id,
+		Subject:     subject,
+		Status:      "pending",
+		Owner:       owner,
+		Description: description,
+	}
+}
+
+func extractTaskUpdate(data map[string]any) (string, string) {
+	inp, _ := data["tool_input"].(map[string]any)
+	if inp == nil {
+		return "", ""
+	}
+
+	var id string
+	if s, ok := inp["taskId"].(string); ok {
+		id = s
+	} else if s, ok := inp["task_id"].(string); ok {
+		id = s
+	} else if s, ok := inp["id"].(string); ok {
+		id = s
+	}
+	if id == "" {
+		return "", ""
+	}
+
+	rawStatus, _ := inp["status"].(string)
+	if rawStatus == "" {
+		return "", ""
+	}
+
+	statusMap := map[string]string{
+		"pending":     "pending",
+		"in_progress": "in_progress",
+		"in-progress": "in_progress",
+		"inProgress":  "in_progress",
+		"completed":   "completed",
+		"done":        "completed",
+		"deleted":     "deleted",
+		"cancelled":   "deleted",
+		"canceled":    "deleted",
+	}
+
+	status, ok := statusMap[rawStatus]
+	if !ok {
+		status = "pending"
+	}
+	return id, status
 }
