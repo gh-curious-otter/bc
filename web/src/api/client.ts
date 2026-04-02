@@ -194,6 +194,58 @@ export interface ProviderInfo {
   enabled: boolean;
 }
 
+export interface ProviderAgentSummary {
+  name: string;
+  role: string;
+  state: string;
+}
+
+export interface ProviderModelCost {
+  model: string;
+  total_tokens: number;
+  total_cost_usd: number;
+}
+
+export interface ProviderDetailResponse {
+  name: string;
+  description: string;
+  binary: string;
+  command: string;
+  install_hint: string;
+  version: string;
+  status: string;
+  total_cost_usd: number;
+  total_tokens: number;
+  agent_count: number;
+  installed: boolean;
+  enabled: boolean;
+  config: Record<string, string>;
+  agents: ProviderAgentSummary[];
+  cost_by_model: ProviderModelCost[];
+}
+
+export interface ProviderCommand {
+  name: string;
+  command: string;
+  description: string;
+  args?: string;
+}
+
+export interface ProviderMCPServer {
+  name: string;
+  transport: string;
+  url?: string;
+  command?: string;
+  enabled: boolean;
+}
+
+export interface ProviderUpdateCheck {
+  current_version: string;
+  latest_version: string;
+  update_available: boolean;
+  update_command: string;
+}
+
 export interface EventLogEntry {
   id: number;
   type: string;
@@ -509,6 +561,34 @@ export const api = {
   deleteRole: (name: string) =>
     request<void>(`/roles/${encodeURIComponent(name)}`, { method: "DELETE" }),
   listProviders: () => request<ProviderInfo[]>("/providers"),
+  getProvider: (name: string) =>
+    request<ProviderDetailResponse>(`/providers/${encodeURIComponent(name)}`),
+  getProviderCommands: (name: string) =>
+    request<ProviderCommand[]>(`/providers/${encodeURIComponent(name)}/commands`),
+  getProviderMCPs: (name: string) =>
+    request<ProviderMCPServer[]>(`/providers/${encodeURIComponent(name)}/mcps`),
+  addProviderMCP: (name: string, mcp: { name: string; transport?: string; url?: string; command?: string }) =>
+    request<{ status: string; provider: string; mcp: string }>(`/providers/${encodeURIComponent(name)}/mcps`, {
+      method: "POST",
+      body: JSON.stringify(mcp),
+    }),
+  installProvider: (name: string) =>
+    request<{ status: string; provider: string; install_cmd: string }>(`/providers/${encodeURIComponent(name)}/install`, {
+      method: "POST",
+    }),
+  updateProvider: (name: string) =>
+    request<{ status: string; provider: string; update_cmd: string }>(`/providers/${encodeURIComponent(name)}/update`, {
+      method: "POST",
+    }),
+  checkProviderUpdate: (name: string) =>
+    request<ProviderUpdateCheck>(`/providers/${encodeURIComponent(name)}/check-update`, {
+      method: "POST",
+    }),
+  updateProviderConfig: (name: string, config: Record<string, string>) =>
+    request<{ status: string; provider: string; command: string }>(`/providers/${encodeURIComponent(name)}/config`, {
+      method: "PATCH",
+      body: JSON.stringify(config),
+    }),
   listTools: () => request<Tool[]>("/tools"),
   enableTool: (name: string) =>
     request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/enable`, {
