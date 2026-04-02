@@ -231,7 +231,7 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 					ut.Status = "installed"
 					ut.Command = path
 					// Try to get version
-					if out, verr := exec.Command(t, "--version").Output(); verr == nil {
+					if out, verr := exec.Command(t, "--version").Output(); verr == nil { //nolint:gosec // tool names from role configs
 						ver := strings.TrimSpace(string(out))
 						if len(ver) > 80 {
 							ver = ver[:80]
