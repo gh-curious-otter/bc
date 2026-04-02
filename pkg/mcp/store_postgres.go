@@ -14,7 +14,8 @@ import (
 
 // PostgresStore provides Postgres-backed MCP server config storage.
 type PostgresStore struct {
-	db *sql.DB
+	configLookup ConfigLookupFunc // optional fallback for config-only servers
+	db           *sql.DB
 }
 
 // NewPostgresStore creates a PostgresStore from an existing *sql.DB connection.
@@ -138,8 +139,8 @@ func (p *PostgresStore) Remove(name string) error {
 }
 
 // SetEnabled enables or disables an MCP server config.
-// Uses a simple UPDATE to avoid creating duplicate/broken rows with default
-// values. The server must already exist in the database (via Add).
+// If the server is not yet in the database but a ConfigLookupFunc is set,
+// the full config is resolved and inserted before applying the toggle.
 func (p *PostgresStore) SetEnabled(name string, enabled bool) error {
 	enabledInt := 0
 	if enabled {
@@ -155,6 +156,16 @@ func (p *PostgresStore) SetEnabled(name string, enabled bool) error {
 	}
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
+		// Server not in DB — try config lookup (e.g., unified tool store).
+		if p.configLookup != nil {
+			if cfg := p.configLookup(name); cfg != nil {
+				cfg.Enabled = enabled
+				if addErr := p.Add(cfg); addErr != nil {
+					return fmt.Errorf("insert config-only mcp server %q: %w", name, addErr)
+				}
+				return nil
+			}
+		}
 		return fmt.Errorf("mcp server %q not found", name)
 	}
 	return nil

@@ -179,8 +179,8 @@ func TestSetEnabled(t *testing.T) {
 func TestSetEnabledNotFound(t *testing.T) {
 	s := setupTestStore(t)
 
-	// SetEnabled on a server not in the database should return an error
-	// (not silently create a broken row with default values).
+	// SetEnabled on a server not in the database and no config lookup
+	// should return an error.
 	err := s.SetEnabled("config-only", false)
 	if err == nil {
 		t.Fatal("expected error for SetEnabled on nonexistent server")
@@ -196,6 +196,70 @@ func TestSetEnabledNotFound(t *testing.T) {
 	}
 	if got != nil {
 		t.Error("expected nil, got a row — SetEnabled should not create rows")
+	}
+}
+
+func TestSetEnabledConfigOnly(t *testing.T) {
+	s := setupTestStore(t)
+
+	// Register a config lookup that returns a server config for "github".
+	s.SetConfigLookup(func(name string) *ServerConfig {
+		if name == "github" {
+			return &ServerConfig{
+				Name:      "github",
+				Transport: TransportStdio,
+				Command:   "github-mcp-server",
+				Env:       map[string]string{"GITHUB_TOKEN": "tok"},
+				Enabled:   true,
+			}
+		}
+		return nil
+	})
+
+	// Disabling a config-only server should auto-insert it with enabled=false.
+	if err := s.SetEnabled("github", false); err != nil {
+		t.Fatalf("SetEnabled config-only server: %v", err)
+	}
+
+	got, err := s.Get("github")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil {
+		t.Fatal("expected row after SetEnabled on config-only server")
+	}
+	if got.Enabled {
+		t.Error("expected enabled=false after disabling config-only server")
+	}
+	if got.Command != "github-mcp-server" {
+		t.Errorf("command = %q, want %q", got.Command, "github-mcp-server")
+	}
+	if got.Transport != TransportStdio {
+		t.Errorf("transport = %q, want %q", got.Transport, TransportStdio)
+	}
+
+	// Toggling back to enabled should work via normal UPDATE path.
+	if err := s.SetEnabled("github", true); err != nil {
+		t.Fatalf("re-enable: %v", err)
+	}
+	got, _ = s.Get("github")
+	if !got.Enabled {
+		t.Error("expected enabled=true after re-enabling")
+	}
+}
+
+func TestSetEnabledConfigLookupMiss(t *testing.T) {
+	s := setupTestStore(t)
+
+	// Config lookup that never matches.
+	s.SetConfigLookup(func(name string) *ServerConfig { return nil })
+
+	err := s.SetEnabled("nonexistent", false)
+	if err == nil {
+		t.Fatal("expected error when config lookup returns nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
 	}
 }
 

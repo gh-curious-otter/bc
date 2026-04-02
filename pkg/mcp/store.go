@@ -34,11 +34,27 @@ type ServerConfig struct {
 	Enabled   bool              `json:"enabled"`
 }
 
+// ConfigLookupFunc resolves a server config by name from an external source
+// (e.g., the unified tool store). Returns nil if not found.
+type ConfigLookupFunc func(name string) *ServerConfig
+
 // Store provides MCP server config storage backed by SQLite or Postgres.
 type Store struct {
-	db     *db.DB
-	pg     *PostgresStore // non-nil when using Postgres via OpenStore
-	shared bool           // true when using shared bc.db (don't close on Close())
+	configLookup ConfigLookupFunc // optional fallback for config-only servers
+	db           *db.DB
+	pg           *PostgresStore // non-nil when using Postgres via OpenStore
+	shared       bool           // true when using shared bc.db (don't close on Close())
+}
+
+// SetConfigLookup registers a fallback function that resolves server configs
+// not yet present in the database (e.g., servers defined only in settings or
+// the unified tool store). Used by SetEnabled to auto-insert config-only
+// servers on first toggle.
+func (s *Store) SetConfigLookup(fn ConfigLookupFunc) {
+	s.configLookup = fn
+	if s.pg != nil {
+		s.pg.configLookup = fn
+	}
 }
 
 // NewStore creates a new MCP store for the given workspace path.
@@ -189,8 +205,8 @@ func (s *Store) Remove(name string) error {
 }
 
 // SetEnabled enables or disables an MCP server config.
-// Uses a simple UPDATE to avoid creating duplicate/broken rows with default
-// values. The server must already exist in the database (via Add).
+// If the server is not yet in the database but a ConfigLookupFunc is set,
+// the full config is resolved and inserted before applying the toggle.
 func (s *Store) SetEnabled(name string, enabled bool) error {
 	if s.pg != nil {
 		return s.pg.SetEnabled(name, enabled)
@@ -209,6 +225,16 @@ func (s *Store) SetEnabled(name string, enabled bool) error {
 	}
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
+		// Server not in DB — try config lookup (e.g., unified tool store).
+		if s.configLookup != nil {
+			if cfg := s.configLookup(name); cfg != nil {
+				cfg.Enabled = enabled
+				if addErr := s.Add(cfg); addErr != nil {
+					return fmt.Errorf("insert config-only mcp server %q: %w", name, addErr)
+				}
+				return nil
+			}
+		}
 		return fmt.Errorf("mcp server %q not found", name)
 	}
 	return nil
