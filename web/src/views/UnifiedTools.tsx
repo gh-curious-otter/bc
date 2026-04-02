@@ -4,6 +4,8 @@ import type { UnifiedTool } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
+import { ToastContainer, useToast } from "../components/Toast";
+import type { ToastLevel } from "../components/Toast";
 
 type AddFormType = "mcp" | "cli" | null;
 
@@ -33,7 +35,7 @@ function ProviderCard({ tool }: { tool: UnifiedTool }) {
   const cfg = getStatusConfig(tool.status);
   return (
     <div className="rounded border border-bc-border bg-bc-surface p-3 flex items-center gap-3">
-      <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+      <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} aria-label={`Status: ${cfg.label}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{tool.name}</span>
@@ -70,7 +72,7 @@ function ToolCard({ tool, onToggle, onRemove }: { tool: UnifiedTool; onToggle: (
   const isDisabled = tool.status === "disabled";
   return (
     <div className={`rounded border bg-bc-surface p-4 flex items-start gap-3 ${tool.error ? "border-bc-error/30" : "border-bc-border"}`}>
-      <span className={`inline-block w-2 h-2 mt-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+      <span className={`inline-block w-2 h-2 mt-1.5 rounded-full shrink-0 ${cfg.dot}`} aria-label={`Status: ${cfg.label}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{tool.name}</span>
@@ -101,21 +103,23 @@ function ToolCard({ tool, onToggle, onRemove }: { tool: UnifiedTool; onToggle: (
             className="text-xs px-2 py-1 rounded bg-bc-info/10 text-bc-info hover:bg-bc-info/20 transition-colors"
             aria-label={`Update ${tool.name}`}>Update</button>
         )}
-        <button type="button" onClick={onToggle} aria-label={isDisabled ? `Enable ${tool.name}` : `Disable ${tool.name}`}
-          className={`text-xs px-2 py-1 rounded transition-colors ${isDisabled ? "bg-bc-border text-bc-muted hover:bg-bc-border/80" : "bg-bc-success/10 text-bc-success hover:bg-bc-success/20"}`}>
+        <button type="button" onClick={onToggle}
+          role="switch" aria-checked={!isDisabled}
+          aria-label={isDisabled ? `Enable ${tool.name}` : `Disable ${tool.name}`}
+          className={`text-xs px-2 py-1 rounded transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${isDisabled ? "bg-bc-border text-bc-muted hover:bg-bc-border/80" : "bg-bc-success/10 text-bc-success hover:bg-bc-success/20"}`}>
           {isDisabled ? "Enable" : "Enabled"}
         </button>
         {confirmRemove ? (
           <div className="flex items-center gap-1">
             <span className="text-xs text-bc-error whitespace-nowrap">Remove &lsquo;{tool.name}&rsquo;?</span>
             <button type="button" onClick={() => { onRemove(); setConfirmRemove(false); }}
-              className="text-xs px-2 py-1 rounded bg-bc-error/20 text-bc-error" aria-label="Confirm remove">Yes</button>
+              className="text-xs px-2 py-1 rounded bg-bc-error/20 text-bc-error focus-visible:ring-2 focus-visible:ring-bc-error" aria-label="Confirm remove">Yes</button>
             <button type="button" onClick={() => setConfirmRemove(false)}
-              className="text-xs px-2 py-1 rounded border border-bc-border text-bc-muted" aria-label="Cancel remove">No</button>
+              className="text-xs px-2 py-1 rounded border border-bc-border text-bc-muted focus-visible:ring-2 focus-visible:ring-bc-accent" aria-label="Cancel remove">No</button>
           </div>
         ) : (
           <button type="button" onClick={() => setConfirmRemove(true)}
-            className="text-xs px-2 py-1 rounded border border-bc-border text-bc-muted hover:text-bc-error hover:border-bc-error/50 transition-colors"
+            className="text-xs px-2 py-1 rounded border border-bc-border text-bc-muted hover:text-bc-error hover:border-bc-error/50 transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent"
             aria-label={`Remove ${tool.name}`}>Remove</button>
         )}
       </div>
@@ -123,7 +127,7 @@ function ToolCard({ tool, onToggle, onRemove }: { tool: UnifiedTool; onToggle: (
   );
 }
 
-function AddToolForm({ type, onClose, onAdded }: { type: "mcp" | "cli"; onClose: () => void; onAdded: () => void }) {
+function AddToolForm({ type, onClose, onAdded, onToast }: { type: "mcp" | "cli"; onClose: () => void; onAdded: () => void; onToast: (level: ToastLevel, text: string) => void }) {
   const [name, setName] = useState("");
   const [command, setCommand] = useState("");
   const [url, setUrl] = useState("");
@@ -150,13 +154,17 @@ function AddToolForm({ type, onClose, onAdded }: { type: "mcp" | "cli"; onClose:
           url: transport === "sse" ? url.trim() : "",
           env: Object.keys(env).length > 0 ? env : undefined, enabled: true,
         });
+        onToast("success", `MCP server '${name.trim()}' added`);
       } else {
         await api.upsertTool({ name: name.trim(), command: command.trim(), install_cmd: installCmd.trim(), enabled: true });
+        onToast("info", `Tool '${name.trim()}' added \u2014 configuration updated`);
       }
       onAdded();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add tool");
+      const msg = err instanceof Error ? err.message : "Failed to add tool";
+      setError(msg);
+      onToast("error", msg);
     } finally {
       setSubmitting(false);
     }
@@ -226,6 +234,8 @@ export function UnifiedTools() {
   const [addForm, setAddForm] = useState<AddFormType>(null);
   const [checking, setChecking] = useState(false);
   const [checkedTools, setCheckedTools] = useState<UnifiedTool[] | null>(null);
+  const [optimisticToggles, setOptimisticToggles] = useState<Map<string, string>>(new Map());
+  const { toasts, addToast, dismiss } = useToast();
 
   const handleCheck = async () => {
     setChecking(true);
@@ -239,7 +249,10 @@ export function UnifiedTools() {
         status: statusMap.get(t.name) ?? t.status,
         health_status: statusMap.has(t.name) ? "checked" : undefined,
       })));
-    } catch { /* fall back to polled data */ }
+      addToast("success", "Health check complete");
+    } catch {
+      addToast("error", "Health check failed");
+    }
     finally { setChecking(false); }
   };
 
@@ -258,30 +271,58 @@ export function UnifiedTools() {
     return <div className="p-6"><EmptyState icon="!" title="Failed to load tools" description={error} actionLabel="Retry" onAction={refresh} /></div>;
   }
 
-  const allTools = checkedTools ?? tools ?? [];
+  const allTools = (checkedTools ?? tools ?? []).map((t) => {
+    const optimistic = optimisticToggles.get(t.name);
+    return optimistic ? { ...t, status: optimistic } : t;
+  });
   const providers = allTools.filter((t) => t.type === "provider");
   const mcpTools = allTools.filter((t) => t.type === "mcp");
   const cliTools = allTools.filter((t) => !["provider", "mcp"].includes(t.type));
 
   const handleToggle = async (tool: UnifiedTool) => {
+    const wasDisabled = tool.status === "disabled" || tool.status === "not_installed";
+    const newStatus = wasDisabled ? (tool.type === "mcp" ? "configured" : "installed") : "disabled";
+    const oldStatus = tool.status;
+
+    // Optimistic update
+    setOptimisticToggles((prev) => new Map(prev).set(tool.name, newStatus));
+
     try {
       if (tool.type === "mcp") {
-        tool.status === "disabled" ? await api.enableMCP(tool.name) : await api.disableMCP(tool.name);
+        wasDisabled ? await api.enableMCP(tool.name) : await api.disableMCP(tool.name);
       } else {
-        tool.status === "disabled" || tool.status === "not_installed"
-          ? await api.enableTool(tool.name) : await api.disableTool(tool.name);
+        wasDisabled ? await api.enableTool(tool.name) : await api.disableTool(tool.name);
       }
+      addToast("success", `${tool.name} ${wasDisabled ? "enabled" : "disabled"}`);
       setCheckedTools(null);
       refresh();
-    } catch { /* silently fail */ }
+    } catch (err) {
+      // Revert optimistic update
+      setOptimisticToggles((prev) => new Map(prev).set(tool.name, oldStatus));
+      const msg = err instanceof Error ? err.message : `Failed to toggle ${tool.name}`;
+      addToast("error", msg);
+    } finally {
+      // Clear optimistic state after server data arrives
+      setTimeout(() => {
+        setOptimisticToggles((prev) => {
+          const next = new Map(prev);
+          next.delete(tool.name);
+          return next;
+        });
+      }, 1500);
+    }
   };
 
   const handleRemove = async (tool: UnifiedTool) => {
     try {
       tool.type === "mcp" ? await api.removeMCP(tool.name) : await api.deleteTool(tool.name);
+      addToast("success", `${tool.name} removed`);
       setCheckedTools(null);
       refresh();
-    } catch { /* silently fail */ }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : `Failed to remove ${tool.name}`;
+      addToast("error", msg);
+    }
   };
 
   return (
@@ -310,7 +351,7 @@ export function UnifiedTools() {
         </div>
       </div>
 
-      {addForm && <AddToolForm type={addForm} onClose={() => setAddForm(null)} onAdded={() => { setCheckedTools(null); refresh(); }} />}
+      {addForm && <AddToolForm type={addForm} onClose={() => setAddForm(null)} onAdded={() => { setCheckedTools(null); refresh(); }} onToast={addToast} />}
 
       {/* Providers */}
       <section>
@@ -353,6 +394,8 @@ export function UnifiedTools() {
           </div>
         )}
       </section>
+
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }
