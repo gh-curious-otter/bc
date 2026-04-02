@@ -46,6 +46,8 @@ interface AgentActivity {
   tool: string;
   role: string;
   tokens: number;
+  costUsd: number;
+  lastEventTime: number;
   nodes: ToolNode[];
   collapsed: boolean;
 }
@@ -102,7 +104,7 @@ function parseToolName(name: string): { display: string; type: "mcp" | "bash" | 
 }
 
 function toolIcon(name: string): string {
-  if (name.startsWith("mcp__playwright")) return "\u{1F3AD}";
+  if (name.startsWith("mcp__playwright") || name.startsWith("mcp__plugin_playwright")) return "\u{1F3AD}";
   if (name.startsWith("mcp__bc")) return "\u26A1";
   if (name.startsWith("mcp__")) return "\u{1F50C}";
   if (name === "Bash" || name === "BashOutput") return "\u2328";
@@ -166,6 +168,25 @@ function elapsed(start: number, end?: number): string {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60_000).toFixed(1)}m`;
+}
+
+/** Format a relative time like "2s ago", "3m ago", "1h ago" */
+function relativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  if (diff < 1000) return "just now";
+  if (diff < 60_000) return `${Math.floor(diff / 1000)}s ago`;
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+}
+
+/** Format idle duration like "Idle 5m" or "Idle 2h" */
+function idleDuration(lastEventTime: number): string {
+  const diff = Date.now() - lastEventTime;
+  if (diff < 60_000) return `Idle ${Math.floor(diff / 1000)}s`;
+  if (diff < 3_600_000) return `Idle ${Math.floor(diff / 60_000)}m`;
+  if (diff < 86_400_000) return `Idle ${Math.floor(diff / 3_600_000)}h`;
+  return `Idle ${Math.floor(diff / 86_400_000)}d`;
 }
 
 /* ── Node search helper ────────────────────────────────────────────── */
@@ -313,11 +334,38 @@ function ElapsedTimer({ start }: { start: number }) {
   return <>{elapsed(start)}</>;
 }
 
+/* ── Relative Timestamp ───────────────────────────────────────────── */
+
+function RelativeTimestamp({ ts }: { ts: number }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span title={new Date(ts).toISOString()} className="text-[10px] text-bc-muted/60 font-mono tabular-nums">
+      {relativeTime(ts)}
+    </span>
+  );
+}
+
+/* ── Idle Timer ───────────────────────────────────────────────────── */
+
+function IdleTimer({ lastEventTime }: { lastEventTime: number }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <>{idleDuration(lastEventTime)}</>;
+}
+
 /* ── Tool Node Row ─────────────────────────────────────────────────── */
 
 function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
   const [expanded, setExpanded] = useState(false);
   const indent = depth * 20;
+  const hasDetails = !!(node.fullInput || node.fullOutput || node.children.length > 0);
 
   return (
     <>
@@ -331,6 +379,10 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
         <span className="text-bc-muted text-xs select-none mt-[3px] shrink-0">
           {depth > 0 ? "\u251C\u2500" : ""}
         </span>
+        {/* Expand/collapse chevron indicator */}
+        <span className="text-bc-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-bc-muted">
+          {hasDetails ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
+        </span>
         <ToolDot status={node.status} />
         <span className="text-[12px] mr-0.5" aria-hidden="true">{toolIcon(node.toolName)}</span>
         <span className="font-mono text-[13px] text-bc-text font-medium">
@@ -341,12 +393,15 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
             {redactSecrets(node.args)}
           </span>
         )}
-        <span className="ml-auto text-[11px] text-bc-muted tabular-nums shrink-0 font-mono">
-          {node.status === "running" ? (
-            <ElapsedTimer start={node.startTime} />
-          ) : (
-            elapsed(node.startTime, node.endTime)
-          )}
+        <span className="ml-auto flex items-center gap-2 shrink-0">
+          <RelativeTimestamp ts={node.startTime} />
+          <span className="text-[11px] text-bc-muted tabular-nums font-mono">
+            {node.status === "running" ? (
+              <ElapsedTimer start={node.startTime} />
+            ) : (
+              elapsed(node.startTime, node.endTime)
+            )}
+          </span>
         </span>
       </button>
 
@@ -459,11 +514,15 @@ function DisplayNodeRow({ node }: { node: DisplayNode }) {
 const AgentCard = memo(function AgentCard({
   activity,
   onToggle,
+  onClickFilter,
+  isFilterActive,
   searchTerm,
   typeFilter,
 }: {
   activity: AgentActivity;
   onToggle: () => void;
+  onClickFilter: () => void;
+  isFilterActive: boolean;
   searchTerm: string;
   typeFilter: FilterType;
 }) {
@@ -473,65 +532,89 @@ const AgentCard = memo(function AgentCard({
     : activity.nodes;
 
   const runningCount = visibleNodes.filter((n) => n.status === "running").length;
+  const errorCount = activity.nodes.filter((n) => n.status === "failed").length;
   const displayNodes = aggregateNodes(visibleNodes);
   const matchCount = searchTerm ? visibleNodes.length : 0;
   const showToolNodes = typeFilter !== "state";
 
   return (
-    <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent"
-      >
-        <svg
-          width="12" height="12" viewBox="0 0 12 12" fill="none"
-          stroke="currentColor" strokeWidth="2"
-          className={`text-bc-muted transition-transform ${activity.collapsed ? "" : "rotate-90"}`}
+    <div className={`rounded-lg border bg-bc-surface overflow-hidden transition-colors ${isFilterActive ? "border-bc-accent ring-1 ring-bc-accent/30" : "border-bc-border"}`}>
+      <div className="flex items-center">
+        {/* Collapse toggle */}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex items-center gap-3 px-4 py-3 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent shrink-0"
+          aria-label={`${activity.collapsed ? "Expand" : "Collapse"} ${activity.name}`}
         >
-          <path d="M4 2l4 4-4 4" />
-        </svg>
+          <svg
+            width="12" height="12" viewBox="0 0 12 12" fill="none"
+            stroke="currentColor" strokeWidth="2"
+            className={`text-bc-muted transition-transform ${activity.collapsed ? "" : "rotate-90"}`}
+          >
+            <path d="M4 2l4 4-4 4" />
+          </svg>
+        </button>
 
-        <StateDot state={activity.state} />
+        {/* Click-to-filter agent header */}
+        <button
+          type="button"
+          onClick={onClickFilter}
+          className="flex-1 flex items-center gap-3 py-3 pr-4 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent min-w-0"
+          title={isFilterActive ? "Click to clear agent filter" : `Click to filter by ${activity.name}`}
+        >
+          <StateDot state={activity.state} />
 
-        <span className="font-semibold text-[14px] text-bc-text">
-          {activity.name}
-        </span>
-
-        {searchTerm && matchCount > 0 && (
-          <span className="text-[11px] text-bc-accent font-mono">
-            {matchCount} {matchCount === 1 ? "match" : "matches"}
+          <span className="font-semibold text-[14px] text-bc-text">
+            {activity.name}
           </span>
-        )}
 
-        <span className="text-[11px] text-bc-muted font-mono">
-          {activity.role}
-        </span>
+          {errorCount > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-bc-error rounded-full leading-none">
+              {errorCount}
+            </span>
+          )}
 
-        {activity.task && (
-          <span className="text-[12px] text-bc-muted truncate max-w-[300px]">
-            {activity.task}
+          {searchTerm && matchCount > 0 && (
+            <span className="text-[11px] text-bc-accent font-mono">
+              {matchCount} {matchCount === 1 ? "match" : "matches"}
+            </span>
+          )}
+
+          <span className="text-[11px] text-bc-muted font-mono">
+            {activity.role}
           </span>
-        )}
 
-        <span className="ml-auto flex items-center gap-3">
-          {typeFilter === "state" && (
-            <span className="text-[11px] text-bc-muted font-mono capitalize">
-              {activity.state}
+          {activity.task && (
+            <span className="text-[12px] text-bc-muted truncate max-w-[300px]">
+              {activity.task}
             </span>
           )}
-          {runningCount > 0 && (
-            <span className="text-[11px] text-blue-400 font-mono">
-              {runningCount} running
-            </span>
-          )}
-          {activity.tokens > 0 && (
-            <span className="text-[11px] text-bc-muted font-mono tabular-nums">
-              {activity.tokens.toLocaleString()} tok
-            </span>
-          )}
-        </span>
-      </button>
+
+          <span className="ml-auto flex items-center gap-3">
+            {typeFilter === "state" && (
+              <span className="text-[11px] text-bc-muted font-mono capitalize">
+                {activity.state}
+              </span>
+            )}
+            {runningCount > 0 && (
+              <span className="text-[11px] text-blue-400 font-mono">
+                {runningCount} running
+              </span>
+            )}
+            {activity.costUsd > 0 && (
+              <span className="text-[11px] text-bc-success font-mono tabular-nums">
+                ${activity.costUsd.toFixed(2)}
+              </span>
+            )}
+            {activity.tokens > 0 && (
+              <span className="text-[11px] text-bc-muted font-mono tabular-nums">
+                {activity.tokens.toLocaleString()} tok
+              </span>
+            )}
+          </span>
+        </button>
+      </div>
 
       {!activity.collapsed && showToolNodes && displayNodes.length > 0 && (
         <div className="border-t border-bc-border/60 py-1">
@@ -543,7 +626,11 @@ const AgentCard = memo(function AgentCard({
 
       {!activity.collapsed && showToolNodes && visibleNodes.length === 0 && !searchTerm && (
         <div className="border-t border-bc-border/60 py-3 px-4 text-[12px] text-bc-muted italic">
-          Waiting for activity...
+          {activity.lastEventTime > 0 ? (
+            <IdleTimer lastEventTime={activity.lastEventTime} />
+          ) : (
+            "Waiting for activity..."
+          )}
         </div>
       )}
 
@@ -587,6 +674,8 @@ export function Logs() {
               tool: a.tool,
               role: a.role ?? "",
               tokens: a.total_tokens ?? 0,
+              costUsd: a.cost_usd ?? 0,
+              lastEventTime: 0,
               nodes: [],
               collapsed: a.state === "stopped",
             });
@@ -615,9 +704,10 @@ export function Logs() {
         if (!agentName) continue;
 
         let activity = next.get(agentName) ?? {
-          name: agentName, state: "working", task: "", tool: "", role: "", tokens: 0, nodes: [], collapsed: false,
+          name: agentName, state: "working", task: "", tool: "", role: "", tokens: 0, costUsd: 0, lastEventTime: 0, nodes: [], collapsed: false,
         };
         activity = { ...activity, nodes: [...activity.nodes] };
+        activity.lastEventTime = Date.now();
 
         if (evt.task) activity.task = evt.task;
         if (evt.input_tokens) activity.tokens += evt.input_tokens;
@@ -742,7 +832,7 @@ export function Logs() {
           const next = new Map(prev);
           const existing = next.get(name);
           if (existing) {
-            const updates: Partial<AgentActivity> = { state };
+            const updates: Partial<AgentActivity> = { state, lastEventTime: Date.now() };
             if (d.task) updates.task = d.task as string;
             if (d.role) updates.role = d.role as string;
             next.set(name, { ...existing, ...updates });
@@ -762,6 +852,11 @@ export function Logs() {
       if (existing) next.set(name, { ...existing, collapsed: !existing.collapsed });
       return next;
     });
+  }, []);
+
+  // Click-to-filter on agent card header
+  const toggleCardFilter = useCallback((name: string) => {
+    setAgentFilter((prev) => (prev === name ? "" : name));
   }, []);
 
   // Filter and sort activities
@@ -859,6 +954,8 @@ export function Logs() {
               key={activity.name}
               activity={activity}
               onToggle={() => toggleAgent(activity.name)}
+              onClickFilter={() => toggleCardFilter(activity.name)}
+              isFilterActive={agentFilter === activity.name}
               searchTerm={searchFilter}
               typeFilter={typeFilter}
             />
