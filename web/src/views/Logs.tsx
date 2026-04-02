@@ -101,6 +101,18 @@ const AGGREGATION_WINDOW_MS = 5_000;
 const FAILED_NEVER_AGGREGATE_MS = 120_000;
 const MAX_INDIVIDUAL_NODES = 50;
 
+const TASK_STATUS_MAP: Record<string, TaskItem["status"]> = {
+  pending: "pending",
+  in_progress: "in_progress",
+  "in-progress": "in_progress",
+  inProgress: "in_progress",
+  completed: "completed",
+  done: "completed",
+  deleted: "deleted",
+  cancelled: "deleted",
+  canceled: "deleted",
+};
+
 /* ── Helpers ───────────────────────────────────────────────────────── */
 
 let _nodeId = 0;
@@ -202,11 +214,8 @@ function extractToolMetadata(toolName: string, input: unknown): string {
   if (toolName === "Bash" || toolName === "bash") {
     if (typeof obj.command === "string") return redactSecrets(trunc(obj.command));
   }
-  if (toolName === "Read") {
-    if (typeof obj.file_path === "string") return trunc(obj.file_path);
-  }
-  if (toolName === "Write") {
-    if (typeof obj.file_path === "string") return trunc(obj.file_path);
+  if ((toolName === "Read" || toolName === "Write") && typeof obj.file_path === "string") {
+    return trunc(obj.file_path);
   }
   if (toolName === "Edit") {
     let s = typeof obj.file_path === "string" ? obj.file_path : "";
@@ -215,11 +224,8 @@ function extractToolMetadata(toolName: string, input: unknown): string {
     }
     return trunc(s);
   }
-  if (toolName === "Grep") {
-    if (typeof obj.pattern === "string") return trunc(obj.pattern);
-  }
-  if (toolName === "Glob") {
-    if (typeof obj.pattern === "string") return trunc(obj.pattern);
+  if ((toolName === "Grep" || toolName === "Glob") && typeof obj.pattern === "string") {
+    return trunc(obj.pattern);
   }
   if (toolName === "Agent") {
     const parts: string[] = [];
@@ -360,6 +366,80 @@ function shouldNeverAggregate(node: ToolNode, now?: number): boolean {
   return false;
 }
 
+interface AggStats {
+  totalDuration: number;
+  totalTokens: number;
+  successCount: number;
+  failCount: number;
+  minStart: number;
+  maxEnd: number;
+}
+
+function computeToolNodeStats(nodes: ToolNode[]): AggStats {
+  let totalDuration = 0;
+  let successCount = 0;
+  let failCount = 0;
+  let minStart = Infinity;
+  let maxEnd = 0;
+
+  for (const n of nodes) {
+    totalDuration += n.endTime ? n.endTime - n.startTime : 0;
+    if (n.status === "completed") successCount++;
+    if (n.status === "failed") failCount++;
+    if (n.startTime < minStart) minStart = n.startTime;
+    if (n.endTime && n.endTime > maxEnd) maxEnd = n.endTime;
+  }
+
+  return { totalDuration, totalTokens: 0, successCount, failCount, minStart, maxEnd };
+}
+
+function buildAggregatedNode(idPrefix: string, toolName: string, children: ToolNode[], stats: AggStats): AggregatedNode {
+  return {
+    type: "aggregate",
+    id: `${idPrefix}-${children[0]!.id}`,
+    toolName,
+    count: children.length,
+    children,
+    totalDuration: stats.totalDuration,
+    totalTokens: stats.totalTokens,
+    successCount: stats.successCount,
+    failCount: stats.failCount,
+    startTime: stats.minStart,
+    endTime: stats.maxEnd || Date.now(),
+  };
+}
+
+function flattenDisplayNodes(group: DisplayNode[]): { children: ToolNode[]; stats: AggStats } {
+  const allChildren: ToolNode[] = [];
+  let totalDuration = 0;
+  let totalTokens = 0;
+  let successCount = 0;
+  let failCount = 0;
+  let minStart = Infinity;
+  let maxEnd = 0;
+
+  for (const g of group) {
+    if (isAggregatedNode(g)) {
+      allChildren.push(...g.children);
+      totalDuration += g.totalDuration;
+      totalTokens += g.totalTokens;
+      successCount += g.successCount;
+      failCount += g.failCount;
+      if (g.startTime < minStart) minStart = g.startTime;
+      if (g.endTime > maxEnd) maxEnd = g.endTime;
+    } else {
+      allChildren.push(g);
+      totalDuration += g.endTime ? g.endTime - g.startTime : 0;
+      if (g.status === "completed") successCount++;
+      if (g.status === "failed") failCount++;
+      if (g.startTime < minStart) minStart = g.startTime;
+      if (g.endTime && g.endTime > maxEnd) maxEnd = g.endTime;
+    }
+  }
+
+  return { children: allChildren, stats: { totalDuration, totalTokens, successCount, failCount, minStart, maxEnd } };
+}
+
 function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number, totalNodeCount?: number): DisplayNode[] {
   if (nodes.length === 0) return [];
 
@@ -390,45 +470,14 @@ function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number, totalNode
     const oldAggregated: DisplayNode[] = [];
     for (const [toolName, group] of oldByTool) {
       if (group.length >= 2) {
-        let totalDuration = 0;
-        const totalTokens = 0;
-        let successCount = 0;
-        let failCount = 0;
-        let minStart = Infinity;
-        let maxEnd = 0;
-
-        for (const n of group) {
-          const dur = n.endTime ? n.endTime - n.startTime : 0;
-          totalDuration += dur;
-          if (n.status === "completed") successCount++;
-          if (n.status === "failed") failCount++;
-          if (n.startTime < minStart) minStart = n.startTime;
-          if (n.endTime && n.endTime > maxEnd) maxEnd = n.endTime;
-        }
-
-        oldAggregated.push({
-          type: "aggregate",
-          id: `agg-old-${group[0]!.id}`,
-          toolName,
-          count: group.length,
-          children: group,
-          totalDuration,
-          totalTokens,
-          successCount,
-          failCount,
-          startTime: minStart,
-          endTime: maxEnd || now,
-        });
+        const stats = computeToolNodeStats(group);
+        oldAggregated.push(buildAggregatedNode("agg-old", toolName, group, stats));
       } else {
         oldAggregated.push(...group);
       }
     }
 
-    oldAggregated.sort((a, b) => {
-      const aTime = isAggregatedNode(a) ? a.startTime : (a as ToolNode).startTime;
-      const bTime = isAggregatedNode(b) ? b.startTime : (b as ToolNode).startTime;
-      return bTime - aTime;
-    });
+    oldAggregated.sort((a, b) => b.startTime - a.startTime);
 
     const recentAggregated = aggregateConsecutive(recentNodes);
     return aggregateByType([...recentAggregated, ...oldAggregated], agentTotalNodes);
@@ -496,48 +545,8 @@ function aggregateByType(displayNodes: DisplayNode[], totalNodeCount?: number): 
     }
 
     if (totalIndividual >= AGGREGATION_MIN_COUNT) {
-      const allChildren: ToolNode[] = [];
-      let totalDuration = 0;
-      let totalTokens = 0;
-      let successCount = 0;
-      let failCount = 0;
-      let minStart = Infinity;
-      let maxEnd = 0;
-
-      for (const g of group) {
-        if (isAggregatedNode(g)) {
-          allChildren.push(...g.children);
-          totalDuration += g.totalDuration;
-          totalTokens += g.totalTokens;
-          successCount += g.successCount;
-          failCount += g.failCount;
-          if (g.startTime < minStart) minStart = g.startTime;
-          if (g.endTime > maxEnd) maxEnd = g.endTime;
-        } else {
-          const tn = g as ToolNode;
-          allChildren.push(tn);
-          const dur = tn.endTime ? tn.endTime - tn.startTime : 0;
-          totalDuration += dur;
-          if (tn.status === "completed") successCount++;
-          if (tn.status === "failed") failCount++;
-          if (tn.startTime < minStart) minStart = tn.startTime;
-          if (tn.endTime && tn.endTime > maxEnd) maxEnd = tn.endTime;
-        }
-      }
-
-      aggregated.push({
-        type: "aggregate",
-        id: `agg-type-${allChildren[0]!.id}`,
-        toolName,
-        count: allChildren.length,
-        children: allChildren,
-        totalDuration,
-        totalTokens,
-        successCount,
-        failCount,
-        startTime: minStart,
-        endTime: maxEnd || Date.now(),
-      });
+      const { children: allChildren, stats } = flattenDisplayNodes(group);
+      aggregated.push(buildAggregatedNode("agg-type", toolName, allChildren, stats));
     } else {
       ungroupable.push(...group);
     }
@@ -579,35 +588,8 @@ function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
     }
 
     if (group.length >= 2) {
-      let totalDuration = 0;
-      const totalTokens = 0;
-      let successCount = 0;
-      let failCount = 0;
-      let minStart = Infinity;
-      let maxEnd = 0;
-
-      for (const n of group) {
-        const dur = n.endTime ? n.endTime - n.startTime : 0;
-        totalDuration += dur;
-        if (n.status === "completed") successCount++;
-        if (n.status === "failed") failCount++;
-        if (n.startTime < minStart) minStart = n.startTime;
-        if (n.endTime && n.endTime > maxEnd) maxEnd = n.endTime;
-      }
-
-      result.push({
-        type: "aggregate",
-        id: `agg-${group[0]!.id}`,
-        toolName: current.toolName,
-        count: group.length,
-        children: group,
-        totalDuration,
-        totalTokens,
-        successCount,
-        failCount,
-        startTime: minStart,
-        endTime: maxEnd || Date.now(),
-      });
+      const stats = computeToolNodeStats(group);
+      result.push(buildAggregatedNode("agg", current.toolName, group, stats));
       i = j;
     } else {
       result.push(current);
@@ -679,34 +661,13 @@ function parseTaskUpdate(toolInput: unknown): { taskId: string; status: TaskItem
   const rawStatus = typeof inp.status === "string" ? inp.status : null;
   if (!rawStatus) return null;
 
-  const statusMap: Record<string, TaskItem["status"]> = {
-    pending: "pending",
-    in_progress: "in_progress",
-    "in-progress": "in_progress",
-    inProgress: "in_progress",
-    completed: "completed",
-    done: "completed",
-    deleted: "deleted",
-    cancelled: "deleted",
-    canceled: "deleted",
-  };
-
-  const status = statusMap[rawStatus] ?? "pending";
+  const status = TASK_STATUS_MAP[rawStatus] ?? "pending";
   const blockedBy = Array.isArray(inp.addBlockedBy) ? inp.addBlockedBy as string[] : undefined;
   return { taskId, status, blockedBy };
 }
 
 function parseTaskListResponse(text: string): TaskItem[] {
   const tasks: TaskItem[] = [];
-  const statusMap: Record<string, TaskItem["status"]> = {
-    pending: "pending",
-    in_progress: "in_progress",
-    "in-progress": "in_progress",
-    completed: "completed",
-    done: "completed",
-    deleted: "deleted",
-  };
-
   const lines = text.split("\n");
   for (const line of lines) {
     const match = line.match(/^#(\d+)\s+\[(\w+)]\s+(.+)$/);
@@ -714,7 +675,7 @@ function parseTaskListResponse(text: string): TaskItem[] {
       const id = match[1]!;
       const rawStatus = match[2]!.toLowerCase();
       const subject = match[3]!.trim();
-      const status = statusMap[rawStatus] ?? "pending";
+      const status = TASK_STATUS_MAP[rawStatus] ?? "pending";
       tasks.push({ id, subject, status });
     }
   }
@@ -861,7 +822,7 @@ function ToolNameDisplay({ toolName, searchQuery }: { toolName: string; searchQu
 
 /* ── Tool Node Row ─────────────────────────────────────────────────── */
 
-function ToolNodeRow({ node, depth = 0, isSubagentChild = false, searchQuery = "" }: { node: ToolNode; depth?: number; isSubagentChild?: boolean; searchQuery?: string }) {
+function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolNode; depth?: number; searchQuery?: string }) {
   const [expanded, setExpanded] = useState(false);
   const indent = depth * 20;
   const hasDetails = !!(node.fullInput || node.fullOutput || node.children.length > 0);
@@ -949,7 +910,7 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false, searchQuery = "
       )}
 
       {node.children.map((child) => (
-        <ToolNodeRow key={child.id} node={child} depth={depth + 1} isSubagentChild={isSubagentChild} searchQuery={searchQuery} />
+        <ToolNodeRow key={child.id} node={child} depth={depth + 1} searchQuery={searchQuery} />
       ))}
     </>
   );
@@ -1021,7 +982,7 @@ function AgentTreeNode({ node, depth = 0 }: { node: ToolNode; depth?: number }) 
                   {isLast ? "\u2514\u2500" : "\u251C\u2500"}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <ToolNodeRow node={child} depth={0} isSubagentChild />
+                  <ToolNodeRow node={child} depth={0} />
                 </div>
               </div>
             );
@@ -1571,11 +1532,11 @@ const AgentCard = memo(function AgentCard({
                 {runningCount} running
               </span>
             )}
-            {(() => { const cost = estimateCost(activity); return cost > 0 ? (
+            {estimateCost(activity) > 0 && (
               <span className="text-[11px] text-bc-success font-mono tabular-nums" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
-                ${cost.toFixed(2)}
+                ${estimateCost(activity).toFixed(2)}
               </span>
-            ) : null; })()}
+            )}
             {activity.tokens > 0 && (
               <span className="text-[11px] text-bc-muted font-mono tabular-nums">
                 {activity.tokens.toLocaleString()} tok
@@ -1603,7 +1564,7 @@ const AgentCard = memo(function AgentCard({
           )}
           <AnimatePresence mode="popLayout" initial={false}>
             {displayNodes.map((node) => {
-              const nodeKey = isAggregatedNode(node) ? node.id : node.id;
+              const nodeKey = node.id;
               if (skipAnimation) {
                 return (
                   <div key={nodeKey}>
@@ -1651,6 +1612,39 @@ const AgentCard = memo(function AgentCard({
   );
 });
 
+/* ── Event processing helpers ──────────────────────────────────────── */
+
+/** Try to update a running child node inside the active subagent. Returns true if found. */
+function updateSubagentChild(
+  activity: AgentActivity,
+  predicate: (n: ToolNode) => boolean,
+  updater: (child: ToolNode) => ToolNode,
+): boolean {
+  if (activity.activeSubagentIdx === undefined || activity.activeSubagentIdx < 0) return false;
+  const parentNode = activity.nodes[activity.activeSubagentIdx];
+  if (!parentNode) return false;
+
+  const childIdx = findLastIdx(parentNode.children, predicate);
+  if (childIdx < 0) return false;
+
+  const updatedChildren = [...parentNode.children];
+  updatedChildren[childIdx] = updater(updatedChildren[childIdx]!);
+  activity.nodes[activity.activeSubagentIdx] = { ...parentNode, children: updatedChildren };
+  return true;
+}
+
+/** Find and update a running top-level node. Returns true if found. */
+function updateTopLevelNode(
+  activity: AgentActivity,
+  predicate: (n: ToolNode) => boolean,
+  updater: (node: ToolNode) => ToolNode,
+): boolean {
+  const idx = findLastIdx(activity.nodes, predicate);
+  if (idx < 0) return false;
+  activity.nodes[idx] = updater(activity.nodes[idx]!);
+  return true;
+}
+
 /* ── Logs (Live Operations Center) ─────────────────────────────────── */
 
 export function Logs() {
@@ -1672,7 +1666,6 @@ export function Logs() {
   const [drillDownAgent, setDrillDownAgent] = useState<string | null>(null);
   const rawEventsRef = useRef<Map<string, RawEvent[]>>(new Map());
   const [rawEventsVersion, setRawEventsVersion] = useState(0);
-  // historyLoaded state removed — history persistence disabled
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const eventBuffer = useRef<HookEvent[]>([]);
@@ -1717,10 +1710,6 @@ export function Logs() {
       setEventCount((c) => c + logs.length);
     }).catch(() => {});
   }, []);
-
-  // History loading disabled — stale tasks from previous sessions (e.g. old COMMIT
-  // tasks stuck at pending) pollute the todo panel. Tasks are now tracked only from
-  // the current live SSE session.
 
   // Process buffered hook events
   const flushEvents = useCallback(() => {
@@ -1870,77 +1859,30 @@ export function Logs() {
           }
 
           case "PostToolUse": {
-            let found = false;
+            const matchRunning = (n: ToolNode): boolean => n.toolName === evt.tool_name && n.status === "running";
+            const markCompleted = (n: ToolNode): ToolNode => ({ ...n, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input });
 
-            // First check inside active subagent's children
-            if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
-              const parentNode = activity.nodes[activity.activeSubagentIdx];
-              if (parentNode) {
-                const childIdx = findLastIdx(parentNode.children,
-                  (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
-                );
-                if (childIdx >= 0) {
-                  const updatedChildren = [...parentNode.children];
-                  const child = updatedChildren[childIdx]!;
-                  updatedChildren[childIdx] = { ...child, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input };
-                  activity.nodes[activity.activeSubagentIdx] = { ...parentNode, children: updatedChildren };
-                  found = true;
-                }
-              }
-            }
+            let found = updateSubagentChild(activity, matchRunning, markCompleted);
 
-            // If completing an Agent tool call, clear active subagent
             if (evt.tool_name === "Agent") {
-              const idx = findLastIdx(activity.nodes,
-                (n: ToolNode) => n.toolName === "Agent" && n.status === "running",
-              );
-              if (idx >= 0) {
-                const node = activity.nodes[idx]!;
-                activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input };
-                found = true;
-              }
+              const matchAgent = (n: ToolNode): boolean => n.toolName === "Agent" && n.status === "running";
+              found = updateTopLevelNode(activity, matchAgent, markCompleted) || found;
               activity.activeSubagentIdx = undefined;
             }
 
             if (!found) {
-              const idx = findLastIdx(activity.nodes,
-                (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
-              );
-              if (idx >= 0) {
-                const node = activity.nodes[idx]!;
-                activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input };
-              }
+              updateTopLevelNode(activity, matchRunning, markCompleted);
             }
             break;
           }
 
           case "PostToolUseFailure": {
-            let found = false;
+            const matchRunning = (n: ToolNode): boolean => n.toolName === evt.tool_name && n.status === "running";
+            const markFailed = (n: ToolNode): ToolNode => ({ ...n, status: "failed" as const, endTime: Date.now(), error: evt.error ?? "Tool execution failed", fullOutput: evt.tool_response ?? evt.tool_input });
 
-            if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
-              const parentNode = activity.nodes[activity.activeSubagentIdx];
-              if (parentNode) {
-                const childIdx = findLastIdx(parentNode.children,
-                  (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
-                );
-                if (childIdx >= 0) {
-                  const updatedChildren = [...parentNode.children];
-                  const child = updatedChildren[childIdx]!;
-                  updatedChildren[childIdx] = { ...child, status: "failed" as const, endTime: Date.now(), error: evt.error ?? "Tool execution failed", fullOutput: evt.tool_response ?? evt.tool_input };
-                  activity.nodes[activity.activeSubagentIdx] = { ...parentNode, children: updatedChildren };
-                  found = true;
-                }
-              }
-            }
-
+            const found = updateSubagentChild(activity, matchRunning, markFailed);
             if (!found) {
-              const idx = findLastIdx(activity.nodes,
-                (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
-              );
-              if (idx >= 0) {
-                const node = activity.nodes[idx]!;
-                activity.nodes[idx] = { ...node, status: "failed" as const, endTime: Date.now(), error: evt.error ?? "Tool execution failed", fullOutput: evt.tool_response ?? evt.tool_input };
-              }
+              updateTopLevelNode(activity, matchRunning, markFailed);
             }
             break;
           }
@@ -1952,12 +1894,10 @@ export function Logs() {
               status: "running", startTime: Date.now(), children: [],
             };
 
-            // If there's an active subagent, nest inside it (recursive nesting)
             if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
               const parentNode = activity.nodes[activity.activeSubagentIdx];
               if (parentNode && parentNode.status === "running") {
-                const updatedParent = { ...parentNode, children: [...parentNode.children, subNode] };
-                activity.nodes[activity.activeSubagentIdx] = updatedParent;
+                activity.nodes[activity.activeSubagentIdx] = { ...parentNode, children: [...parentNode.children, subNode] };
                 break;
               }
             }
@@ -1968,30 +1908,14 @@ export function Logs() {
           }
 
           case "SubagentStop": {
-            let found = false;
-            if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
-              const parentNode = activity.nodes[activity.activeSubagentIdx];
-              if (parentNode) {
-                const childIdx = findLastIdx(parentNode.children,
-                  (n: ToolNode) => n.toolName.startsWith("Agent:") && n.status === "running",
-                );
-                if (childIdx >= 0) {
-                  const updatedChildren = [...parentNode.children];
-                  const child = updatedChildren[childIdx]!;
-                  updatedChildren[childIdx] = { ...child, status: "completed" as const, endTime: Date.now() };
-                  activity.nodes[activity.activeSubagentIdx] = { ...parentNode, children: updatedChildren };
-                  found = true;
-                }
-              }
-            }
+            const matchRunningAgent = (n: ToolNode): boolean => n.toolName.startsWith("Agent:") && n.status === "running";
+            const markDone = (n: ToolNode): ToolNode => ({ ...n, status: "completed" as const, endTime: Date.now() });
 
+            const found = updateSubagentChild(activity, matchRunningAgent, markDone);
             if (!found) {
-              const idx = findLastIdx(activity.nodes,
-                (n: ToolNode) => n.toolName.startsWith("Agent:") && n.status === "running",
-              );
+              const idx = findLastIdx(activity.nodes, matchRunningAgent);
               if (idx >= 0) {
-                const node = activity.nodes[idx]!;
-                activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now() };
+                activity.nodes[idx] = markDone(activity.nodes[idx]!);
                 if (activity.activeSubagentIdx === idx) {
                   activity.activeSubagentIdx = undefined;
                 }
@@ -2366,8 +2290,6 @@ export function Logs() {
           </button>
         )}
       </div>
-
-      {/* Historical divider removed — history persistence disabled */}
 
       {/* Agent Activity Cards */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 space-y-3 relative">
