@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -49,6 +52,31 @@ type ModelCost struct {
 	Model        string  `json:"model"`
 	TotalTokens  int64   `json:"total_tokens"`
 	TotalCostUSD float64 `json:"total_cost_usd"`
+}
+
+// ProviderCommand describes a CLI command available for a provider.
+type ProviderCommand struct {
+	Name        string `json:"name"`
+	Command     string `json:"command"`
+	Description string `json:"description"`
+	Args        string `json:"args,omitempty"`
+}
+
+// MCPServer describes an MCP server configured for a provider.
+type MCPServer struct {
+	Name      string `json:"name"`
+	Transport string `json:"transport"`
+	URL       string `json:"url,omitempty"`
+	Command   string `json:"command,omitempty"`
+	Enabled   bool   `json:"enabled"`
+}
+
+// UpdateCheck holds the result of a provider version check.
+type UpdateCheck struct {
+	CurrentVersion  string `json:"current_version"`
+	LatestVersion   string `json:"latest_version"`
+	UpdateCommand   string `json:"update_command"`
+	UpdateAvailable bool   `json:"update_available"`
 }
 
 // ProviderHandler handles /api/providers routes.
@@ -110,10 +138,18 @@ func (h *ProviderHandler) byName(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && action == "":
 		h.detail(w, r, name)
+	case r.Method == http.MethodGet && action == "commands":
+		h.commands(w, r, name)
+	case r.Method == http.MethodGet && action == "mcps":
+		h.listMCPs(w, r, name)
+	case r.Method == http.MethodPost && action == "mcps":
+		h.addMCP(w, r, name)
 	case r.Method == http.MethodPost && action == "install":
 		h.install(w, r, name)
 	case r.Method == http.MethodPost && action == "update":
 		h.update(w, r, name)
+	case r.Method == http.MethodPost && action == "check-update":
+		h.checkUpdate(w, r, name)
 	case r.Method == http.MethodPatch && action == "config":
 		h.patchConfig(w, r, name)
 	default:
@@ -149,6 +185,153 @@ func (h *ProviderHandler) detail(w http.ResponseWriter, r *http.Request, name st
 	}
 
 	writeJSON(w, http.StatusOK, detail)
+}
+
+// commands returns available CLI commands for a provider.
+func (h *ProviderHandler) commands(w http.ResponseWriter, _ *http.Request, name string) {
+	_, ok := h.registry.Get(name)
+	if !ok {
+		httpError(w, "unknown provider: "+name, http.StatusNotFound)
+		return
+	}
+
+	var cmds []ProviderCommand
+
+	switch name {
+	case "claude":
+		cmds = []ProviderCommand{
+			{Name: "mcp add", Command: "claude mcp add <name> <command>", Description: "Add MCP server", Args: "<name> <command|url>"},
+			{Name: "mcp list", Command: "claude mcp list", Description: "List MCP servers"},
+			{Name: "mcp remove", Command: "claude mcp remove <name>", Description: "Remove MCP server", Args: "<name>"},
+			{Name: "config set", Command: "claude config set <key> <value>", Description: "Set config value", Args: "<key> <value>"},
+			{Name: "config list", Command: "claude config list", Description: "List config values"},
+			{Name: "version", Command: "claude --version", Description: "Show version"},
+			{Name: "resume", Command: "claude --resume <id>", Description: "Resume session", Args: "<session-id>"},
+		}
+	default:
+		binary := name
+		cmds = []ProviderCommand{
+			{Name: "run", Command: binary, Description: "Run " + name},
+			{Name: "version", Command: binary + " --version", Description: "Show version"},
+			{Name: "help", Command: binary + " --help", Description: "Show help"},
+		}
+	}
+
+	writeJSON(w, http.StatusOK, cmds)
+}
+
+// listMCPs returns MCP servers configured for a provider.
+func (h *ProviderHandler) listMCPs(w http.ResponseWriter, r *http.Request, name string) {
+	_, ok := h.registry.Get(name)
+	if !ok {
+		httpError(w, "unknown provider: "+name, http.StatusNotFound)
+		return
+	}
+
+	var servers []MCPServer
+
+	switch name {
+	case "claude":
+		servers = h.readClaudeMCPs(r.Context())
+	case "cursor":
+		servers = h.readCursorMCPs()
+	default:
+		servers = []MCPServer{}
+	}
+
+	writeJSON(w, http.StatusOK, servers)
+}
+
+// addMCP adds an MCP server to a provider's configuration.
+func (h *ProviderHandler) addMCP(w http.ResponseWriter, r *http.Request, name string) {
+	p, ok := h.registry.Get(name)
+	if !ok {
+		httpError(w, "unknown provider: "+name, http.StatusNotFound)
+		return
+	}
+
+	var req struct {
+		Name      string `json:"name"`
+		Transport string `json:"transport"`
+		URL       string `json:"url"`
+		Command   string `json:"command"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		httpError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if req.URL == "" && req.Command == "" {
+		httpError(w, "url or command is required", http.StatusBadRequest)
+		return
+	}
+
+	if h.ws == nil {
+		httpError(w, "workspace not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Use the provider's ConfigAdapter if available.
+	type mcpSetup interface {
+		SetupMCP(targetDir, agentName string, servers map[string]provider.MCPEntry) error
+	}
+	adapter, hasAdapter := p.(mcpSetup)
+	if !hasAdapter {
+		httpError(w, name+" does not support MCP configuration", http.StatusBadRequest)
+		return
+	}
+
+	transport := req.Transport
+	if transport == "" {
+		if req.URL != "" {
+			transport = "sse"
+		} else {
+			transport = "stdio"
+		}
+	}
+	entry := provider.MCPEntry{
+		Transport: transport,
+		URL:       req.URL,
+		Command:   req.Command,
+	}
+	if err := adapter.SetupMCP(h.ws.RootDir, "", map[string]provider.MCPEntry{req.Name: entry}); err != nil {
+		httpInternalError(w, "add mcp server", err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]string{
+		"status":   "added",
+		"provider": name,
+		"mcp":      req.Name,
+	})
+}
+
+// checkUpdate checks if a newer version is available for the provider.
+func (h *ProviderHandler) checkUpdate(w http.ResponseWriter, r *http.Request, name string) {
+	p, ok := h.registry.Get(name)
+	if !ok {
+		httpError(w, "unknown provider: "+name, http.StatusNotFound)
+		return
+	}
+
+	currentVersion := p.Version(r.Context())
+	if currentVersion == "" {
+		httpError(w, name+" is not installed", http.StatusBadRequest)
+		return
+	}
+
+	// Return current version info with install hint as update command.
+	// Actual latest version checking requires network calls to package registries
+	// which can be added per-provider in the future.
+	writeJSON(w, http.StatusOK, UpdateCheck{
+		CurrentVersion:  currentVersion,
+		LatestVersion:   currentVersion,
+		UpdateAvailable: false,
+		UpdateCommand:   p.InstallHint(),
+	})
 }
 
 // install runs the provider's install hint command.
@@ -392,4 +575,154 @@ func (h *ProviderHandler) providerConfig(name string) map[string]string {
 	}
 
 	return cfg
+}
+
+// readClaudeMCPs reads MCP servers from claude mcp list or .mcp.json.
+func (h *ProviderHandler) readClaudeMCPs(ctx context.Context) []MCPServer {
+	// Try claude mcp list first
+	if servers := h.readClaudeMCPsViaCLI(ctx); servers != nil {
+		return servers
+	}
+	// Fallback: read .mcp.json from workspace root
+	return h.readMCPJSON()
+}
+
+// readClaudeMCPsViaCLI runs claude mcp list and parses the output.
+func (h *ProviderHandler) readClaudeMCPsViaCLI(ctx context.Context) []MCPServer {
+	claudePath, err := exec.LookPath("claude")
+	if err != nil {
+		return nil
+	}
+
+	cmd := exec.CommandContext(ctx, claudePath, "mcp", "list") //nolint:gosec // trusted binary
+	if h.ws != nil {
+		cmd.Dir = h.ws.RootDir
+	}
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	// Parse the text output: each line is "<name>: <type> <url/command>"
+	var servers []MCPServer
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		sName := strings.TrimSpace(parts[0])
+		rest := strings.TrimSpace(parts[1])
+
+		s := MCPServer{Name: sName, Enabled: true}
+		if strings.HasPrefix(rest, "sse") || strings.HasPrefix(rest, "SSE") {
+			s.Transport = "sse"
+			s.URL = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(rest, "sse"), "SSE"))
+		} else if strings.HasPrefix(rest, "stdio") || strings.HasPrefix(rest, "STDIO") {
+			s.Transport = "stdio"
+			s.Command = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(rest, "stdio"), "STDIO"))
+		} else {
+			s.Transport = "stdio"
+			s.Command = rest
+		}
+		servers = append(servers, s)
+	}
+
+	return servers
+}
+
+// readMCPJSON reads .mcp.json from workspace root.
+func (h *ProviderHandler) readMCPJSON() []MCPServer {
+	if h.ws == nil {
+		return []MCPServer{}
+	}
+
+	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, ".mcp.json"))
+	if err != nil {
+		return []MCPServer{}
+	}
+
+	var cfg struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command,omitempty"`
+			URL     string   `json:"url,omitempty"`
+			Type    string   `json:"type,omitempty"`
+			Args    []string `json:"args,omitempty"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return []MCPServer{}
+	}
+
+	servers := make([]MCPServer, 0, len(cfg.MCPServers))
+	for name, entry := range cfg.MCPServers {
+		s := MCPServer{Name: name, Enabled: true}
+		if entry.Type == "sse" || entry.URL != "" {
+			s.Transport = "sse"
+			s.URL = entry.URL
+		} else {
+			s.Transport = "stdio"
+			cmd := entry.Command
+			if len(entry.Args) > 0 {
+				cmd += " " + strings.Join(entry.Args, " ")
+			}
+			s.Command = cmd
+		}
+		servers = append(servers, s)
+	}
+
+	sort.Slice(servers, func(i, j int) bool {
+		return servers[i].Name < servers[j].Name
+	})
+
+	return servers
+}
+
+// readCursorMCPs reads .cursor/mcp.json from workspace root.
+func (h *ProviderHandler) readCursorMCPs() []MCPServer {
+	if h.ws == nil {
+		return []MCPServer{}
+	}
+
+	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, ".cursor", "mcp.json"))
+	if err != nil {
+		return []MCPServer{}
+	}
+
+	var cfg struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command,omitempty"`
+			URL     string   `json:"url,omitempty"`
+			Args    []string `json:"args,omitempty"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return []MCPServer{}
+	}
+
+	servers := make([]MCPServer, 0, len(cfg.MCPServers))
+	for name, entry := range cfg.MCPServers {
+		s := MCPServer{Name: name, Enabled: true}
+		if entry.URL != "" {
+			s.Transport = "sse"
+			s.URL = entry.URL
+		} else {
+			s.Transport = "stdio"
+			cmd := entry.Command
+			if len(entry.Args) > 0 {
+				cmd += " " + strings.Join(entry.Args, " ")
+			}
+			s.Command = cmd
+		}
+		servers = append(servers, s)
+	}
+
+	sort.Slice(servers, func(i, j int) bool {
+		return servers[i].Name < servers[j].Name
+	})
+
+	return servers
 }
