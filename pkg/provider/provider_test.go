@@ -812,7 +812,7 @@ func TestProviderBuildCommand(t *testing.T) {
 		{"claude with agent", "claude --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
 		{"gemini no opts", "gemini --yolo", NewGeminiProvider(), CommandOpts{}},
 		{"gemini with agent", "gemini --yolo", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}},
-		{"codex no opts", "codex --full-auto", NewCodexProvider(), CommandOpts{}},
+		{"codex no opts", "NO_UPDATE_NOTIFIER=1 codex --full-auto </dev/null", NewCodexProvider(), CommandOpts{}},
 		{"aider no opts", "aider --yes", NewAiderProvider(), CommandOpts{}},
 	}
 

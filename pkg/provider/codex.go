@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"regexp"
 	"strings"
 )
 
@@ -54,8 +55,10 @@ func (p *CodexProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
+// Pipes /dev/null to stdin and sets NO_UPDATE_NOTIFIER to suppress
+// interactive update prompts that would block a headless agent.
 func (p *CodexProvider) BuildCommand(_ CommandOpts) string {
-	return p.command
+	return "NO_UPDATE_NOTIFIER=1 " + p.command + " </dev/null"
 }
 
 // IsInstalled checks if the provider binary is available.
@@ -63,9 +66,17 @@ func (p *CodexProvider) IsInstalled(ctx context.Context) bool {
 	return checkBinaryExists(ctx, p.binary)
 }
 
-// Version returns the installed version.
+// codexVersionRe extracts a semver-like version from codex --version output
+// which may look like "codex-cli 0.111.0" or "v0.111.0".
+var codexVersionRe = regexp.MustCompile(`(\d+\.\d+\.\d+)`)
+
+// Version returns the installed version, stripped of any prefix like "codex-cli".
 func (p *CodexProvider) Version(ctx context.Context) string {
-	return getBinaryVersion(ctx, p.binary, "--version")
+	raw := getBinaryVersion(ctx, p.binary, "--version")
+	if m := codexVersionRe.FindString(raw); m != "" {
+		return m
+	}
+	return raw
 }
 
 // DetectState analyzes output to determine agent state.
@@ -82,12 +93,12 @@ func (p *CodexProvider) DetectState(output string) State {
 		lineLower := strings.ToLower(line)
 
 		// Working indicators - Codex spinner patterns
-		if strings.HasPrefix(line, "⠋") ||
-			strings.HasPrefix(line, "⠙") ||
-			strings.HasPrefix(line, "⠹") ||
-			strings.HasPrefix(line, "⠸") ||
-			strings.HasPrefix(line, "⠼") ||
-			strings.HasPrefix(line, "⠴") ||
+		if strings.HasPrefix(line, "\u280b") ||
+			strings.HasPrefix(line, "\u2819") ||
+			strings.HasPrefix(line, "\u2839") ||
+			strings.HasPrefix(line, "\u2838") ||
+			strings.HasPrefix(line, "\u283c") ||
+			strings.HasPrefix(line, "\u2834") ||
 			strings.Contains(lineLower, "generating") ||
 			strings.Contains(lineLower, "thinking") ||
 			strings.Contains(lineLower, "processing") ||
@@ -96,8 +107,8 @@ func (p *CodexProvider) DetectState(output string) State {
 		}
 
 		// Done indicators
-		if strings.Contains(line, "✓") ||
-			strings.Contains(line, "✔") ||
+		if strings.Contains(line, "\u2713") ||
+			strings.Contains(line, "\u2714") ||
 			strings.Contains(lineLower, "complete") ||
 			strings.Contains(lineLower, "finished") ||
 			strings.Contains(lineLower, "done") ||
@@ -109,8 +120,8 @@ func (p *CodexProvider) DetectState(output string) State {
 		if strings.Contains(lineLower, "error") ||
 			strings.Contains(lineLower, "failed") ||
 			strings.Contains(lineLower, "exception") ||
-			strings.Contains(line, "✗") ||
-			strings.Contains(line, "✖") {
+			strings.Contains(line, "\u2717") ||
+			strings.Contains(line, "\u2716") {
 			return StateError
 		}
 

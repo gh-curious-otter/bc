@@ -371,8 +371,17 @@ func (rm *RoleManager) EnsureDefaultRoot() (bool, error) {
 	return true, nil
 }
 
+// NormalizeRoleName canonicalises a role name by replacing underscores
+// with hyphens and lower-casing, preventing duplicates like
+// "product_manager" vs "product-manager".
+func NormalizeRoleName(name string) string {
+	return strings.ToLower(strings.ReplaceAll(name, "_", "-"))
+}
+
 // LoadRole loads and parses a single role from the SQL store.
 func (rm *RoleManager) LoadRole(name string) (*Role, error) {
+	name = NormalizeRoleName(name)
+
 	// Check cache first
 	if role, ok := rm.roles[name]; ok {
 		return role, nil
@@ -415,6 +424,8 @@ func (rm *RoleManager) GetRole(name string) (*Role, bool) {
 
 // HasRole checks if a role exists (cached or in store).
 func (rm *RoleManager) HasRole(name string) bool {
+	name = NormalizeRoleName(name)
+
 	// Check cache
 	if _, ok := rm.roles[name]; ok {
 		return true
@@ -480,10 +491,11 @@ func ParseRoleFile(data []byte) (*Role, error) {
 
 // WriteRole writes a role to the SQL store.
 func (rm *RoleManager) WriteRole(role *Role) error {
-	name := role.Metadata.Name
+	name := NormalizeRoleName(role.Metadata.Name)
 	if name == "" {
 		return fmt.Errorf("role name is required")
 	}
+	role.Metadata.Name = name
 
 	if rm.store == nil {
 		return fmt.Errorf("role store is required")
@@ -575,6 +587,7 @@ func (rm *RoleManager) ResolveRole(name string) (*ResolvedRole, error) {
 
 // DeleteRole removes a role by name from the SQL store.
 func (rm *RoleManager) DeleteRole(name string) error {
+	name = NormalizeRoleName(name)
 	if name == "" {
 		return fmt.Errorf("role name is required")
 	}
