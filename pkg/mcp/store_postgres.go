@@ -70,11 +70,16 @@ func (p *PostgresStore) Add(cfg *ServerConfig) error {
 		return fmt.Errorf("marshal env: %w", err)
 	}
 
+	enabledInt := 0
+	if cfg.Enabled {
+		enabledInt = 1
+	}
+
 	ctx := context.Background()
 	_, err = p.db.ExecContext(ctx,
 		`INSERT INTO mcp_servers (name, transport, command, args, url, env, enabled)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		cfg.Name, cfg.Transport, cfg.Command, string(argsJSON), cfg.URL, string(envJSON), cfg.Enabled,
+		cfg.Name, cfg.Transport, cfg.Command, string(argsJSON), cfg.URL, string(envJSON), enabledInt,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
@@ -136,11 +141,15 @@ func (p *PostgresStore) Remove(name string) error {
 // Uses an upsert so that servers loaded from config (but never inserted into
 // the database) are created on first toggle rather than returning "not found".
 func (p *PostgresStore) SetEnabled(name string, enabled bool) error {
+	enabledInt := 0
+	if enabled {
+		enabledInt = 1
+	}
 	ctx := context.Background()
 	_, err := p.db.ExecContext(ctx,
 		`INSERT INTO mcp_servers (name, enabled) VALUES ($1, $2)
 		 ON CONFLICT(name) DO UPDATE SET enabled = EXCLUDED.enabled`,
-		name, enabled,
+		name, enabledInt,
 	)
 	if err != nil {
 		return fmt.Errorf("update mcp server %q: %w", name, err)

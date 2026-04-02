@@ -195,11 +195,15 @@ func (s *Store) SetEnabled(name string, enabled bool) error {
 	if s.pg != nil {
 		return s.pg.SetEnabled(name, enabled)
 	}
+	enabledInt := 0
+	if enabled {
+		enabledInt = 1
+	}
 	ctx := context.Background()
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO mcp_servers (name, enabled) VALUES (?, ?)
 		 ON CONFLICT(name) DO UPDATE SET enabled = excluded.enabled`,
-		name, enabled,
+		name, enabledInt,
 	)
 	if err != nil {
 		return fmt.Errorf("update mcp server %q: %w", name, err)
