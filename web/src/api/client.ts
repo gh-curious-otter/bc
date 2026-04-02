@@ -237,6 +237,8 @@ export interface ProviderMCPServer {
   url?: string;
   command?: string;
   enabled: boolean;
+  status?: string;
+  error?: string;
 }
 
 export interface ProviderUpdateCheck {

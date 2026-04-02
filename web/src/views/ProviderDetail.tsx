@@ -208,6 +208,47 @@ function ConfigPanel({
 
 /* ──────────────────────── Section: MCP Servers ──────────────────────── */
 
+type MCPHealthStatus = "connected" | "error" | "unknown";
+
+function MCPHealthBadge({ status, error }: { status: MCPHealthStatus; error?: string }) {
+  const styles: Record<MCPHealthStatus, { bg: string; text: string; label: string }> = {
+    connected: { bg: "bg-bc-success/15", text: "text-bc-success", label: "Connected" },
+    error:     { bg: "bg-bc-error/15",   text: "text-bc-error",   label: "Error" },
+    unknown:   { bg: "bg-bc-warning/15", text: "text-bc-warning", label: "Unknown" },
+  };
+  const s = styles[status];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${s.bg} ${s.text}`}
+      title={error || undefined}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${status === "connected" ? "bg-bc-success" : status === "error" ? "bg-bc-error" : "bg-bc-warning"}`} />
+      {s.label}
+    </span>
+  );
+}
+
+function resolveMCPHealth(server: ProviderMCPServer, healthMap: Record<string, { status: string; error?: string }>): { status: MCPHealthStatus; error?: string } {
+  // Check health map from unified check first
+  const checked = healthMap[server.name];
+  if (checked) {
+    if (checked.status === "ok" || checked.status === "active" || checked.status === "connected") {
+      return { status: "connected" };
+    }
+    return { status: "error", error: checked.error || checked.status };
+  }
+  // Fall back to server's own status field
+  if (server.status) {
+    const s = server.status.toLowerCase();
+    if (s === "ok" || s === "active" || s === "connected") return { status: "connected" };
+    if (s === "error" || s === "failed") return { status: "error", error: server.error };
+    return { status: "unknown" };
+  }
+  // Default: enabled = connected, disabled = unknown
+  if (!server.enabled) return { status: "unknown" };
+  return { status: "connected" };
+}
+
 function MCPSection({
   providerName,
   servers,
@@ -224,6 +265,8 @@ function MCPSection({
   const [mcpTransport, setMcpTransport] = useState<"stdio" | "sse">("stdio");
   const [mcpValue, setMcpValue] = useState("");
   const [adding, setAdding] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [healthMap, setHealthMap] = useState<Record<string, { status: string; error?: string }>>({});
 
   const handleAdd = async () => {
     if (!mcpName.trim() || !mcpValue.trim()) return;
@@ -246,19 +289,54 @@ function MCPSection({
     }
   };
 
+  const handleCheckAll = async () => {
+    setChecking(true);
+    try {
+      const tools = await api.checkUnifiedTools();
+      const mcpTools = tools.filter((t) => t.type === "mcp");
+      const newMap: Record<string, { status: string; error?: string }> = {};
+      for (const t of mcpTools) {
+        newMap[t.name] = { status: t.status, error: t.error };
+      }
+      setHealthMap(newMap);
+      const errors = mcpTools.filter((t) => t.status !== "ok" && t.status !== "active" && t.status !== "connected");
+      if (errors.length === 0) {
+        onToast("success", `All ${mcpTools.length} MCP server(s) healthy`);
+      } else {
+        onToast("error", `${errors.length} of ${mcpTools.length} MCP server(s) have issues`);
+      }
+    } catch (err) {
+      onToast("error", err instanceof Error ? err.message : "Health check failed");
+    } finally {
+      setChecking(false);
+    }
+  };
+
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest">
           MCP Servers ({servers.length})
         </h2>
-        <button
-          type="button"
-          onClick={() => setShowAdd(!showAdd)}
-          className="text-xs px-2 py-1 rounded bg-bc-info/10 text-bc-info hover:bg-bc-info/20 transition-colors"
-        >
-          {showAdd ? "Cancel" : "+ Add MCP"}
-        </button>
+        <div className="flex items-center gap-2">
+          {servers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void handleCheckAll()}
+              disabled={checking}
+              className="text-xs px-2 py-1 rounded bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-50"
+            >
+              {checking ? "Checking..." : "Check All MCPs"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowAdd(!showAdd)}
+            className="text-xs px-2 py-1 rounded bg-bc-info/10 text-bc-info hover:bg-bc-info/20 transition-colors"
+          >
+            {showAdd ? "Cancel" : "+ Add MCP"}
+          </button>
+        </div>
       </div>
 
       {showAdd && (
@@ -339,10 +417,10 @@ function MCPSection({
                     {s.url || s.command || "\u2014"}
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className={`inline-flex items-center gap-1.5 text-xs ${s.enabled ? "text-bc-success" : "text-bc-muted"}`}>
-                      <span className={`w-2 h-2 rounded-full ${s.enabled ? "bg-bc-success" : "bg-bc-muted"}`} />
-                      {s.enabled ? "Active" : "Disabled"}
-                    </span>
+                    {(() => {
+                      const h = resolveMCPHealth(s, healthMap);
+                      return <MCPHealthBadge status={h.status} error={h.error} />;
+                    })()}
                   </td>
                 </tr>
               ))}
