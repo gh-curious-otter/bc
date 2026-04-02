@@ -78,7 +78,7 @@ type agentDTO struct {
 	Task         string           `json:"task,omitempty"`
 	Team         string           `json:"team,omitempty"`
 	Tool         string           `json:"tool,omitempty"`
-	Runtime      string           `json:"runtime,omitempty"`
+	Runtime      string           `json:"runtime_backend,omitempty"`
 	Session      string           `json:"session,omitempty"`
 	SessionID    string           `json:"session_id,omitempty"`
 	ParentID     string           `json:"parent_id,omitempty"`

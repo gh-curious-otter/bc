@@ -79,10 +79,16 @@ func (h *RolesHandler) list(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Deduplicate roles by normalized name to prevent duplicates
+		// like "product_manager" vs "product-manager".
 		resolved := make(map[string]*workspace.ResolvedRole, len(roles))
 		for name := range roles {
+			normalized := workspace.NormalizeRoleName(name)
+			if _, exists := resolved[normalized]; exists {
+				continue // already have this role under normalized name
+			}
 			if res, resolveErr := h.ws.RoleManager.ResolveRole(name); resolveErr == nil {
-				resolved[name] = res
+				resolved[normalized] = res
 			}
 		}
 		writeJSON(w, http.StatusOK, resolved)
