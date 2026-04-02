@@ -107,6 +107,7 @@ function ToolCard({ tool, onToggle, onRemove }: { tool: UnifiedTool; onToggle: (
         </button>
         {confirmRemove ? (
           <div className="flex items-center gap-1">
+            <span className="text-xs text-bc-error whitespace-nowrap">Remove &lsquo;{tool.name}&rsquo;?</span>
             <button type="button" onClick={() => { onRemove(); setConfirmRemove(false); }}
               className="text-xs px-2 py-1 rounded bg-bc-error/20 text-bc-error" aria-label="Confirm remove">Yes</button>
             <button type="button" onClick={() => setConfirmRemove(false)}
@@ -286,9 +287,9 @@ export function UnifiedTools() {
   return (
     <div className="p-6 space-y-8">
       <div className="flex items-center justify-between">
-        <div>
+        <div className="shrink-0 pl-2 sm:pl-0">
           <h1 className="text-xl font-bold">Tools</h1>
-          <p className="text-xs text-bc-muted mt-0.5">
+          <p className="text-xs text-bc-muted mt-0.5 hidden sm:block">
             {providers.length} Providers &middot; {mcpTools.length} MCP &middot; {cliTools.length} CLI
             {checkedTools && " \u00b7 checked"}
           </p>

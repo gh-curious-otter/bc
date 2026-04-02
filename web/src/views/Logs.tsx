@@ -567,14 +567,14 @@ export function Logs() {
     <div className="p-6 flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-xl font-bold text-bc-text flex items-center gap-2">
+        <h1 className="text-xl font-bold text-bc-text flex items-center gap-2 shrink-0 pl-2 sm:pl-0">
           Live
           <span className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
           </span>
         </h1>
-        <span className="text-sm text-bc-muted">Real-time agent activity</span>
+        <span className="text-sm text-bc-muted hidden sm:inline">Real-time agent activity</span>
         <span className="ml-auto text-xs text-bc-muted font-mono tabular-nums">{eventCount} events</span>
       </div>
 
