@@ -105,7 +105,7 @@ func (h *ProviderHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	providers := h.registry.List()
-	agentCounts, agentsByProvider := h.countAgentsByProvider(r.Context())
+	agentCounts := h.countAgents(r.Context())
 	costByProvider := h.aggregateCostsByProvider(r.Context())
 
 	infos := make([]ProviderInfo, 0, len(providers))
@@ -118,7 +118,6 @@ func (h *ProviderHandler) list(w http.ResponseWriter, r *http.Request) {
 		return infos[i].Name < infos[j].Name
 	})
 
-	_ = agentsByProvider // used only in detail endpoint
 	writeJSON(w, http.StatusOK, infos)
 }
 
@@ -165,7 +164,7 @@ func (h *ProviderHandler) detail(w http.ResponseWriter, r *http.Request, name st
 		return
 	}
 
-	agentCounts, agentsByProvider := h.countAgentsByProvider(r.Context())
+	agentCounts, agentsByProvider := h.agentSummariesByProvider(r.Context())
 	costByProvider := h.aggregateCostsByProvider(r.Context())
 
 	info := h.buildProviderInfo(r.Context(), p, agentCounts, costByProvider)
@@ -334,29 +333,18 @@ func (h *ProviderHandler) checkUpdate(w http.ResponseWriter, r *http.Request, na
 	})
 }
 
-// install runs the provider's install hint command.
-func (h *ProviderHandler) install(w http.ResponseWriter, r *http.Request, name string) {
-	p, ok := h.registry.Get(name)
-	if !ok {
-		httpError(w, "unknown provider: "+name, http.StatusNotFound)
-		return
-	}
-
-	hint := p.InstallHint()
-	if hint == "" {
-		httpError(w, "no install command available for "+name, http.StatusBadRequest)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{
-		"status":      "install_hint",
-		"provider":    name,
-		"install_cmd": hint,
-	})
+// install returns the install hint for the provider.
+func (h *ProviderHandler) install(w http.ResponseWriter, _ *http.Request, name string) {
+	h.hintResponse(w, name, "install")
 }
 
-// update returns the upgrade command for the provider.
-func (h *ProviderHandler) update(w http.ResponseWriter, r *http.Request, name string) {
+// update returns the upgrade hint for the provider.
+func (h *ProviderHandler) update(w http.ResponseWriter, _ *http.Request, name string) {
+	h.hintResponse(w, name, "update")
+}
+
+// hintResponse returns the install/update hint for a provider.
+func (h *ProviderHandler) hintResponse(w http.ResponseWriter, name, action string) {
 	p, ok := h.registry.Get(name)
 	if !ok {
 		httpError(w, "unknown provider: "+name, http.StatusNotFound)
@@ -365,14 +353,14 @@ func (h *ProviderHandler) update(w http.ResponseWriter, r *http.Request, name st
 
 	hint := p.InstallHint()
 	if hint == "" {
-		httpError(w, "no update command available for "+name, http.StatusBadRequest)
+		httpError(w, "no "+action+" command available for "+name, http.StatusBadRequest)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"status":     "update_hint",
-		"provider":   name,
-		"update_cmd": hint,
+		"status":         action + "_hint",
+		"provider":       name,
+		action + "_cmd": hint,
 	})
 }
 
@@ -464,21 +452,36 @@ func (h *ProviderHandler) buildProviderInfo(
 	return info
 }
 
-// countAgentsByProvider counts agents per provider tool name.
-func (h *ProviderHandler) countAgentsByProvider(ctx context.Context) (map[string]int, map[string][]AgentSummary) {
-	counts := make(map[string]int)
-	byProvider := make(map[string][]AgentSummary)
-
+// listAgents returns the raw agent list, or nil on error.
+func (h *ProviderHandler) listAgents(ctx context.Context) []*agent.Agent {
 	if h.agents == nil {
-		return counts, byProvider
+		return nil
 	}
-
 	agents, err := h.agents.List(ctx, agent.ListOptions{})
 	if err != nil {
-		return counts, byProvider
+		return nil
 	}
+	return agents
+}
 
-	for _, a := range agents {
+// countAgents returns a count of agents per provider tool name.
+// Used by the list endpoint which does not need full agent summaries.
+func (h *ProviderHandler) countAgents(ctx context.Context) map[string]int {
+	counts := make(map[string]int)
+	for _, a := range h.listAgents(ctx) {
+		if tool := strings.ToLower(a.Tool); tool != "" {
+			counts[tool]++
+		}
+	}
+	return counts
+}
+
+// agentSummariesByProvider groups agent summaries by provider tool name.
+// Used by the detail endpoint which needs both counts and summaries.
+func (h *ProviderHandler) agentSummariesByProvider(ctx context.Context) (map[string]int, map[string][]AgentSummary) {
+	counts := make(map[string]int)
+	byProvider := make(map[string][]AgentSummary)
+	for _, a := range h.listAgents(ctx) {
 		tool := strings.ToLower(a.Tool)
 		if tool == "" {
 			continue
@@ -490,7 +493,6 @@ func (h *ProviderHandler) countAgentsByProvider(ctx context.Context) (map[string
 			State: string(a.State),
 		})
 	}
-
 	return counts, byProvider
 }
 
@@ -634,24 +636,37 @@ func (h *ProviderHandler) readClaudeMCPsViaCLI(ctx context.Context) []MCPServer 
 	return servers
 }
 
+// mcpJSONEntry represents one server entry in an mcp.json config file.
+type mcpJSONEntry struct {
+	Command string   `json:"command,omitempty"`
+	URL     string   `json:"url,omitempty"`
+	Type    string   `json:"type,omitempty"`
+	Args    []string `json:"args,omitempty"`
+}
+
 // readMCPJSON reads .mcp.json from workspace root.
 func (h *ProviderHandler) readMCPJSON() []MCPServer {
+	return h.parseMCPJSONFile(".mcp.json")
+}
+
+// readCursorMCPs reads .cursor/mcp.json from workspace root.
+func (h *ProviderHandler) readCursorMCPs() []MCPServer {
+	return h.parseMCPJSONFile(filepath.Join(".cursor", "mcp.json"))
+}
+
+// parseMCPJSONFile reads and parses an mcp.json file at the given relative path.
+func (h *ProviderHandler) parseMCPJSONFile(relPath string) []MCPServer {
 	if h.ws == nil {
 		return []MCPServer{}
 	}
 
-	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, ".mcp.json"))
+	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, relPath))
 	if err != nil {
 		return []MCPServer{}
 	}
 
 	var cfg struct {
-		MCPServers map[string]struct {
-			Command string   `json:"command,omitempty"`
-			URL     string   `json:"url,omitempty"`
-			Type    string   `json:"type,omitempty"`
-			Args    []string `json:"args,omitempty"`
-		} `json:"mcpServers"`
+		MCPServers map[string]mcpJSONEntry `json:"mcpServers"`
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return []MCPServer{}
@@ -661,52 +676,6 @@ func (h *ProviderHandler) readMCPJSON() []MCPServer {
 	for name, entry := range cfg.MCPServers {
 		s := MCPServer{Name: name, Enabled: true}
 		if entry.Type == "sse" || entry.URL != "" {
-			s.Transport = "sse"
-			s.URL = entry.URL
-		} else {
-			s.Transport = "stdio"
-			cmd := entry.Command
-			if len(entry.Args) > 0 {
-				cmd += " " + strings.Join(entry.Args, " ")
-			}
-			s.Command = cmd
-		}
-		servers = append(servers, s)
-	}
-
-	sort.Slice(servers, func(i, j int) bool {
-		return servers[i].Name < servers[j].Name
-	})
-
-	return servers
-}
-
-// readCursorMCPs reads .cursor/mcp.json from workspace root.
-func (h *ProviderHandler) readCursorMCPs() []MCPServer {
-	if h.ws == nil {
-		return []MCPServer{}
-	}
-
-	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, ".cursor", "mcp.json"))
-	if err != nil {
-		return []MCPServer{}
-	}
-
-	var cfg struct {
-		MCPServers map[string]struct {
-			Command string   `json:"command,omitempty"`
-			URL     string   `json:"url,omitempty"`
-			Args    []string `json:"args,omitempty"`
-		} `json:"mcpServers"`
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return []MCPServer{}
-	}
-
-	servers := make([]MCPServer, 0, len(cfg.MCPServers))
-	for name, entry := range cfg.MCPServers {
-		s := MCPServer{Name: name, Enabled: true}
-		if entry.URL != "" {
 			s.Transport = "sse"
 			s.URL = entry.URL
 		} else {
