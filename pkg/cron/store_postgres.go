@@ -81,7 +81,7 @@ func (p *PostgresStore) AddJob(ctx context.Context, job *Job) error {
 		`INSERT INTO cron_jobs (name, schedule, agent_name, prompt, command, enabled, next_run, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		job.Name, job.Schedule,
-		pgNullStr(job.AgentName), pgNullStr(job.Prompt), pgNullStr(job.Command),
+		nullStr(job.AgentName), nullStr(job.Prompt), nullStr(job.Command),
 		enabled, nextRun, time.Now(),
 	)
 	if err != nil {
@@ -95,7 +95,7 @@ func (p *PostgresStore) GetJob(ctx context.Context, name string) (*Job, error) {
 	row := p.db.QueryRowContext(ctx,
 		`SELECT name, schedule, agent_name, prompt, command, enabled, last_run, next_run, run_count, created_at
 		 FROM cron_jobs WHERE name = $1`, name)
-	job, err := pgScanJob(row)
+	job, err := scanJob(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -114,7 +114,7 @@ func (p *PostgresStore) ListJobs(ctx context.Context) ([]*Job, error) {
 
 	var jobs []*Job
 	for rows.Next() {
-		job, scanErr := pgScanJob(rows)
+		job, scanErr := scanJob(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
@@ -161,7 +161,7 @@ func (p *PostgresStore) SetEnabled(ctx context.Context, name string, enabled boo
 	}
 	_, err = p.db.ExecContext(ctx,
 		`UPDATE cron_jobs SET enabled = $1, next_run = $2 WHERE name = $3`,
-		enabledInt, pgNullTime(nextRun), name,
+		enabledInt, nullTime(nextRun), name,
 	)
 	return err
 }
@@ -178,7 +178,7 @@ func (p *PostgresStore) RecordRun(ctx context.Context, entry *LogEntry) error {
 		`INSERT INTO cron_logs (job_name, status, duration_ms, cost_usd, output, run_at)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		entry.JobName, entry.Status, entry.DurationMS, entry.CostUSD,
-		pgNullStr(entry.Output), entry.RunAt,
+		nullStr(entry.Output), entry.RunAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert cron log: %w", err)
@@ -199,7 +199,7 @@ func (p *PostgresStore) RecordRun(ctx context.Context, entry *LogEntry) error {
 		`UPDATE cron_jobs
 		 SET last_run = $1, next_run = $2, run_count = run_count + 1
 		 WHERE name = $3`,
-		now, pgNullTime(nextRunPtr), entry.JobName,
+		now, nullTime(nextRunPtr), entry.JobName,
 	)
 	if err != nil {
 		return fmt.Errorf("update cron job stats: %w", err)
@@ -228,7 +228,7 @@ func (p *PostgresStore) RecordManualTrigger(ctx context.Context, name string) er
 
 	_, err = p.db.ExecContext(ctx,
 		`UPDATE cron_jobs SET last_run = $1, next_run = $2, run_count = run_count + 1 WHERE name = $3`,
-		now, pgNullTime(nextRunPtr), name,
+		now, nullTime(nextRunPtr), name,
 	)
 	return err
 }
@@ -269,67 +269,7 @@ func (p *PostgresStore) GetLogs(ctx context.Context, jobName string, last int) (
 	return entries, rows.Err()
 }
 
-// --- helpers ---
-
-// pgCronScanner abstracts *sql.Row and *sql.Rows for pgScanJob.
-type pgCronScanner interface {
-	Scan(dest ...any) error
-}
-
-func pgScanJob(s pgCronScanner) (*Job, error) {
-	j := &Job{}
-	var (
-		agentName sql.NullString
-		prompt    sql.NullString
-		command   sql.NullString
-		lastRun   sql.NullTime
-		nextRun   sql.NullTime
-		enabled   int
-	)
-	err := s.Scan(
-		&j.Name, &j.Schedule, &agentName, &prompt, &command,
-		&enabled, &lastRun, &nextRun, &j.RunCount, &j.CreatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, sql.ErrNoRows
-	}
-	if err != nil {
-		return nil, fmt.Errorf("scan cron job: %w", err)
-	}
-	j.Enabled = enabled != 0
-	if agentName.Valid {
-		j.AgentName = agentName.String
-	}
-	if prompt.Valid {
-		j.Prompt = prompt.String
-	}
-	if command.Valid {
-		j.Command = command.String
-	}
-	if lastRun.Valid {
-		t := lastRun.Time
-		j.LastRun = &t
-	}
-	if nextRun.Valid {
-		t := nextRun.Time
-		j.NextRun = &t
-	}
-	return j, nil
-}
-
-func pgNullStr(s string) sql.NullString {
-	if s == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: s, Valid: true}
-}
-
-func pgNullTime(t *time.Time) sql.NullTime {
-	if t == nil {
-		return sql.NullTime{}
-	}
-	return sql.NullTime{Time: *t, Valid: true}
-}
+// scanJob, nullStr, nullTime reuse the shared helpers from store.go.
 
 // OpenStore opens the cron store using the shared workspace database.
 // Uses the shared driver type to determine the backend (timescale or sqlite).
