@@ -176,12 +176,26 @@ func TestSetEnabled(t *testing.T) {
 	}
 }
 
-func TestSetEnabledNotFound(t *testing.T) {
+func TestSetEnabledUpsert(t *testing.T) {
 	s := setupTestStore(t)
 
-	err := s.SetEnabled("nonexistent", true)
-	if err == nil {
-		t.Fatal("expected error for enabling nonexistent server")
+	// SetEnabled on a server not yet in the database should create it (upsert).
+	if err := s.SetEnabled("config-only", false); err != nil {
+		t.Fatalf("SetEnabled upsert: %v", err)
+	}
+
+	got, err := s.Get("config-only")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil {
+		t.Fatal("expected upserted config, got nil")
+	}
+	if got.Enabled {
+		t.Error("expected enabled = false after upsert disable")
+	}
+	if got.Name != "config-only" {
+		t.Errorf("name = %q, want %q", got.Name, "config-only")
 	}
 }
 
