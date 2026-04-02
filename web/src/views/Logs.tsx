@@ -98,6 +98,8 @@ const MAX_NODES = 50;
 const AUTO_COLLAPSE_MS = 30_000;
 const FLUSH_INTERVAL = 150;
 const AGGREGATION_WINDOW_MS = 5_000;
+const FAILED_NEVER_AGGREGATE_MS = 120_000;
+const MAX_INDIVIDUAL_NODES = 50;
 
 /* ── Helpers ───────────────────────────────────────────────────────── */
 
@@ -347,18 +349,28 @@ const NEVER_AGGREGATE_EVENTS = new Set([
   "Stop", "TaskCompleted",
 ]);
 
-function shouldNeverAggregate(node: ToolNode): boolean {
-  if (node.status === "failed") return true;
+function shouldNeverAggregate(node: ToolNode, now?: number): boolean {
+  // Failed tools: never aggregate for 2 minutes after creation
+  if (node.status === "failed") {
+    const ts = now ?? Date.now();
+    if (ts - node.startTime < FAILED_NEVER_AGGREGATE_MS) return true;
+  }
   if (NEVER_AGGREGATE_EVENTS.has(node.toolName)) return true;
   if (node.toolName.startsWith("Agent:")) return true;
   return false;
 }
 
-function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number): DisplayNode[] {
+function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number, totalNodeCount?: number): DisplayNode[] {
   if (nodes.length === 0) return [];
 
   const now = Date.now();
   const threshold = collapseOlderThan ?? 0;
+  const agentTotalNodes = totalNodeCount ?? nodes.length;
+
+  // If agent has fewer than MAX_INDIVIDUAL_NODES total calls, show all individually
+  if (agentTotalNodes < MAX_INDIVIDUAL_NODES) {
+    return nodes;
+  }
 
   if (threshold > 0) {
     const recentNodes: ToolNode[] = [];
@@ -366,7 +378,7 @@ function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number): DisplayN
 
     for (const n of nodes) {
       const age = now - n.startTime;
-      if (age <= threshold || n.status === "running" || shouldNeverAggregate(n)) {
+      if (age <= threshold || n.status === "running" || shouldNeverAggregate(n, now)) {
         recentNodes.push(n);
       } else {
         const key = n.toolName;
@@ -419,16 +431,24 @@ function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number): DisplayN
     });
 
     const recentAggregated = aggregateConsecutive(recentNodes);
-    return aggregateByType([...recentAggregated, ...oldAggregated]);
+    return aggregateByType([...recentAggregated, ...oldAggregated], agentTotalNodes);
   }
 
-  return aggregateByType(aggregateConsecutive(nodes));
+  return aggregateByType(aggregateConsecutive(nodes), agentTotalNodes);
 }
 
 /** Post-completion aggregation: collapse completed tool calls of the same type
  *  across non-consecutive positions when count >= AGGREGATION_MIN_COUNT.
- *  Running and failed events are never aggregated -- always shown individually. */
-function aggregateByType(displayNodes: DisplayNode[]): DisplayNode[] {
+ *  Running events are always shown individually.
+ *  Failed events are pinned (shown individually) for FAILED_NEVER_AGGREGATE_MS,
+ *  then become eligible for type-based aggregation. */
+function aggregateByType(displayNodes: DisplayNode[], totalNodeCount?: number): DisplayNode[] {
+  // If agent has fewer than MAX_INDIVIDUAL_NODES total calls, skip aggregation
+  if (totalNodeCount !== undefined && totalNodeCount < MAX_INDIVIDUAL_NODES) {
+    return displayNodes;
+  }
+
+  const now = Date.now();
   const pinned: DisplayNode[] = [];
   const candidates: DisplayNode[] = [];
 
@@ -437,7 +457,10 @@ function aggregateByType(displayNodes: DisplayNode[]): DisplayNode[] {
       candidates.push(node);
     } else {
       const tn = node as ToolNode;
-      if (tn.status === "running" || tn.status === "failed") {
+      if (tn.status === "running") {
+        pinned.push(node);
+      } else if (tn.status === "failed" && (now - tn.startTime) < FAILED_NEVER_AGGREGATE_MS) {
+        // Failed events within 2 minutes are always pinned individually
         pinned.push(node);
       } else {
         candidates.push(node);
@@ -455,7 +478,7 @@ function aggregateByType(displayNodes: DisplayNode[]): DisplayNode[] {
       byTool.get(key)!.push(node);
     } else {
       const tn = node as ToolNode;
-      if (shouldNeverAggregate(tn)) {
+      if (shouldNeverAggregate(tn, now)) {
         ungroupable.push(node);
       } else {
         const key = tn.toolName;
@@ -527,6 +550,7 @@ function aggregateByType(displayNodes: DisplayNode[]): DisplayNode[] {
 function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
   if (nodes.length === 0) return [];
 
+  const now = Date.now();
   const result: DisplayNode[] = [];
   let i = 0;
 
@@ -534,7 +558,7 @@ function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
     const current = nodes[i];
     if (!current) { i++; continue; }
 
-    if (shouldNeverAggregate(current) || current.status === "running") {
+    if (shouldNeverAggregate(current, now) || current.status === "running") {
       result.push(current);
       i++;
       continue;
@@ -546,7 +570,7 @@ function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
       const next = nodes[j];
       if (!next) break;
       if (next.toolName !== current.toolName) break;
-      if (shouldNeverAggregate(next) || next.status === "running") break;
+      if (shouldNeverAggregate(next, now) || next.status === "running") break;
       const prev = group[group.length - 1];
       if (!prev) break;
       if (Math.abs(next.startTime - prev.startTime) > AGGREGATION_WINDOW_MS) break;
@@ -1025,6 +1049,49 @@ function AgentTreeNode({ node, depth = 0 }: { node: ToolNode; depth?: number }) 
 
 /* ── Aggregated Node Row ───────────────────────────────────────────── */
 
+function AggregatedChildRow({ child, searchQuery = "" }: { child: ToolNode; searchQuery?: string }) {
+  const [showRawJson, setShowRawJson] = useState(false);
+
+  const fullEventJson = JSON.stringify(redactValue({
+    id: child.id,
+    toolName: child.toolName,
+    args: child.args,
+    status: child.status,
+    startTime: child.startTime,
+    endTime: child.endTime,
+    error: child.error,
+    fullInput: child.fullInput,
+    fullOutput: child.fullOutput,
+  }), null, 2);
+
+  return (
+    <div>
+      <ToolNodeRow node={child} depth={1} searchQuery={searchQuery} />
+      {!!(child.fullInput || child.fullOutput) && (
+        <div className="ml-8 mb-1">
+          <button
+            type="button"
+            onClick={() => setShowRawJson(!showRawJson)}
+            className="text-[10px] text-bc-muted hover:text-bc-accent font-mono transition-colors px-2 py-0.5 rounded border border-bc-border/30 hover:border-bc-accent/50"
+          >
+            {showRawJson ? "Hide Raw JSON" : "Raw JSON"}
+          </button>
+          {showRawJson && (
+            <div className="mt-1 text-[11px] font-mono px-3 py-2 bg-bc-bg rounded border border-bc-border/30 overflow-x-auto max-h-64 overflow-y-auto">
+              <div className="flex justify-end mb-1">
+                <CopyButton text={fullEventJson} />
+              </div>
+              <pre className="whitespace-pre-wrap break-all text-bc-muted">
+                {fullEventJson}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AggregatedNodeRow({ node, searchQuery = "" }: { node: AggregatedNode; searchQuery?: string }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -1061,7 +1128,7 @@ function AggregatedNodeRow({ node, searchQuery = "" }: { node: AggregatedNode; s
       {expanded && (
         <div className="border-l-2 border-bc-border/40 ml-6">
           {node.children.map((child) => (
-            <ToolNodeRow key={child.id} node={child} depth={1} searchQuery={searchQuery} />
+            <AggregatedChildRow key={child.id} child={child} searchQuery={searchQuery} />
           ))}
         </div>
       )}
@@ -1187,7 +1254,7 @@ function AgentDrillDown({
   const [rawExpanded, setRawExpanded] = useState<Set<number>>(new Set());
 
   const cost = estimateCost(activity);
-  const displayNodes = aggregateNodes(sortNodes(activity.nodes));
+  const displayNodes = aggregateNodes(sortNodes(activity.nodes), undefined, activity.nodes.length);
 
   // Filter tasks owned by this agent
   const agentTasks = useMemo(() => {
@@ -1462,7 +1529,7 @@ const AgentCard = memo(function AgentCard({
 
   const runningCount = sortedNodes.filter((n) => n.status === "running").length;
   const errorCount = activity.nodes.filter((n) => n.status === "failed").length;
-  const displayNodes = aggregateNodes(sortedNodes, collapseOld ? AUTO_COLLAPSE_MS : undefined);
+  const displayNodes = aggregateNodes(sortedNodes, collapseOld ? AUTO_COLLAPSE_MS : undefined, activity.nodes.length);
   const matchCount = searchTerm ? visibleNodes.length : 0;
   const showToolNodes = typeFilter !== "state";
 
