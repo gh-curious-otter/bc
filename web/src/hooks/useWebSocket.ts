@@ -7,6 +7,7 @@ export function useWebSocket() {
   const esRef = useRef<EventSource | null>(null);
   const listenersRef = useRef<Map<WSEventType, Set<Listener>>>(new Map());
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const connect = useCallback(() => {
@@ -20,6 +21,7 @@ export function useWebSocket() {
 
     es.onopen = () => {
       setConnected(true);
+      setReconnecting(false);
     };
 
     es.onmessage = (e: MessageEvent) => {
@@ -34,6 +36,7 @@ export function useWebSocket() {
 
     es.onerror = () => {
       setConnected(false);
+      setReconnecting(true);
       es.close();
       reconnectTimer.current = setTimeout(connect, 3000);
     };
@@ -59,5 +62,5 @@ export function useWebSocket() {
     };
   }, []);
 
-  return { connected, subscribe };
+  return { connected, reconnecting, subscribe };
 }

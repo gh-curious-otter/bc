@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { api } from "../api/client";
 import type { Agent } from "../api/client";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -259,6 +259,15 @@ function elapsed(start: number, end?: number): string {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60_000).toFixed(1)}m`;
+}
+
+/** Duration color class based on elapsed milliseconds */
+function durationColorClass(start: number, end?: number): string {
+  const ms = (end ?? Date.now()) - start;
+  if (ms < 1000) return "text-emerald-400";
+  if (ms < 5000) return "text-yellow-400";
+  if (ms < 30000) return "text-orange-400";
+  return "text-red-400";
 }
 
 /** Format a relative time like "2s ago", "3m ago", "1h ago" */
@@ -538,7 +547,7 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false }: { node: ToolN
     <>
       <button
         type="button"
-        className={`group flex items-start gap-2 py-0.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${isSubagentChild ? "" : ""}`}
+        className={`group flex items-start gap-2 py-0.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${node.status === "failed" ? "bg-red-950/10" : ""}`}
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} tool ${node.toolName}`}
@@ -559,7 +568,7 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false }: { node: ToolN
         )}
         <span className="ml-auto flex items-center gap-2 shrink-0">
           <RelativeTimestamp ts={node.startTime} />
-          <span className="text-[11px] text-bc-muted tabular-nums font-mono">
+          <span className={`text-[11px] tabular-nums font-mono ${node.status === "running" ? "text-bc-muted" : durationColorClass(node.startTime, node.endTime)}`}>
             {node.status === "running" ? (
               <ElapsedTimer start={node.startTime} />
             ) : (
@@ -878,8 +887,17 @@ export function Logs() {
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [searchFilter, setSearchFilter] = useState("");
   const [eventCount, setEventCount] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const pausedBuffer = useRef<HookEvent[]>([]);
+  const [pausedCount, setPausedCount] = useState(0);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [newEventsSinceScroll, setNewEventsSinceScroll] = useState(0);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [focusedCardIdx, setFocusedCardIdx] = useState(-1);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const eventBuffer = useRef<HookEvent[]>([]);
-  const { subscribe } = useWebSocket();
+  const { connected, reconnecting, subscribe } = useWebSocket();
 
   // Seed from agents API + initial logs
   useEffect(() => {
@@ -919,6 +937,13 @@ export function Logs() {
   const flushEvents = useCallback(() => {
     const events = eventBuffer.current.splice(0);
     if (events.length === 0) return;
+
+    // When paused, buffer events instead of processing them
+    if (paused) {
+      pausedBuffer.current.push(...events);
+      setPausedCount(pausedBuffer.current.length);
+      return;
+    }
 
     setEventCount((c) => c + events.length);
     setActivities((prev) => {
@@ -1028,6 +1053,16 @@ export function Logs() {
       }
       return next;
     });
+  }, [paused]);
+
+  // Resume: flush paused buffer back into event buffer
+  const handleResume = useCallback(() => {
+    setPaused(false);
+    if (pausedBuffer.current.length > 0) {
+      eventBuffer.current.push(...pausedBuffer.current);
+      pausedBuffer.current = [];
+      setPausedCount(0);
+    }
   }, []);
 
   // Flush timer
@@ -1069,6 +1104,54 @@ export function Logs() {
     return unsub;
   }, [subscribe]);
 
+  // Filter and sort activities
+  const sorted = useMemo(() => {
+    const filtered = Array.from(activities.values()).filter((a) => {
+      if (agentFilter && a.name !== agentFilter) return false;
+      if (typeFilter === "tools" && a.nodes.length === 0) return false;
+      if (searchFilter) {
+        const q = searchFilter.toLowerCase();
+        const cardHay = `${a.name} ${a.role} ${a.task} ${a.tool}`.toLowerCase();
+        if (cardHay.includes(q)) return true;
+        const hasMatchingNode = a.nodes.some((n) => nodeMatchesSearch(n, q));
+        if (!hasMatchingNode) return false;
+      }
+      return true;
+    });
+    return filtered.sort((a, b) => {
+      const order: Record<string, number> = { working: 0, stuck: 1, idle: 2, stopped: 3, error: 4 };
+      const oa = order[a.state] ?? 5;
+      const ob = order[b.state] ?? 5;
+      if (oa !== ob) return oa - ob;
+      return a.name.localeCompare(b.name);
+    });
+  }, [activities, agentFilter, typeFilter, searchFilter]);
+
+  // Scroll tracking for jump-to-latest
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const isAtTop = container.scrollTop < 100;
+      setShowJumpToLatest(!isAtTop);
+      if (isAtTop) setNewEventsSinceScroll(0);
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => container.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Track new events when scrolled away
+  useEffect(() => {
+    if (showJumpToLatest) {
+      setNewEventsSinceScroll((c) => c + 1);
+    }
+  }, [eventCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const jumpToLatest = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    setNewEventsSinceScroll(0);
+  }, []);
+
   // Toggle collapse
   const toggleAgent = useCallback((name: string) => {
     setActivities((prev) => {
@@ -1084,35 +1167,69 @@ export function Logs() {
     setAgentFilter((prev) => (prev === name ? "" : name));
   }, []);
 
-  // Filter and sort activities
-  const filtered = Array.from(activities.values()).filter((a) => {
-    if (agentFilter && a.name !== agentFilter) return false;
-    // "Tool Calls" type: hide cards with no tool nodes at all
-    if (typeFilter === "tools" && a.nodes.length === 0) return false;
-    if (searchFilter) {
-      const q = searchFilter.toLowerCase();
-      // Check card-level fields (name, role, task)
-      const cardHay = `${a.name} ${a.role} ${a.task} ${a.tool}`.toLowerCase();
-      if (cardHay.includes(q)) return true;
-      // Check if any individual node matches — hide card if zero nodes match
-      const hasMatchingNode = a.nodes.some((n) => nodeMatchesSearch(n, q));
-      if (!hasMatchingNode) return false;
-    }
-    return true;
-  });
+  // Keyboard shortcuts
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
-  const sorted = filtered.sort((a, b) => {
-    const order: Record<string, number> = { working: 0, stuck: 1, idle: 2, stopped: 3, error: 4 };
-    const oa = order[a.state] ?? 5;
-    const ob = order[b.state] ?? 5;
-    if (oa !== ob) return oa - ob;
-    return a.name.localeCompare(b.name);
-  });
+      // Escape always works: clear search and blur
+      if (e.key === "Escape") {
+        setSearchFilter("");
+        setShowShortcuts(false);
+        (document.activeElement as HTMLElement)?.blur();
+        return;
+      }
+
+      // / to focus search (works even from non-input)
+      if (e.key === "/" && !isInput) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      // Don't handle other shortcuts when in input
+      if (isInput) return;
+
+      if (e.key === "?") {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
+        return;
+      }
+
+      if (e.key === "j") {
+        e.preventDefault();
+        setFocusedCardIdx((prev) => Math.min(prev + 1, sorted.length - 1));
+        return;
+      }
+
+      if (e.key === "k") {
+        e.preventDefault();
+        setFocusedCardIdx((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+
+      if (e.key === "Enter" && focusedCardIdx >= 0 && focusedCardIdx < sorted.length) {
+        e.preventDefault();
+        const card = sorted[focusedCardIdx];
+        if (card) toggleAgent(card.name);
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sorted, focusedCardIdx, toggleAgent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasFilters = agentFilter || typeFilter !== "all" || searchFilter;
 
+  // SSE connection indicator state
+  const sseStatus = connected ? "connected" : reconnecting ? "reconnecting" : "disconnected";
+  const sseDotColor = connected ? "bg-emerald-500" : reconnecting ? "bg-yellow-500" : "bg-red-500";
+  const sseTooltip = connected ? "SSE connected" : reconnecting ? "Reconnecting..." : "Disconnected";
+
   return (
-    <div className="p-6 flex flex-col h-full">
+    <div className="p-6 flex flex-col h-full relative">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-xl font-bold text-bc-text flex items-center gap-2 shrink-0 pl-10 sm:pl-0">
@@ -1123,8 +1240,72 @@ export function Logs() {
           </span>
         </h1>
         <span className="text-sm text-bc-muted hidden sm:inline">Real-time agent activity</span>
-        <span className="ml-auto text-xs text-bc-muted font-mono tabular-nums">{eventCount} events</span>
+        <span className="ml-auto flex items-center gap-3">
+          {/* SSE Connection Indicator */}
+          <span className="flex items-center gap-1.5" title={sseTooltip}>
+            <span className={`inline-flex h-2 w-2 rounded-full ${sseDotColor}`} />
+            <span className="text-[10px] text-bc-muted font-mono hidden sm:inline">{sseStatus}</span>
+          </span>
+          {/* Event count */}
+          <span className="text-xs text-bc-muted font-mono tabular-nums">{eventCount} events</span>
+          {/* Pause/Resume Toggle */}
+          <button
+            type="button"
+            onClick={() => paused ? handleResume() : setPaused(true)}
+            className="relative inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-text transition-colors"
+            title={paused ? `Resume (${pausedCount} buffered)` : "Pause stream"}
+          >
+            {paused ? "\u25B6" : "\u23F8"}
+            {paused && pausedCount > 0 && (
+              <span className="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-bc-accent rounded-full leading-none">
+                {pausedCount}
+              </span>
+            )}
+          </button>
+          {/* Shortcut help */}
+          <button
+            type="button"
+            onClick={() => setShowShortcuts((prev) => !prev)}
+            className="text-xs px-1.5 py-1 rounded border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-muted hover:text-bc-text transition-colors"
+            title="Keyboard shortcuts (?)"
+          >
+            ?
+          </button>
+        </span>
       </div>
+
+      {/* Keyboard Shortcuts Overlay */}
+      {showShortcuts && (
+        <div className="absolute top-16 right-6 z-50 bg-bc-surface border border-bc-border rounded-lg shadow-lg p-4 w-64">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-semibold text-bc-text">Keyboard Shortcuts</span>
+            <button
+              type="button"
+              onClick={() => setShowShortcuts(false)}
+              className="text-bc-muted hover:text-bc-text text-sm"
+            >
+              &times;
+            </button>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            {[
+              ["/", "Focus search"],
+              ["Esc", "Clear search / close"],
+              ["j", "Next agent card"],
+              ["k", "Previous agent card"],
+              ["Enter", "Expand/collapse focused card"],
+              ["?", "Toggle this help"],
+            ].map(([key, desc]) => (
+              <div key={key} className="flex items-center gap-2">
+                <kbd className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 rounded bg-bc-bg border border-bc-border text-bc-text font-mono text-[11px]">
+                  {key}
+                </kbd>
+                <span className="text-bc-muted">{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-2 mb-4 sticky top-0 z-10 bg-bc-bg py-2">
@@ -1148,10 +1329,11 @@ export function Logs() {
           <option value="state">State Changes</option>
         </select>
         <input
+          ref={searchInputRef}
           type="text"
           value={searchFilter}
           onChange={(e) => setSearchFilter(e.target.value)}
-          placeholder="Search events..."
+          placeholder="Search events... (/ to focus)"
           className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1.5 text-bc-text placeholder:text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent w-48"
         />
         {hasFilters && (
@@ -1166,7 +1348,7 @@ export function Logs() {
       </div>
 
       {/* Agent Activity Cards */}
-      <div className="flex-1 overflow-y-auto min-h-0 space-y-3">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 space-y-3 relative">
         {sorted.length === 0 ? (
           <EmptyState
             icon=">"
@@ -1174,19 +1356,40 @@ export function Logs() {
             description="Events will stream here in real-time as agents work."
           />
         ) : (
-          sorted.map((activity) => (
-            <AgentCard
+          sorted.map((activity, idx) => (
+            <div
               key={activity.name}
-              activity={activity}
-              onToggle={() => toggleAgent(activity.name)}
-              onClickFilter={() => toggleCardFilter(activity.name)}
-              isFilterActive={agentFilter === activity.name}
-              searchTerm={searchFilter}
-              typeFilter={typeFilter}
-            />
+              className={focusedCardIdx === idx ? "ring-2 ring-bc-accent rounded-lg" : ""}
+            >
+              <AgentCard
+                activity={activity}
+                onToggle={() => toggleAgent(activity.name)}
+                onClickFilter={() => toggleCardFilter(activity.name)}
+                isFilterActive={agentFilter === activity.name}
+                searchTerm={searchFilter}
+                typeFilter={typeFilter}
+              />
+            </div>
           ))
         )}
       </div>
+
+      {/* Jump to Latest Button */}
+      {showJumpToLatest && (
+        <button
+          type="button"
+          onClick={jumpToLatest}
+          className="absolute bottom-8 right-8 z-20 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-bc-border bg-bc-surface text-bc-text text-sm shadow-lg hover:border-bc-accent hover:bg-bc-surface-hover transition-colors"
+        >
+          <span>&darr;</span>
+          Jump to latest
+          {newEventsSinceScroll > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-bc-accent rounded-full leading-none">
+              {newEventsSinceScroll}
+            </span>
+          )}
+        </button>
+      )}
     </div>
   );
 }
