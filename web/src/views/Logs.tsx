@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../api/client";
 import type { Agent } from "../api/client";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -52,6 +53,8 @@ interface AgentActivity {
   lastEventTime: number;
   nodes: ToolNode[];
   collapsed: boolean;
+  /** Index of the currently-active subagent node in nodes[], for nesting */
+  activeSubagentIdx?: number;
 }
 
 interface HookEvent {
@@ -331,9 +334,87 @@ function shouldNeverAggregate(node: ToolNode): boolean {
 /**
  * Scan a list of ToolNodes and aggregate consecutive same-tool nodes
  * that fall within the AGGREGATION_WINDOW_MS time window.
+ * When collapseOlderThan is provided (ms), events older than that threshold
+ * are also aggregated by tool type (even non-consecutive).
  * Returns a mixed list of ToolNode and AggregatedNode.
  */
-function aggregateNodes(nodes: ToolNode[]): DisplayNode[] {
+function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number): DisplayNode[] {
+  if (nodes.length === 0) return [];
+
+  const now = Date.now();
+  const threshold = collapseOlderThan ?? 0;
+
+  // If collapseOlderThan is set, split into recent and old nodes
+  if (threshold > 0) {
+    const recentNodes: ToolNode[] = [];
+    const oldByTool = new Map<string, ToolNode[]>();
+
+    for (const n of nodes) {
+      const age = now - n.startTime;
+      if (age <= threshold || n.status === "running" || shouldNeverAggregate(n)) {
+        recentNodes.push(n);
+      } else {
+        const key = n.toolName;
+        if (!oldByTool.has(key)) oldByTool.set(key, []);
+        oldByTool.get(key)!.push(n);
+      }
+    }
+
+    // Build aggregated groups for old nodes
+    const oldAggregated: DisplayNode[] = [];
+    for (const [toolName, group] of oldByTool) {
+      if (group.length >= 2) {
+        let totalDuration = 0;
+        const totalTokens = 0;
+        let successCount = 0;
+        let failCount = 0;
+        let minStart = Infinity;
+        let maxEnd = 0;
+
+        for (const n of group) {
+          const dur = n.endTime ? n.endTime - n.startTime : 0;
+          totalDuration += dur;
+          if (n.status === "completed") successCount++;
+          if (n.status === "failed") failCount++;
+          if (n.startTime < minStart) minStart = n.startTime;
+          if (n.endTime && n.endTime > maxEnd) maxEnd = n.endTime;
+        }
+
+        oldAggregated.push({
+          type: "aggregate",
+          id: `agg-old-${group[0]!.id}`,
+          toolName,
+          count: group.length,
+          children: group,
+          totalDuration,
+          totalTokens,
+          successCount,
+          failCount,
+          startTime: minStart,
+          endTime: maxEnd || now,
+        });
+      } else {
+        oldAggregated.push(...group);
+      }
+    }
+
+    // Sort old aggregated by startTime descending
+    oldAggregated.sort((a, b) => {
+      const aTime = isAggregatedNode(a) ? a.startTime : (a as ToolNode).startTime;
+      const bTime = isAggregatedNode(b) ? b.startTime : (b as ToolNode).startTime;
+      return bTime - aTime;
+    });
+
+    // Apply standard consecutive aggregation to recent nodes
+    const recentAggregated = aggregateConsecutive(recentNodes);
+    return [...recentAggregated, ...oldAggregated];
+  }
+
+  return aggregateConsecutive(nodes);
+}
+
+/** Standard consecutive same-tool aggregation within AGGREGATION_WINDOW_MS */
+function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
   if (nodes.length === 0) return [];
 
   const result: DisplayNode[] = [];
@@ -749,6 +830,7 @@ const AgentCard = memo(function AgentCard({
   isFilterActive,
   searchTerm,
   typeFilter,
+  isPaused,
 }: {
   activity: AgentActivity;
   onToggle: () => void;
@@ -756,7 +838,10 @@ const AgentCard = memo(function AgentCard({
   isFilterActive: boolean;
   searchTerm: string;
   typeFilter: FilterType;
+  isPaused: boolean;
 }) {
+  const [collapseOld, setCollapseOld] = useState(true);
+
   // Filter nodes based on search term (individual node filtering)
   const visibleNodes = searchTerm
     ? activity.nodes.filter((n) => nodeMatchesSearch(n, searchTerm.toLowerCase()))
@@ -764,9 +849,12 @@ const AgentCard = memo(function AgentCard({
 
   const runningCount = visibleNodes.filter((n) => n.status === "running").length;
   const errorCount = activity.nodes.filter((n) => n.status === "failed").length;
-  const displayNodes = aggregateNodes(visibleNodes);
+  const displayNodes = aggregateNodes(visibleNodes, collapseOld ? AUTO_COLLAPSE_MS : undefined);
   const matchCount = searchTerm ? visibleNodes.length : 0;
   const showToolNodes = typeFilter !== "state";
+
+  // Skip animations when paused or when bulk-flushing (>5 events arrive at once)
+  const skipAnimation = isPaused || visibleNodes.length > 5;
 
   return (
     <div className={`rounded-lg border bg-bc-surface overflow-hidden transition-colors ${isFilterActive ? "border-bc-accent ring-1 ring-bc-accent/30" : "border-bc-border"}`}>
@@ -849,9 +937,42 @@ const AgentCard = memo(function AgentCard({
 
       {!activity.collapsed && showToolNodes && displayNodes.length > 0 && (
         <div className="border-t border-bc-border/60 py-1">
-          {displayNodes.map((node) => (
-            <DisplayNodeRow key={isAggregatedNode(node) ? node.id : node.id} node={node} />
-          ))}
+          {/* Show all / Collapse old toggle */}
+          {visibleNodes.length > 3 && (
+            <div className="flex justify-end px-3 py-1">
+              <button
+                type="button"
+                onClick={() => setCollapseOld((prev) => !prev)}
+                className="text-[10px] text-bc-muted hover:text-bc-accent font-mono transition-colors"
+              >
+                {collapseOld ? "Show all" : "Collapse old"}
+              </button>
+            </div>
+          )}
+          <AnimatePresence mode="popLayout" initial={false}>
+            {displayNodes.map((node) => {
+              const nodeKey = isAggregatedNode(node) ? node.id : node.id;
+              if (skipAnimation) {
+                return (
+                  <div key={nodeKey}>
+                    <DisplayNodeRow node={node} />
+                  </div>
+                );
+              }
+              return (
+                <motion.div
+                  key={nodeKey}
+                  initial={{ opacity: 0, y: -20, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  layout
+                >
+                  <DisplayNodeRow node={node} />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
       )}
 
@@ -1368,6 +1489,7 @@ export function Logs() {
                 isFilterActive={agentFilter === activity.name}
                 searchTerm={searchFilter}
                 typeFilter={typeFilter}
+                isPaused={paused}
               />
             </div>
           ))
