@@ -1,13 +1,9 @@
-/** Strip ANSI escape codes (CSI, OSC, charset) from terminal output. */
+/** Strip ANSI escape codes (CSI, OSC, charset, DEC private mode) from terminal output. */
 // eslint-disable-next-line no-control-regex
-const CSI = /\x1b\[[0-9;]*[a-zA-Z]/g;
-// eslint-disable-next-line no-control-regex
-const OSC = /\x1b\][^\x07]*\x07/g;
-// eslint-disable-next-line no-control-regex
-const CHARSET = /\x1b\(B/g;
+const ANSI_RE = /\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[()][0-9A-Z]|\x1b\[\??[0-9;]*[hlm]/g;
 
 export function stripAnsi(str: string): string {
-  return str.replace(CSI, "").replace(OSC, "").replace(CHARSET, "");
+  return str.replace(ANSI_RE, "");
 }
 
 /** Truncate string to maxLen characters with ellipsis. */
