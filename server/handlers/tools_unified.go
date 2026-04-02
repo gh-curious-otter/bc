@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -11,19 +12,22 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
+// maxVersionLen is the maximum length for version strings in tool responses.
+const maxVersionLen = 80
+
 // UnifiedTool represents a tool (MCP or CLI) with its status.
 type UnifiedTool struct {
 	Name       string `json:"name"`
-	Type       string `json:"type"`                  // "mcp" or "cli"
-	Status     string `json:"status"`                // "connected", "installed", "not_installed", "error", "unknown"
-	Transport  string `json:"transport,omitempty"`    // for MCP: "sse" or "stdio"
-	Command    string `json:"command,omitempty"`      // for CLI or stdio MCP
-	URL        string `json:"url,omitempty"`          // for SSE MCP
-	Version    string `json:"version,omitempty"`      // for CLI tools
-	Error      string `json:"error,omitempty"`        // if status is "error"
+	Type       string `json:"type"`                 // "mcp" or "cli"
+	Status     string `json:"status"`               // "connected", "installed", "not_installed", "error", "unknown"
+	Transport  string `json:"transport,omitempty"`   // for MCP: "sse" or "stdio"
+	Command    string `json:"command,omitempty"`     // for CLI or stdio MCP
+	URL        string `json:"url,omitempty"`         // for SSE MCP
+	Version    string `json:"version,omitempty"`     // for CLI tools
+	Error      string `json:"error,omitempty"`       // if status is "error"
 	Required   bool   `json:"required"`
-	InstallCmd string `json:"install_cmd,omitempty"`  // install command
-	UpgradeCmd string `json:"upgrade_cmd,omitempty"`  // upgrade command
+	InstallCmd string `json:"install_cmd,omitempty"` // install command
+	UpgradeCmd string `json:"upgrade_cmd,omitempty"` // upgrade command
 }
 
 // UnifiedToolsHandler handles the merged /api/tools endpoint.
@@ -45,6 +49,55 @@ func (h *UnifiedToolsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tools/unified/check", h.checkAll)
 }
 
+// truncVersion returns a version string truncated to maxVersionLen.
+func truncVersion(ver string) string {
+	ver = strings.TrimSpace(ver)
+	if len(ver) > maxVersionLen {
+		return ver[:maxVersionLen]
+	}
+	return ver
+}
+
+// resolveBinary extracts the binary name from a command string, falling back to name.
+func resolveBinary(command, name string) string {
+	bin := command
+	if i := strings.IndexByte(bin, ' '); i > 0 {
+		bin = bin[:i]
+	}
+	if bin == "" {
+		bin = name
+	}
+	return bin
+}
+
+// runVersion runs a version command and returns the truncated output.
+func runVersion(ctx context.Context, versionCmd string) string {
+	parts := strings.Fields(versionCmd)
+	if len(parts) == 0 {
+		return ""
+	}
+	out, err := exec.CommandContext(ctx, parts[0], parts[1:]...).Output() //nolint:gosec // tool names from config
+	if err != nil {
+		return ""
+	}
+	return truncVersion(string(out))
+}
+
+// resolveToolStatus determines a tool's status based on enabled state, type, and binary availability.
+func resolveToolStatus(enabled bool, toolType, command, name string) string {
+	if !enabled {
+		return "disabled"
+	}
+	if toolType == "mcp" {
+		return "configured"
+	}
+	bin := resolveBinary(command, name)
+	if _, err := exec.LookPath(bin); err != nil {
+		return "not_installed"
+	}
+	return "installed"
+}
+
 // list returns all tools (MCP + CLI) with their current status.
 func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
@@ -52,18 +105,16 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var tools []UnifiedTool
-	seen := make(map[string]bool) // deduplicate across all three sources
+	seen := make(map[string]bool)
 
-	// MCP servers from store (highest priority — added first)
+	// MCP servers from store (highest priority)
 	if h.mcpStore != nil {
 		servers, err := h.mcpStore.List()
 		if err == nil {
 			for _, s := range servers {
 				seen[s.Name] = true
-				status := "unknown"
-				if s.Enabled {
-					status = "configured"
-				} else {
+				status := "configured"
+				if !s.Enabled {
 					status = "disabled"
 				}
 				tools = append(tools, UnifiedTool{
@@ -93,18 +144,10 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 					Type:     "cli",
 					Required: true,
 				}
-				// Check if installed
 				if path, err := exec.LookPath(t); err == nil {
 					ut.Status = "installed"
 					ut.Command = path
-					// Try to get version
-					if out, verr := exec.Command(t, "--version").Output(); verr == nil {
-						ver := strings.TrimSpace(string(out))
-						if len(ver) > 80 {
-							ver = ver[:80]
-						}
-						ut.Version = ver
-					}
+					ut.Version = runVersion(r.Context(), t+" --version")
 				} else {
 					ut.Status = "not_installed"
 				}
@@ -113,7 +156,7 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Built-in tools from tool store — skip names already added from mcpStore or roles
+	// Built-in tools from tool store
 	if h.toolStore != nil {
 		builtins, err := h.toolStore.List(r.Context())
 		if err == nil {
@@ -126,27 +169,7 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 				if t.Type != "" {
 					toolType = t.Type
 				}
-				// Determine status: disabled overrides all other states
-				var status string
-				if !t.Enabled {
-					status = "disabled"
-				} else if toolType == "mcp" {
-					status = "configured"
-				} else {
-					// Extract binary name (first word) from command
-					bin := t.Command
-					if i := strings.IndexByte(bin, ' '); i > 0 {
-						bin = bin[:i]
-					}
-					if bin == "" {
-						bin = t.Name
-					}
-					if _, lookErr := exec.LookPath(bin); lookErr != nil {
-						status = "not_installed"
-					} else {
-						status = "installed"
-					}
-				}
+				status := resolveToolStatus(t.Enabled, toolType, t.Command, t.Name)
 				ut := UnifiedTool{
 					Name:       t.Name,
 					Type:       toolType,
@@ -158,14 +181,7 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 					UpgradeCmd: t.UpgradeCmd,
 				}
 				if toolType == "cli" && status == "installed" && t.VersionCmd != "" {
-					parts := strings.Fields(t.VersionCmd)
-					if out, verr := exec.Command(parts[0], parts[1:]...).Output(); verr == nil {
-						ver := strings.TrimSpace(string(out))
-						if len(ver) > 80 {
-							ver = ver[:80]
-						}
-						ut.Version = ver
-					}
+					ut.Version = runVersion(r.Context(), t.VersionCmd)
 				}
 				tools = append(tools, ut)
 			}
@@ -198,8 +214,6 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 					Status:    "connected",
 					Required:  true,
 				}
-				// For SSE servers, we could ping the URL
-				// For stdio, we could check the command exists
 				if s.Transport == "stdio" && s.Command != "" {
 					cmd := strings.Fields(s.Command)[0]
 					if _, err := exec.LookPath(cmd); err != nil {
@@ -230,14 +244,7 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 				if path, err := exec.LookPath(t); err == nil {
 					ut.Status = "installed"
 					ut.Command = path
-					// Try to get version
-					if out, verr := exec.CommandContext(r.Context(), t, "--version").Output(); verr == nil { //nolint:gosec // tool names from role configs
-						ver := strings.TrimSpace(string(out))
-						if len(ver) > 80 {
-							ver = ver[:80]
-						}
-						ut.Version = ver
-					}
+					ut.Version = runVersion(r.Context(), t+" --version")
 				} else {
 					ut.Status = "not_installed"
 					ut.Error = t + " not found in PATH"
@@ -273,32 +280,18 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 				if !t.Enabled {
 					ut.Status = "disabled"
 				} else {
-					bin := t.Command
-					if i := strings.IndexByte(bin, ' '); i > 0 {
-						bin = bin[:i]
-					}
-					if bin == "" {
-						bin = t.Name
-					}
+					bin := resolveBinary(t.Command, t.Name)
 					if path, lookErr := exec.LookPath(bin); lookErr != nil {
 						ut.Status = "not_installed"
 						ut.Error = bin + " not found in PATH"
 					} else {
 						ut.Status = "installed"
 						ut.Command = path
-						// Try to get version
 						versionCmd := t.VersionCmd
 						if versionCmd == "" {
 							versionCmd = bin + " --version"
 						}
-						parts := strings.Fields(versionCmd)
-						if out, verr := exec.CommandContext(r.Context(), parts[0], parts[1:]...).Output(); verr == nil { //nolint:gosec // tool names from user config
-							ver := strings.TrimSpace(string(out))
-							if len(ver) > 80 {
-								ver = ver[:80]
-							}
-							ut.Version = ver
-						}
+						ut.Version = runVersion(r.Context(), versionCmd)
 					}
 				}
 				results = append(results, ut)
