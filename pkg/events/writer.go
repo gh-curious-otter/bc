@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -237,13 +238,17 @@ func (w *JSONLWriter) rotate() error {
 	return os.Rename(tmp, w.path)
 }
 
+// taskIDRegexp matches "Task #123" in tool response strings.
+var taskIDRegexp = regexp.MustCompile(`Task\s+#(\d+)`)
+
 // TaskItem represents a task extracted from SSE event history.
 type TaskItem struct {
-	ID          string `json:"id"`
-	Subject     string `json:"subject"`
-	Status      string `json:"status"`
-	Owner       string `json:"owner,omitempty"`
-	Description string `json:"description,omitempty"`
+	ID          string   `json:"id"`
+	Subject     string   `json:"subject"`
+	Status      string   `json:"status"`
+	Owner       string   `json:"owner,omitempty"`
+	Description string   `json:"description,omitempty"`
+	BlockedBy   []string `json:"blockedBy,omitempty"`
 }
 
 // CurrentTasks scans the JSONL event history for TaskCreate/TaskUpdate
@@ -296,10 +301,13 @@ func (w *JSONLWriter) CurrentTasks() ([]TaskItem, error) {
 
 		// TaskUpdate: extract from Pre/PostToolUse events
 		if (eventName == "PreToolUse" || eventName == "PostToolUse") && containsTaskUpdate(toolName) {
-			id, status := extractTaskUpdate(data)
+			id, status, blockedBy := extractTaskUpdate(data)
 			if id != "" && status != "" {
 				if t, exists := tasks[id]; exists {
 					t.Status = status
+					if len(blockedBy) > 0 {
+						t.BlockedBy = append(t.BlockedBy, blockedBy...)
+					}
 				}
 			}
 		}
@@ -331,22 +339,28 @@ func extractTaskCreate(data map[string]any) *TaskItem {
 	}
 
 	id := "task-" + fmt.Sprintf("%d", time.Now().UnixMilli())
-	if resp != nil {
-		if s, ok := resp["id"].(string); ok && s != "" {
-			id = s
-		} else if s, ok := resp["task_id"].(string); ok && s != "" {
-			id = s
-		}
-	}
-	// Also try parsing string response as JSON
-	if resp == nil {
-		if respStr, ok := data["tool_response"].(string); ok && respStr != "" {
+
+	// First, try to parse numeric ID from string response like "Task #125 created successfully: ..."
+	if respStr, ok := data["tool_response"].(string); ok && respStr != "" {
+		if m := taskIDRegexp.FindStringSubmatch(respStr); len(m) > 1 {
+			id = m[1]
+		} else {
+			// Try parsing string response as JSON
 			var parsed map[string]any
 			if json.Unmarshal([]byte(respStr), &parsed) == nil {
 				if s, ok := parsed["id"].(string); ok && s != "" {
 					id = s
 				}
 			}
+		}
+	}
+
+	// If still a fallback ID, try structured response fields
+	if strings.HasPrefix(id, "task-") && resp != nil {
+		if s, ok := resp["id"].(string); ok && s != "" {
+			id = s
+		} else if s, ok := resp["task_id"].(string); ok && s != "" {
+			id = s
 		}
 	}
 
@@ -371,10 +385,10 @@ func extractTaskCreate(data map[string]any) *TaskItem {
 	}
 }
 
-func extractTaskUpdate(data map[string]any) (string, string) {
+func extractTaskUpdate(data map[string]any) (string, string, []string) {
 	inp, _ := data["tool_input"].(map[string]any)
 	if inp == nil {
-		return "", ""
+		return "", "", nil
 	}
 
 	var id string
@@ -386,12 +400,12 @@ func extractTaskUpdate(data map[string]any) (string, string) {
 		id = s
 	}
 	if id == "" {
-		return "", ""
+		return "", "", nil
 	}
 
 	rawStatus, _ := inp["status"].(string)
 	if rawStatus == "" {
-		return "", ""
+		return "", "", nil
 	}
 
 	statusMap := map[string]string{
@@ -410,5 +424,15 @@ func extractTaskUpdate(data map[string]any) (string, string) {
 	if !ok {
 		status = "pending"
 	}
-	return id, status
+
+	var blockedBy []string
+	if arr, ok := inp["addBlockedBy"].([]any); ok {
+		for _, v := range arr {
+			if s, ok := v.(string); ok {
+				blockedBy = append(blockedBy, s)
+			}
+		}
+	}
+
+	return id, status, blockedBy
 }

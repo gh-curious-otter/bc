@@ -78,6 +78,7 @@ interface TaskItem {
   status: "pending" | "in_progress" | "completed" | "deleted";
   owner?: string;
   description?: string;
+  blockedBy?: string[];
 }
 
 type FilterType = "all" | "tools" | "state";
@@ -596,7 +597,15 @@ function parseTaskCreate(
   if (!inp) return null;
 
   let id = "task-" + Date.now();
-  if (resp) {
+
+  // First, try to parse numeric ID from string response like "Task #125 created successfully: ..."
+  if (typeof toolResponse === "string") {
+    const numMatch = (toolResponse as string).match(/Task\s+#(\d+)/);
+    if (numMatch) id = numMatch[1]!;
+  }
+
+  // If still a fallback ID, try structured response fields
+  if (id.startsWith("task-") && resp) {
     if (typeof resp.id === "string") id = resp.id;
     else if (typeof resp.task_id === "string") id = resp.task_id;
     else if (typeof resp === "string") {
@@ -620,7 +629,7 @@ function parseTaskCreate(
   return { id, subject, status: "pending", owner: agentName, description };
 }
 
-function parseTaskUpdate(toolInput: unknown): { taskId: string; status: TaskItem["status"] } | null {
+function parseTaskUpdate(toolInput: unknown): { taskId: string; status: TaskItem["status"]; blockedBy?: string[] } | null {
   const inp = toolInput as Record<string, unknown> | null;
   if (!inp) return null;
 
@@ -650,7 +659,8 @@ function parseTaskUpdate(toolInput: unknown): { taskId: string; status: TaskItem
   };
 
   const status = statusMap[rawStatus] ?? "pending";
-  return { taskId, status };
+  const blockedBy = Array.isArray(inp.addBlockedBy) ? inp.addBlockedBy as string[] : undefined;
+  return { taskId, status, blockedBy };
 }
 
 function parseTaskListResponse(text: string): TaskItem[] {
@@ -1103,10 +1113,14 @@ function TasksPanel({ tasks }: { tasks: Map<string, TaskItem> }) {
 
       {!collapsed && total > 0 && (
         <div className="border-t border-bc-border/60 px-4 py-2 space-y-1">
-          {visible.map((task) => (
-            <div key={task.id} className="flex items-center gap-2 py-0.5">
+          {visible.map((task) => {
+            const isBlocked = task.blockedBy && task.blockedBy.length > 0 && task.status !== "completed";
+            return (
+            <div key={task.id} className={`flex items-center gap-2 py-0.5 ${isBlocked ? "opacity-50" : ""}`}>
               {task.status === "completed" ? (
                 <span className="text-bc-success text-xs shrink-0">{"\u2713"}</span>
+              ) : isBlocked ? (
+                <span className="inline-flex h-2 w-2 rounded-full bg-yellow-500/60 shrink-0" />
               ) : task.status === "in_progress" ? (
                 <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 shrink-0" />
               ) : (
@@ -1116,13 +1130,20 @@ function TasksPanel({ tasks }: { tasks: Map<string, TaskItem> }) {
                 className={`text-sm font-mono ${
                   task.status === "completed"
                     ? "line-through text-bc-muted/60"
-                    : task.status === "in_progress"
-                      ? "text-blue-400 font-semibold"
-                      : "text-bc-text"
+                    : isBlocked
+                      ? "text-bc-muted"
+                      : task.status === "in_progress"
+                        ? "text-blue-400 font-semibold"
+                        : "text-bc-text"
                 }`}
               >
                 {task.subject}
               </span>
+              {isBlocked && (
+                <span className="text-[10px] text-yellow-500/80 font-mono shrink-0">
+                  Blocked by {task.blockedBy!.map(b => `#${b}`).join(", ")}
+                </span>
+              )}
               {task.owner && (
                 <span className="text-[10px] text-bc-muted font-mono shrink-0">
                   {task.owner}
@@ -1132,7 +1153,8 @@ function TasksPanel({ tasks }: { tasks: Map<string, TaskItem> }) {
                 {task.status.replace("_", " ")}
               </span>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -1426,7 +1448,9 @@ export function Logs() {
             if (update) {
               const existing = historicalTasks.get(update.taskId);
               if (existing) {
-                historicalTasks.set(update.taskId, { ...existing, status: update.status });
+                const merged = { ...existing, status: update.status };
+                if (update.blockedBy) merged.blockedBy = [...(existing.blockedBy ?? []), ...update.blockedBy];
+                historicalTasks.set(update.taskId, merged);
               }
             }
           }
@@ -1602,7 +1626,9 @@ export function Logs() {
             if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
             const existing = nextTasks.get(update.taskId);
             if (existing) {
-              nextTasks.set(update.taskId, { ...existing, status: update.status });
+              const merged = { ...existing, status: update.status };
+              if (update.blockedBy) merged.blockedBy = [...(existing.blockedBy ?? []), ...update.blockedBy];
+              nextTasks.set(update.taskId, merged);
             }
           }
         }
