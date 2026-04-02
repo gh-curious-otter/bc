@@ -189,8 +189,8 @@ func (s *Store) Remove(name string) error {
 }
 
 // SetEnabled enables or disables an MCP server config.
-// Uses an upsert so that servers loaded from config (but never inserted into
-// the database) are created on first toggle rather than returning "not found".
+// Uses a simple UPDATE to avoid creating duplicate/broken rows with default
+// values. The server must already exist in the database (via Add).
 func (s *Store) SetEnabled(name string, enabled bool) error {
 	if s.pg != nil {
 		return s.pg.SetEnabled(name, enabled)
@@ -200,13 +200,16 @@ func (s *Store) SetEnabled(name string, enabled bool) error {
 		enabledInt = 1
 	}
 	ctx := context.Background()
-	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO mcp_servers (name, enabled) VALUES (?, ?)
-		 ON CONFLICT(name) DO UPDATE SET enabled = excluded.enabled`,
-		name, enabledInt,
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE mcp_servers SET enabled = ? WHERE name = ?`,
+		enabledInt, name,
 	)
 	if err != nil {
 		return fmt.Errorf("update mcp server %q: %w", name, err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("mcp server %q not found", name)
 	}
 	return nil
 }

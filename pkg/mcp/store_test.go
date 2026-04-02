@@ -176,26 +176,26 @@ func TestSetEnabled(t *testing.T) {
 	}
 }
 
-func TestSetEnabledUpsert(t *testing.T) {
+func TestSetEnabledNotFound(t *testing.T) {
 	s := setupTestStore(t)
 
-	// SetEnabled on a server not yet in the database should create it (upsert).
-	if err := s.SetEnabled("config-only", false); err != nil {
-		t.Fatalf("SetEnabled upsert: %v", err)
+	// SetEnabled on a server not in the database should return an error
+	// (not silently create a broken row with default values).
+	err := s.SetEnabled("config-only", false)
+	if err == nil {
+		t.Fatal("expected error for SetEnabled on nonexistent server")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
 	}
 
-	got, err := s.Get("config-only")
-	if err != nil {
-		t.Fatal(err)
+	// Verify no row was created in the database.
+	got, getErr := s.Get("config-only")
+	if getErr != nil {
+		t.Fatal(getErr)
 	}
-	if got == nil {
-		t.Fatal("expected upserted config, got nil")
-	}
-	if got.Enabled {
-		t.Error("expected enabled = false after upsert disable")
-	}
-	if got.Name != "config-only" {
-		t.Errorf("name = %q, want %q", got.Name, "config-only")
+	if got != nil {
+		t.Error("expected nil, got a row — SetEnabled should not create rows")
 	}
 }
 
