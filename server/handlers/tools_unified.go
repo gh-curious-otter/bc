@@ -128,8 +128,18 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 						if !t.Enabled {
 							status = "disabled"
 						}
-					} else if _, lookErr := exec.LookPath(t.Command); lookErr != nil {
-						status = "not_installed"
+					} else {
+						// Extract binary name (first word) from command — e.g. "claude --dangerously-skip-permissions" → "claude"
+						bin := t.Command
+						if i := strings.IndexByte(bin, ' '); i > 0 {
+							bin = bin[:i]
+						}
+						if bin == "" {
+							bin = t.Name // fallback to tool name
+						}
+						if _, lookErr := exec.LookPath(bin); lookErr != nil {
+							status = "not_installed"
+						}
 					}
 					ut := UnifiedTool{
 						Name:       t.Name,
