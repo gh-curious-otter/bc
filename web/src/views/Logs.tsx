@@ -1321,7 +1321,7 @@ function AgentDrillDown({
   onBack: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<DrillDownTab>("live");
-  const [rawExpanded, setRawExpanded] = useState<Set<number>>(new Set());
+  const [rawExpanded, setRawExpanded] = useState<Set<string>>(new Set());
 
   const cost = estimateCost(activity);
 
@@ -1330,11 +1330,11 @@ function AgentDrillDown({
     return [...activity.nodes].sort((a, b) => b.startTime - a.startTime);
   }, [activity.nodes]);
 
-  const toggleRawExpanded = useCallback((idx: number) => {
+  const toggleRawExpanded = useCallback((key: string) => {
     setRawExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }, []);
@@ -1426,14 +1426,15 @@ function AgentDrillDown({
                 No raw events captured for this agent yet.
               </div>
             ) : (
-              reversedRawEvents.map((evt, idx) => {
-                const isOpen = rawExpanded.has(idx);
+              reversedRawEvents.map((evt) => {
+                const evtKey = `${evt.timestamp}-${evt.eventType}`;
+                const isOpen = rawExpanded.has(evtKey);
                 const jsonStr = JSON.stringify(redactValue(evt.raw), null, 2);
                 return (
-                  <div key={idx} className="border border-bc-border/40 rounded bg-bc-surface overflow-hidden">
+                  <div key={evtKey} className="border border-bc-border/40 rounded bg-bc-surface overflow-hidden">
                     <button
                       type="button"
-                      onClick={() => toggleRawExpanded(idx)}
+                      onClick={() => toggleRawExpanded(evtKey)}
                       className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-bc-surface-hover transition-colors"
                     >
                       <span className="text-bc-muted/50 text-[10px] select-none w-3 text-center">
