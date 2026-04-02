@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { UnifiedTool } from "../api/client";
+import type { ProviderInfo, UnifiedTool } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
+import { ProvidersTable } from "../components/ProvidersTable";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
 
@@ -22,24 +23,6 @@ const STATUS_CONFIG: Record<string, { dot: string; label: string; textColor: str
 const inputCls = "w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent";
 
 function getStatusConfig(s: string) { return STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown!; }
-
-function ProviderCard({ tool }: { tool: UnifiedTool }) {
-  const cfg = getStatusConfig(tool.status);
-  return (
-    <div className="rounded border border-bc-border bg-bc-surface p-3 flex items-center gap-3">
-      <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} aria-label={`Status: ${cfg.label}`} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{tool.name}</span>
-          <span className={`text-[10px] ${cfg.textColor}`}>{cfg.label}</span>
-        </div>
-        <p className="text-[10px] text-bc-muted font-mono truncate" title={tool.command || ""}>{tool.command || "\u2014"}</p>
-        {tool.version && <span className="text-[10px] text-bc-muted">v{tool.version}</span>}
-        {tool.error && <p className="text-[10px] text-bc-error">{tool.error}</p>}
-      </div>
-    </div>
-  );
-}
 
 function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, onExpand }: {
   tool: UnifiedTool; onToggle: () => void; onRemove: () => void;
@@ -198,6 +181,11 @@ function AddCLIToolForm({ onClose, onAdded, onToast }: { onClose: () => void; on
 }
 
 export function UnifiedTools() {
+  // Fetch providers from dedicated endpoint
+  const providerFetcher = useCallback(() => api.listProviders(), []);
+  const { data: providers, loading: providersLoading } = usePolling(providerFetcher, 10000);
+
+  // Fetch CLI tools from unified endpoint
   const fetcher = useCallback(() => api.listUnifiedTools(), []);
   const { data: tools, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
   const [addForm, setAddForm] = useState<AddFormType>(null);
@@ -242,18 +230,18 @@ export function UnifiedTools() {
 
   const searchLower = search.toLowerCase().trim();
 
-  const { providers, cliTools, filteredProviders, filteredCli } = useMemo(() => {
+  const { cliTools, filteredCli } = useMemo(() => {
     const matchesSearch = (t: UnifiedTool) => !searchLower || t.name.toLowerCase().includes(searchLower);
-    const prov = allTools.filter((t) => t.type === "provider");
     const cli = allTools.filter((t) => t.type !== "provider" && t.type !== "mcp");
     return {
-      providers: prov, cliTools: cli,
-      filteredProviders: prov.filter(matchesSearch),
+      cliTools: cli,
       filteredCli: cli.filter(matchesSearch),
     };
   }, [allTools, searchLower]);
 
-  if (loading && !tools) {
+  const providerList: ProviderInfo[] = providers ?? [];
+
+  if (loading && !tools && providersLoading && !providers) {
     return (
       <div className="p-6 space-y-6">
         <div className="h-6 w-32 animate-pulse rounded bg-bc-border/50" />
@@ -268,8 +256,8 @@ export function UnifiedTools() {
     return <div className="p-6"><EmptyState icon="!" title="Failed to load tools" description={error} actionLabel="Retry" onAction={refresh} /></div>;
   }
 
-  const totalCount = allTools.length;
-  const matchCount = filteredProviders.length + filteredCli.length;
+  const totalCount = providerList.length + allTools.length;
+  const matchCount = providerList.filter((p) => !searchLower || p.name.toLowerCase().includes(searchLower)).length + filteredCli.length;
 
   const handleToggle = async (tool: UnifiedTool) => {
     const wasDisabled = tool.status === "disabled" || tool.status === "not_installed";
@@ -323,7 +311,7 @@ export function UnifiedTools() {
           <p className="text-xs text-bc-muted mt-0.5 hidden sm:block">
             {searchLower
               ? `${matchCount} of ${totalCount} tools`
-              : <>{providers.length} Providers &middot; {cliTools.length} CLI{checkedTools && " \u00b7 checked"}</>
+              : <>{providerList.length} Providers &middot; {cliTools.length} CLI{checkedTools && " \u00b7 checked"}</>
             }
           </p>
         </div>
@@ -360,18 +348,12 @@ export function UnifiedTools() {
 
       {addForm && <AddCLIToolForm onClose={() => setAddForm(null)} onAdded={() => { setCheckedTools(null); refresh(); }} onToast={addToast} />}
 
-      {/* Providers */}
+      {/* Providers Table */}
       <section>
         <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
-          Providers ({filteredProviders.length}{searchLower ? `/${providers.length}` : ""}) &mdash; AI model providers
+          Providers ({providerList.length}) &mdash; AI model providers
         </h2>
-        {filteredProviders.length === 0 ? (
-          <EmptyState icon="*" title={searchLower ? "No matching providers" : "No providers"} description={searchLower ? "Try a different search term." : "No AI providers configured."} />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {filteredProviders.map((t) => <ProviderCard key={t.name} tool={t} />)}
-          </div>
-        )}
+        <ProvidersTable providers={providerList} search={search} />
       </section>
 
       {/* CLI Dependencies */}

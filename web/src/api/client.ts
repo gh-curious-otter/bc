@@ -179,6 +179,21 @@ export interface UnifiedTool {
   upgrade_cmd?: string;
 }
 
+export interface ProviderInfo {
+  name: string;
+  description: string;
+  binary: string;
+  command: string;
+  install_hint: string;
+  version: string;
+  status: string;
+  total_cost_usd: number;
+  total_tokens: number;
+  agent_count: number;
+  installed: boolean;
+  enabled: boolean;
+}
+
 export interface EventLogEntry {
   id: number;
   type: string;
@@ -493,6 +508,7 @@ export const api = {
     }),
   deleteRole: (name: string) =>
     request<void>(`/roles/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  listProviders: () => request<ProviderInfo[]>("/providers"),
   listTools: () => request<Tool[]>("/tools"),
   enableTool: (name: string) =>
     request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/enable`, {

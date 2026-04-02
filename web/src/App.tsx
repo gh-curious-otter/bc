@@ -23,6 +23,9 @@ const Roles = lazy(() =>
 const Tools = lazy(() =>
   import("./views/UnifiedTools").then((m) => ({ default: m.UnifiedTools })),
 );
+const ProviderDetail = lazy(() =>
+  import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })),
+);
 const Logs = lazy(() =>
   import("./views/Logs").then((m) => ({ default: m.Logs })),
 );
@@ -121,6 +124,16 @@ export function App() {
                   <Suspense fallback={<Loading />}>
                     <ErrorBoundary>
                       <Tools />
+                    </ErrorBoundary>
+                  </Suspense>
+                }
+              />
+              <Route
+                path="tools/:provider"
+                element={
+                  <Suspense fallback={<Loading />}>
+                    <ErrorBoundary>
+                      <ProviderDetail />
                     </ErrorBoundary>
                   </Suspense>
                 }
