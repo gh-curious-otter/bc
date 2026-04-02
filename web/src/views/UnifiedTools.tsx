@@ -1,14 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { ProviderInfo, UnifiedTool } from "../api/client";
+import type { UnifiedTool } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ProvidersTable } from "../components/ProvidersTable";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
-
-type AddFormType = "cli" | null;
 
 const STATUS_CONFIG: Record<string, { dot: string; label: string; textColor: string }> = {
   connected:     { dot: "bg-bc-success", label: "Connected",     textColor: "text-bc-success" },
@@ -38,7 +36,6 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
         className="border-b border-bc-border hover:bg-bc-surface/50 cursor-pointer transition-colors"
         onClick={onExpand}
       >
-        {/* Chevron + Name */}
         <td className="px-3 py-2 text-sm">
           <div className="flex items-center gap-2">
             <span
@@ -49,16 +46,13 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
             <span className="font-medium">{tool.name}</span>
           </div>
         </td>
-        {/* Status */}
         <td className="px-3 py-2 text-sm">
           <span className="inline-flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-            <span className={`text-xs ${cfg.textColor}`}>{tool.version ? `${tool.version}` : cfg.label}</span>
+            <span className={`text-xs ${cfg.textColor}`}>{tool.version || cfg.label}</span>
           </span>
         </td>
-        {/* Version */}
         <td className="px-3 py-2 text-xs text-bc-muted font-mono">{tool.version || "\u2014"}</td>
-        {/* Required */}
         <td className="px-3 py-2 text-xs">
           {tool.required ? (
             <span className="px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent text-[10px] font-medium">Yes</span>
@@ -66,7 +60,6 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
             <span className="text-bc-muted">No</span>
           )}
         </td>
-        {/* Actions */}
         <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-end gap-1.5">
             <button type="button" onClick={onToggle} disabled={toggling}
@@ -105,16 +98,16 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                 </div>
               )}
               {tool.command && (
-                <div>
-                  <span className="text-bc-muted">Version cmd:</span>{" "}
-                  <span className="font-mono text-bc-text">{tool.command} --version</span>
-                </div>
-              )}
-              {tool.command && (
-                <div>
-                  <span className="text-bc-muted">Path:</span>{" "}
-                  <span className="font-mono text-bc-text">{tool.command}</span>
-                </div>
+                <>
+                  <div>
+                    <span className="text-bc-muted">Version cmd:</span>{" "}
+                    <span className="font-mono text-bc-text">{tool.command} --version</span>
+                  </div>
+                  <div>
+                    <span className="text-bc-muted">Path:</span>{" "}
+                    <span className="font-mono text-bc-text">{tool.command}</span>
+                  </div>
+                </>
               )}
               {tool.error && (
                 <div className="sm:col-span-3">
@@ -185,14 +178,12 @@ function AddCLIToolForm({ onClose, onAdded, onToast }: { onClose: () => void; on
 }
 
 export function UnifiedTools() {
-  // Fetch providers from dedicated endpoint
   const providerFetcher = useCallback(() => api.listProviders(), []);
   const { data: providers, loading: providersLoading } = usePolling(providerFetcher, 10000);
 
-  // Fetch CLI tools from unified endpoint
   const fetcher = useCallback(() => api.listUnifiedTools(), []);
   const { data: tools, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
-  const [addForm, setAddForm] = useState<AddFormType>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkedTools, setCheckedTools] = useState<UnifiedTool[] | null>(null);
   const [optimisticToggles, setOptimisticToggles] = useState<Map<string, string>>(new Map());
@@ -223,8 +214,9 @@ export function UnifiedTools() {
       addToast("success", "Health check complete");
     } catch {
       addToast("error", "Health check failed");
+    } finally {
+      setChecking(false);
     }
-    finally { setChecking(false); }
   };
 
   const allTools = useMemo(() => {
@@ -240,7 +232,7 @@ export function UnifiedTools() {
     return deduped;
   }, [checkedTools, tools, optimisticToggles]);
 
-  const searchLower = search.toLowerCase().trim();
+  const searchLower = useMemo(() => search.toLowerCase().trim(), [search]);
 
   const { cliTools, filteredCli } = useMemo(() => {
     const matchesSearch = (t: UnifiedTool) => !searchLower || t.name.toLowerCase().includes(searchLower);
@@ -251,7 +243,7 @@ export function UnifiedTools() {
     };
   }, [allTools, searchLower]);
 
-  const providerList: ProviderInfo[] = providers ?? [];
+  const providerList = providers ?? [];
 
   if (loading && !tools && providersLoading && !providers) {
     return (
@@ -351,16 +343,15 @@ export function UnifiedTools() {
             className="px-3 py-1.5 text-sm rounded border border-bc-border text-bc-muted hover:text-bc-text transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent">
             {checking ? "Checking..." : "Health Check"}
           </button>
-          <button type="button" onClick={() => setAddForm(addForm === "cli" ? null : "cli")}
+          <button type="button" onClick={() => setShowAddForm(!showAddForm)}
             className="px-3 py-1.5 text-sm rounded bg-bc-info/10 text-bc-info hover:bg-bc-info/20 transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent">
             + CLI Tool
           </button>
         </div>
       </div>
 
-      {addForm && <AddCLIToolForm onClose={() => setAddForm(null)} onAdded={() => { setCheckedTools(null); refresh(); }} onToast={addToast} />}
+      {showAddForm && <AddCLIToolForm onClose={() => setShowAddForm(false)} onAdded={() => { setCheckedTools(null); refresh(); }} onToast={addToast} />}
 
-      {/* Providers Table */}
       <section>
         <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
           Providers ({providerList.length}) &mdash; AI model providers
@@ -368,7 +359,6 @@ export function UnifiedTools() {
         <ProvidersTable providers={providerList} search={search} />
       </section>
 
-      {/* CLI Dependencies */}
       <section>
         <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
           CLI Dependencies ({filteredCli.length}{searchLower ? `/${cliTools.length}` : ""})
