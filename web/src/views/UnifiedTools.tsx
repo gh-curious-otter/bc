@@ -209,9 +209,16 @@ export function UnifiedTools() {
       const checkMap = new Map(checked.map((t) => [t.name, t]));
       setCheckedTools((tools ?? []).map((t) => {
         const c = checkMap.get(t.name);
-        return c
-          ? { ...t, status: c.status, version: c.version || t.version, health_status: "checked" as const }
-          : t;
+        if (c) {
+          return {
+            ...t,
+            status: c.status,
+            version: c.version ?? t.version,
+            command: c.command ?? t.command,
+            error: c.error ?? t.error,
+          };
+        }
+        return t;
       }));
       addToast("success", "Health check complete");
     } catch {

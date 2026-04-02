@@ -237,11 +237,12 @@ function resolveMCPHealth(server: ProviderMCPServer, healthMap: Record<string, {
     }
     return { status: "error", error: checked.error || checked.status };
   }
-  // Fall back to server's own status field
+  // Fall back to server's own status field — but never trust "connected"
+  // without a confirmed health check (only healthMap above provides that).
   if (server.status) {
     const s = server.status.toLowerCase();
-    if (s === "ok" || s === "active" || s === "connected") return { status: "connected" };
     if (s === "error" || s === "failed") return { status: "error", error: server.error };
+    // Any other status without a health check is treated as unknown
     return { status: "unknown" };
   }
   // Default: no confirmed health data — always unknown
