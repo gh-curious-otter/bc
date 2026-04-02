@@ -19,6 +19,26 @@ interface ToolNode {
   children: ToolNode[];
 }
 
+interface AggregatedNode {
+  type: "aggregate";
+  id: string;
+  toolName: string;
+  count: number;
+  children: ToolNode[];
+  totalDuration: number;
+  totalTokens: number;
+  successCount: number;
+  failCount: number;
+  startTime: number;
+  endTime: number;
+}
+
+type DisplayNode = ToolNode | AggregatedNode;
+
+function isAggregatedNode(node: DisplayNode): node is AggregatedNode {
+  return "type" in node && node.type === "aggregate";
+}
+
 interface AgentActivity {
   name: string;
   state: string;
@@ -52,6 +72,7 @@ type FilterType = "all" | "tools" | "state";
 const MAX_NODES = 50;
 const AUTO_COLLAPSE_MS = 30_000;
 const FLUSH_INTERVAL = 150;
+const AGGREGATION_WINDOW_MS = 5_000;
 
 /* ── Helpers ───────────────────────────────────────────────────────── */
 
@@ -145,6 +166,103 @@ function elapsed(start: number, end?: number): string {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60_000).toFixed(1)}m`;
+}
+
+/* ── Aggregation ──────────────────────────────────────────────────── */
+
+/** Events that should never be aggregated */
+const NEVER_AGGREGATE_EVENTS = new Set([
+  "SubagentStart", "SubagentStop", "Agent",
+  "PermissionRequest", "Elicitation",
+  "UserPromptSubmit", "SessionStart", "SessionEnd",
+  "Stop", "TaskCompleted",
+]);
+
+function shouldNeverAggregate(node: ToolNode): boolean {
+  if (node.status === "failed") return true;
+  if (NEVER_AGGREGATE_EVENTS.has(node.toolName)) return true;
+  // State change events (toolName starts with known prefixes)
+  if (node.toolName.startsWith("Agent:")) return true;
+  return false;
+}
+
+/**
+ * Scan a list of ToolNodes and aggregate consecutive same-tool nodes
+ * that fall within the AGGREGATION_WINDOW_MS time window.
+ * Returns a mixed list of ToolNode and AggregatedNode.
+ */
+function aggregateNodes(nodes: ToolNode[]): DisplayNode[] {
+  if (nodes.length === 0) return [];
+
+  const result: DisplayNode[] = [];
+  let i = 0;
+
+  while (i < nodes.length) {
+    const current = nodes[i];
+    if (!current) { i++; continue; }
+
+    // If this node should never be aggregated, emit it directly
+    if (shouldNeverAggregate(current) || current.status === "running") {
+      result.push(current);
+      i++;
+      continue;
+    }
+
+    // Look ahead for consecutive same-tool nodes within the time window
+    const group: ToolNode[] = [current];
+    let j = i + 1;
+    while (j < nodes.length) {
+      const next = nodes[j];
+      if (!next) break;
+      if (next.toolName !== current.toolName) break;
+      if (shouldNeverAggregate(next) || next.status === "running") break;
+      // Check time window: next node's start must be within 5s of previous node's start
+      const prev = group[group.length - 1];
+      if (!prev) break;
+      if (Math.abs(next.startTime - prev.startTime) > AGGREGATION_WINDOW_MS) break;
+      group.push(next);
+      j++;
+    }
+
+    if (group.length >= 2) {
+      // Create an aggregated node
+      let totalDuration = 0;
+      const totalTokens = 0;
+      let successCount = 0;
+      let failCount = 0;
+      let minStart = Infinity;
+      let maxEnd = 0;
+
+      for (const n of group) {
+        const dur = n.endTime ? n.endTime - n.startTime : 0;
+        totalDuration += dur;
+        if (n.status === "completed") successCount++;
+        if (n.status === "failed") failCount++;
+        if (n.startTime < minStart) minStart = n.startTime;
+        if (n.endTime && n.endTime > maxEnd) maxEnd = n.endTime;
+      }
+
+      result.push({
+        type: "aggregate",
+        id: `agg-${group[0]!.id}`,
+        toolName: current.toolName,
+        count: group.length,
+        children: group,
+        totalDuration,
+        totalTokens,
+        successCount,
+        failCount,
+        startTime: minStart,
+        endTime: maxEnd || Date.now(),
+      });
+      i = j;
+    } else {
+      result.push(current);
+      i++;
+    }
+  }
+
+  return result;
 }
 
 /* ── State Dots ────────────────────────────────────────────────────── */
@@ -263,6 +381,72 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
   );
 }
 
+/* ── Aggregated Node Row ───────────────────────────────────────────── */
+
+function AggregatedNodeRow({ node }: { node: AggregatedNode }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent bg-bc-surface/50"
+        onClick={() => setExpanded(!expanded)}
+        aria-label={`${expanded ? "Collapse" : "Expand"} aggregated ${node.toolName} (${node.count} calls)`}
+      >
+        <span className="text-bc-muted text-xs select-none mt-[3px] shrink-0">
+          {expanded ? "\u25BC" : "\u25B6"}
+        </span>
+        <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-bc-success" />
+        <span className="text-[12px] mr-0.5" aria-hidden="true">{toolIcon(node.toolName)}</span>
+        <span className="font-mono text-[13px] text-bc-text font-medium">
+          {parseToolName(node.toolName).display}
+        </span>
+        <span className="text-[12px] font-mono font-semibold text-bc-accent px-1.5 py-0 rounded bg-bc-accent/10">
+          &times;{node.count}
+        </span>
+        <span className="ml-auto flex items-center gap-3">
+          {node.totalDuration > 0 && (
+            <span className="text-[11px] text-bc-muted font-mono tabular-nums">
+              {elapsed(0, node.totalDuration)}
+            </span>
+          )}
+          {node.totalTokens > 0 && (
+            <span className="text-[11px] text-bc-muted font-mono tabular-nums">
+              {node.totalTokens.toLocaleString()} tok
+            </span>
+          )}
+          {node.failCount > 0 && (
+            <span className="text-[11px] text-bc-error font-mono">
+              {node.failCount} failed
+            </span>
+          )}
+          <span className="text-[11px] text-bc-muted font-mono tabular-nums">
+            {node.successCount}/{node.count} ok
+          </span>
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-l-2 border-bc-border/40 ml-6">
+          {node.children.map((child) => (
+            <ToolNodeRow key={child.id} node={child} depth={1} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Display Node Row (dispatches to ToolNodeRow or AggregatedNodeRow) */
+
+function DisplayNodeRow({ node }: { node: DisplayNode }) {
+  if (isAggregatedNode(node)) {
+    return <AggregatedNodeRow node={node} />;
+  }
+  return <ToolNodeRow node={node} />;
+}
+
 /* ── Agent Activity Card ───────────────────────────────────────────── */
 
 const AgentCard = memo(function AgentCard({
@@ -273,6 +457,7 @@ const AgentCard = memo(function AgentCard({
   onToggle: () => void;
 }) {
   const runningCount = activity.nodes.filter((n) => n.status === "running").length;
+  const displayNodes = aggregateNodes(activity.nodes);
 
   return (
     <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden">
@@ -319,10 +504,10 @@ const AgentCard = memo(function AgentCard({
         </span>
       </button>
 
-      {!activity.collapsed && activity.nodes.length > 0 && (
+      {!activity.collapsed && displayNodes.length > 0 && (
         <div className="border-t border-bc-border/60 py-1">
-          {activity.nodes.map((node) => (
-            <ToolNodeRow key={node.id} node={node} />
+          {displayNodes.map((node) => (
+            <DisplayNodeRow key={isAggregatedNode(node) ? node.id : node.id} node={node} />
           ))}
         </div>
       )}
