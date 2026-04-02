@@ -40,7 +40,7 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
       .then((r) => setRoles(Object.keys(r)))
       .catch(() => { /* ignore */ });
     api
-      .listTools()
+      .listCLITools()
       .then((t) => setTools(t.filter((tool) => tool.enabled).map((tool) => tool.name)))
       .catch(() => { /* ignore */ });
   }, [open]);

@@ -1645,9 +1645,9 @@ function updateTopLevelNode(
   return true;
 }
 
-/* ── Logs (Live Operations Center) ─────────────────────────────────── */
+/* ── Live (Live Operations Center) ─────────────────────────────────── */
 
-export function Logs() {
+export function Live() {
   const [activities, setActivities] = useState<Map<string, AgentActivity>>(new Map());
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentFilter, setAgentFilter] = useState("");

@@ -5,8 +5,8 @@ import { Dashboard } from "../Dashboard";
 import { Agents } from "../Agents";
 import { Channels } from "../Channels";
 import { Roles } from "../Roles";
-import { UnifiedTools } from "../UnifiedTools";
-import { Logs } from "../Logs";
+import { Tools } from "../Tools";
+import { Live } from "../Live";
 import { Cron } from "../Cron";
 import { Secrets } from "../Secrets";
 import { Workspace } from "../Workspace";
@@ -146,7 +146,7 @@ describe("Roles", () => {
   });
 });
 
-describe("UnifiedTools", () => {
+describe("Tools", () => {
   it("renders skeleton loading then tool list", async () => {
     fetchMock.mockReturnValue(
       jsonResponse([
@@ -165,7 +165,7 @@ describe("UnifiedTools", () => {
         },
       ]),
     );
-    const { container } = wrap(<UnifiedTools />);
+    const { container } = wrap(<Tools />);
     expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText("my-tool")).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe("UnifiedTools", () => {
   });
 });
 
-describe("Logs", () => {
+describe("Live", () => {
   it("renders skeleton loading then event log", async () => {
     fetchMock.mockReturnValue(
       jsonResponse([
@@ -186,7 +186,7 @@ describe("Logs", () => {
         },
       ]),
     );
-    const { container } = wrap(<Logs />);
+    const { container } = wrap(<Live />);
     expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText("Event Log")).toBeInTheDocument();
@@ -195,7 +195,7 @@ describe("Logs", () => {
 
   it("renders empty state when no logs", async () => {
     fetchMock.mockReturnValue(jsonResponse([]));
-    wrap(<Logs />);
+    wrap(<Live />);
     await waitFor(() => {
       expect(screen.getByText("No events recorded yet")).toBeInTheDocument();
     });

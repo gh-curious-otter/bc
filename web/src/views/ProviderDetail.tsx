@@ -280,7 +280,7 @@ function MCPSection({
   const handleCheckAll = async () => {
     setChecking(true);
     try {
-      const tools = await api.checkUnifiedTools();
+      const tools = await api.checkTools();
       const mcpTools = tools.filter((t) => t.type === "mcp");
       const newMap: Record<string, { status: string; error?: string }> = {};
       for (const t of mcpTools) {

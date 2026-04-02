@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { UnifiedTool } from "../api/client";
+import type { Tool } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
@@ -23,7 +23,7 @@ const inputCls = "w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-
 function getStatusConfig(s: string) { return STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown!; }
 
 function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, onExpand }: {
-  tool: UnifiedTool; onToggle: () => void; onRemove: () => void;
+  tool: Tool; onToggle: () => void; onRemove: () => void;
   toggling: boolean; removing: boolean; expanded: boolean; onExpand: () => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -177,15 +177,15 @@ function AddCLIToolForm({ onClose, onAdded, onToast }: { onClose: () => void; on
   );
 }
 
-export function UnifiedTools() {
+export function Tools() {
   const providerFetcher = useCallback(() => api.listProviders(), []);
   const { data: providers, loading: providersLoading } = usePolling(providerFetcher, 10000);
 
-  const fetcher = useCallback(() => api.listUnifiedTools(), []);
+  const fetcher = useCallback(() => api.listTools(), []);
   const { data: tools, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
   const [showAddForm, setShowAddForm] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [checkedTools, setCheckedTools] = useState<UnifiedTool[] | null>(null);
+  const [checkedTools, setCheckedTools] = useState<Tool[] | null>(null);
   const [optimisticToggles, setOptimisticToggles] = useState<Map<string, string>>(new Map());
   const [togglingSet, setTogglingSet] = useState<Set<string>>(new Set());
   const [removingSet, setRemovingSet] = useState<Set<string>>(new Set());
@@ -196,7 +196,7 @@ export function UnifiedTools() {
   const handleCheck = async () => {
     setChecking(true);
     try {
-      const checked = await api.checkUnifiedTools();
+      const checked = await api.checkTools();
       const checkMap = new Map(checked.map((t) => [t.name, t]));
       setCheckedTools((tools ?? []).map((t) => {
         const c = checkMap.get(t.name);
@@ -222,7 +222,7 @@ export function UnifiedTools() {
   const allTools = useMemo(() => {
     const source = checkedTools ?? tools ?? [];
     const seen = new Set<string>();
-    const deduped: UnifiedTool[] = [];
+    const deduped: Tool[] = [];
     for (const t of source) {
       if (seen.has(t.name)) continue;
       seen.add(t.name);
@@ -235,7 +235,7 @@ export function UnifiedTools() {
   const searchLower = useMemo(() => search.toLowerCase().trim(), [search]);
 
   const { cliTools, filteredCli } = useMemo(() => {
-    const matchesSearch = (t: UnifiedTool) => !searchLower || t.name.toLowerCase().includes(searchLower);
+    const matchesSearch = (t: Tool) => !searchLower || t.name.toLowerCase().includes(searchLower);
     const cli = allTools.filter((t) => t.type !== "provider" && t.type !== "mcp");
     return {
       cliTools: cli,
@@ -263,7 +263,7 @@ export function UnifiedTools() {
   const totalCount = providerList.length + allTools.length;
   const matchCount = providerList.filter((p) => !searchLower || p.name.toLowerCase().includes(searchLower)).length + filteredCli.length;
 
-  const handleToggle = async (tool: UnifiedTool) => {
+  const handleToggle = async (tool: Tool) => {
     const wasDisabled = tool.status === "disabled" || tool.status === "not_installed";
     const newStatus = wasDisabled ? "installed" : "disabled";
     const oldStatus = tool.status;
@@ -292,7 +292,7 @@ export function UnifiedTools() {
     }
   };
 
-  const handleRemove = async (tool: UnifiedTool) => {
+  const handleRemove = async (tool: Tool) => {
     setRemovingSet((prev) => new Set(prev).add(tool.name));
     try {
       await api.deleteTool(tool.name);

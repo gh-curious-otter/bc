@@ -32,7 +32,7 @@ function NavIcon({ name }: { name: string }) {
 }
 
 const MAIN_NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: "dashboard" },
+  { to: "/live", label: "Live", icon: "live" },
   { to: "/agents", label: "Agents", icon: "agents" },
   { to: "/channels", label: "Channels", icon: "channels" },
   { to: "/roles", label: "Roles", icon: "roles" },
@@ -43,7 +43,6 @@ const MAIN_NAV_ITEMS = [
 ] as const;
 
 const UTIL_NAV_ITEMS = [
-  { to: "/logs", label: "Live", icon: "live" },
   { to: "/workspace", label: "Workspace", icon: "workspace" },
   { to: "/settings", label: "Settings", icon: "settings" },
 ] as const;
@@ -82,7 +81,7 @@ function NavList({
         <li key={to}>
           <NavLink
             to={to}
-            end={to === "/"}
+            end
             title={isIconOnly ? label : undefined}
             className={({ isActive }) =>
               `relative flex items-center gap-3 ${isIconOnly ? "justify-center px-2" : "px-4"} py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-inset transition-colors ${
@@ -143,9 +142,7 @@ export function Layout() {
   // Dynamic page title (#2150)
   useEffect(() => {
     const match = NAV_ITEMS.find((item) =>
-      item.to === "/"
-        ? location.pathname === "/"
-        : location.pathname.startsWith(item.to),
+      location.pathname.startsWith(item.to),
     );
     document.title = match ? `${match.label} \u2014 bc` : "bc";
   }, [location.pathname]);

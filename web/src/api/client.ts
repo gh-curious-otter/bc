@@ -147,7 +147,7 @@ export interface Role {
   CLITools?: string[];
 }
 
-export interface Tool {
+export interface CLITool {
   name: string;
   command: string;
   install_cmd: string;
@@ -165,7 +165,7 @@ export interface MCPServer {
   enabled: boolean;
 }
 
-export interface UnifiedTool {
+export interface Tool {
   name: string;
   type: "provider" | "mcp" | "cli";
   status: string;
@@ -591,7 +591,7 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(config),
     }),
-  listTools: () => request<Tool[]>("/tools"),
+  listCLITools: () => request<CLITool[]>("/tools"),
   enableTool: (name: string) =>
     request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/enable`, {
       method: "POST",
@@ -620,16 +620,16 @@ export const api = {
       method: "POST",
     }),
 
-  /** Unified tool list — merges MCP + CLI tools with status. */
-  listUnifiedTools: () => request<UnifiedTool[]>("/tools/unified"),
+  /** Tool list — merges MCP + CLI tools with status. */
+  listTools: () => request<Tool[]>("/tools/unified"),
 
   /** Run live health checks on all tools. */
-  checkUnifiedTools: () =>
-    request<UnifiedTool[]>("/tools/unified/check", { method: "POST" }),
+  checkTools: () =>
+    request<Tool[]>("/tools/unified/check", { method: "POST" }),
 
   /** Create or update a CLI tool. */
-  upsertTool: (tool: Partial<Tool> & { name: string }) =>
-    request<Tool>(`/tools/${encodeURIComponent(tool.name)}`, {
+  upsertTool: (tool: Partial<CLITool> & { name: string }) =>
+    request<CLITool>(`/tools/${encodeURIComponent(tool.name)}`, {
       method: "PUT",
       body: JSON.stringify(tool),
     }),
