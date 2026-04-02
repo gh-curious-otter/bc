@@ -70,6 +70,7 @@ interface HookEvent {
   tool_response?: unknown;
   input_tokens?: number;
   output_tokens?: number;
+  prompt?: string;
 }
 
 interface TaskItem {
@@ -846,7 +847,7 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false, searchQuery = "
     <>
       <button
         type="button"
-        className={`group flex items-start gap-2 py-0.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${node.status === "failed" ? "bg-red-950/10" : ""}`}
+        className={`group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${node.status === "failed" ? "bg-red-950/10" : ""}`}
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} tool ${node.toolName}`}
@@ -860,11 +861,11 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false, searchQuery = "
         <ToolDot status={node.status} />
         <ToolNameDisplay toolName={node.toolName} searchQuery={searchQuery} />
         {node.args && (
-          <span className="text-[12px] text-bc-muted truncate max-w-[400px] font-mono">
+          <span className="text-[12px] text-bc-muted font-mono min-w-0 flex-1 break-words" title={redactSecrets(node.args)}>
             {searchQuery ? <SearchHighlight text={redactSecrets(node.args)} query={searchQuery} /> : redactSecrets(node.args)}
           </span>
         )}
-        <span className="ml-auto flex items-center gap-2 shrink-0">
+        <span className="flex items-center gap-2 shrink-0">
           <RelativeTimestamp ts={node.startTime} />
           <span className={`text-[11px] tabular-nums font-mono ${node.status === "running" ? "text-bc-muted" : durationColorClass(node.startTime, node.endTime)}`}>
             {node.status === "running" ? (
@@ -1035,7 +1036,7 @@ function AggregatedNodeRow({ node, searchQuery = "" }: { node: AggregatedNode; s
         <span className="text-[12px] font-mono font-semibold text-bc-accent px-1.5 py-0 rounded bg-bc-accent/10">
           &times;{node.count}
         </span>
-        <span className="text-[11px] text-bc-muted font-mono tabular-nums truncate">
+        <span className="text-[11px] text-bc-muted font-mono tabular-nums flex-1 min-w-0">
           {node.count} total
           {node.totalDuration > 0 && <> &middot; {elapsed(0, node.totalDuration)}</>}
           {node.totalDuration > 0 && node.count > 1 && (
@@ -1515,8 +1516,9 @@ export function Logs() {
           case "UserPromptSubmit":
             activity.state = "working";
             activity.nodes.push({
-              id: nextId(), toolName: "UserPromptSubmit", args: evt.task ?? "",
-              fullInput: evt.tool_input, fullOutput: null, status: "completed",
+              id: nextId(), toolName: "UserPromptSubmit",
+              args: evt.prompt ? (evt.prompt.length > 120 ? evt.prompt.slice(0, 117) + "..." : evt.prompt) : evt.task ?? "",
+              fullInput: evt.prompt ?? evt.tool_input, fullOutput: null, status: "completed",
               startTime: Date.now(), endTime: Date.now(), children: [],
             });
             break;
