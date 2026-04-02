@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { UnifiedTool } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -277,21 +277,37 @@ export function UnifiedTools() {
     return <div className="p-6"><EmptyState icon="!" title="Failed to load tools" description={error} actionLabel="Retry" onAction={refresh} /></div>;
   }
 
-  const allTools = (checkedTools ?? tools ?? []).map((t) => {
-    const optimistic = optimisticToggles.get(t.name);
-    return optimistic ? { ...t, status: optimistic } : t;
-  });
+  // Deduplicate tools by name (first occurrence wins) and apply optimistic toggles.
+  // This prevents duplicate DOM entries when the same tool appears in multiple backend stores.
+  const allTools = useMemo(() => {
+    const source = checkedTools ?? tools ?? [];
+    const seen = new Set<string>();
+    const deduped: UnifiedTool[] = [];
+    for (const t of source) {
+      if (seen.has(t.name)) continue;
+      seen.add(t.name);
+      const optimistic = optimisticToggles.get(t.name);
+      deduped.push(optimistic ? { ...t, status: optimistic } : t);
+    }
+    return deduped;
+  }, [checkedTools, tools, optimisticToggles]);
 
   const searchLower = search.toLowerCase().trim();
-  const matchesSearch = (t: UnifiedTool) => !searchLower || t.name.toLowerCase().includes(searchLower);
 
-  const providers = allTools.filter((t) => t.type === "provider");
-  const mcpTools = allTools.filter((t) => t.type === "mcp");
-  const cliTools = allTools.filter((t) => !["provider", "mcp"].includes(t.type));
+  // Derive filtered views from allTools — never mutate the source array.
+  const { providers, mcpTools, cliTools, filteredProviders, filteredMcp, filteredCli } = useMemo(() => {
+    const matchesSearch = (t: UnifiedTool) => !searchLower || t.name.toLowerCase().includes(searchLower);
+    const prov = allTools.filter((t) => t.type === "provider");
+    const mcp = allTools.filter((t) => t.type === "mcp");
+    const cli = allTools.filter((t) => !["provider", "mcp"].includes(t.type));
+    return {
+      providers: prov, mcpTools: mcp, cliTools: cli,
+      filteredProviders: prov.filter(matchesSearch),
+      filteredMcp: mcp.filter(matchesSearch),
+      filteredCli: cli.filter(matchesSearch),
+    };
+  }, [allTools, searchLower]);
 
-  const filteredProviders = providers.filter(matchesSearch);
-  const filteredMcp = mcpTools.filter(matchesSearch);
-  const filteredCli = cliTools.filter(matchesSearch);
   const totalCount = allTools.length;
   const matchCount = filteredProviders.length + filteredMcp.length + filteredCli.length;
 

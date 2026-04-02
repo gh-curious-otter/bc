@@ -52,12 +52,14 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var tools []UnifiedTool
+	seen := make(map[string]bool) // deduplicate across all three sources
 
-	// MCP servers from store
+	// MCP servers from store (highest priority — added first)
 	if h.mcpStore != nil {
 		servers, err := h.mcpStore.List()
 		if err == nil {
 			for _, s := range servers {
+				seen[s.Name] = true
 				status := "unknown"
 				if s.Enabled {
 					status = "configured"
@@ -79,7 +81,6 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	// CLI tools from role configs
 	if h.ws != nil && h.ws.RoleManager != nil {
-		seen := make(map[string]bool)
 		roles, _ := h.ws.RoleManager.LoadAllRoles()
 		for _, role := range roles {
 			for _, t := range role.Metadata.CLITools {
@@ -112,60 +113,61 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Built-in tools from tool store
+	// Built-in tools from tool store — skip names already added from mcpStore or roles
 	if h.toolStore != nil {
 		builtins, err := h.toolStore.List(r.Context())
 		if err == nil {
 			for _, t := range builtins {
-				if true { // Include all tools from store (builtin and user-added)
-					toolType := "cli"
-					if t.Type != "" {
-						toolType = t.Type
-					}
-					// Determine status: disabled overrides all other states
-					var status string
-					if !t.Enabled {
-						status = "disabled"
-					} else if toolType == "mcp" {
-						status = "configured"
-					} else {
-						// Extract binary name (first word) from command — e.g. "claude --dangerously-skip-permissions" → "claude"
-						bin := t.Command
-						if i := strings.IndexByte(bin, ' '); i > 0 {
-							bin = bin[:i]
-						}
-						if bin == "" {
-							bin = t.Name // fallback to tool name
-						}
-						if _, lookErr := exec.LookPath(bin); lookErr != nil {
-							status = "not_installed"
-						} else {
-							status = "installed"
-						}
-					}
-					ut := UnifiedTool{
-						Name:       t.Name,
-						Type:       toolType,
-						Command:    t.Command,
-						Transport:  t.Transport,
-						URL:        t.URL,
-						Status:     status,
-						InstallCmd: t.InstallCmd,
-						UpgradeCmd: t.UpgradeCmd,
-					}
-					// Try to get version for CLI tools
-					if toolType == "cli" && status == "installed" && t.VersionCmd != "" {
-						parts := strings.Fields(t.VersionCmd)
-						if out, verr := exec.Command(parts[0], parts[1:]...).Output(); verr == nil {
-							ver := strings.TrimSpace(string(out))
-							if len(ver) > 80 {
-								ver = ver[:80]
-							}
-							ut.Version = ver
-						}
-					}
-					tools = append(tools, ut)
+				if seen[t.Name] {
+					continue
 				}
+				seen[t.Name] = true
+				toolType := "cli"
+				if t.Type != "" {
+					toolType = t.Type
+				}
+				// Determine status: disabled overrides all other states
+				var status string
+				if !t.Enabled {
+					status = "disabled"
+				} else if toolType == "mcp" {
+					status = "configured"
+				} else {
+					// Extract binary name (first word) from command
+					bin := t.Command
+					if i := strings.IndexByte(bin, ' '); i > 0 {
+						bin = bin[:i]
+					}
+					if bin == "" {
+						bin = t.Name
+					}
+					if _, lookErr := exec.LookPath(bin); lookErr != nil {
+						status = "not_installed"
+					} else {
+						status = "installed"
+					}
+				}
+				ut := UnifiedTool{
+					Name:       t.Name,
+					Type:       toolType,
+					Command:    t.Command,
+					Transport:  t.Transport,
+					URL:        t.URL,
+					Status:     status,
+					InstallCmd: t.InstallCmd,
+					UpgradeCmd: t.UpgradeCmd,
+				}
+				if toolType == "cli" && status == "installed" && t.VersionCmd != "" {
+					parts := strings.Fields(t.VersionCmd)
+					if out, verr := exec.Command(parts[0], parts[1:]...).Output(); verr == nil {
+						ver := strings.TrimSpace(string(out))
+						if len(ver) > 80 {
+							ver = ver[:80]
+						}
+						ut.Version = ver
+					}
+				}
+				tools = append(tools, ut)
 			}
 		}
 	}
