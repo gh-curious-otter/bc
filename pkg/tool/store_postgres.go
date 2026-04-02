@@ -68,7 +68,7 @@ func (p *PostgresStore) Close() error {
 
 // SeedBuiltins seeds built-in tools and MCP servers if they don't exist.
 func (p *PostgresStore) SeedBuiltins(ctx context.Context) error {
-	for _, t := range builtinTools {
+	for _, t := range allBuiltins() {
 		t := t
 		existing, err := p.Get(ctx, t.Name)
 		if err != nil {
@@ -79,32 +79,6 @@ func (p *PostgresStore) SeedBuiltins(ctx context.Context) error {
 		}
 		if err := p.add(ctx, &t); err != nil {
 			return fmt.Errorf("failed to seed %s: %w", t.Name, err)
-		}
-	}
-	for _, t := range builtinMCPServers {
-		t := t
-		existing, err := p.Get(ctx, t.Name)
-		if err != nil {
-			return fmt.Errorf("failed to check MCP %s: %w", t.Name, err)
-		}
-		if existing != nil {
-			continue
-		}
-		if err := p.add(ctx, &t); err != nil {
-			return fmt.Errorf("failed to seed MCP %s: %w", t.Name, err)
-		}
-	}
-	for _, t := range builtinCLITools {
-		t := t
-		existing, err := p.Get(ctx, t.Name)
-		if err != nil {
-			return fmt.Errorf("failed to check CLI %s: %w", t.Name, err)
-		}
-		if existing != nil {
-			continue
-		}
-		if err := p.add(ctx, &t); err != nil {
-			return fmt.Errorf("failed to seed CLI %s: %w", t.Name, err)
 		}
 	}
 	return nil
@@ -161,14 +135,20 @@ func (p *PostgresStore) Get(ctx context.Context, name string) (*Tool, error) {
 	row := p.db.QueryRowContext(ctx,
 		`SELECT name, type, command, install_cmd, upgrade_cmd, version_cmd, transport, url, slash_cmds, mcp_servers, config, builtin, enabled, created_at
 		 FROM tools WHERE name = $1`, name)
-	return pgScanTool(row)
+	return pgScanToolFrom(row)
 }
 
-func pgScanTool(row *sql.Row) (*Tool, error) {
+// pgToolScanner is implemented by both *sql.Row and *sql.Rows.
+type pgToolScanner interface {
+	Scan(dest ...any) error
+}
+
+// pgScanToolFrom scans a Postgres row into a Tool. Returns (nil, nil) for sql.ErrNoRows.
+func pgScanToolFrom(sc pgToolScanner) (*Tool, error) {
 	var t Tool
 	var toolType, installCmd, upgradeCmd, versionCmd, transport, url, slashCmds, mcpServers, config sql.NullString
 	var createdAt time.Time
-	if err := row.Scan(
+	if err := sc.Scan(
 		&t.Name, &toolType, &t.Command,
 		&installCmd, &upgradeCmd, &versionCmd,
 		&transport, &url,
@@ -205,29 +185,11 @@ func (p *PostgresStore) List(ctx context.Context) ([]*Tool, error) {
 
 	var tools []*Tool
 	for rows.Next() {
-		var t Tool
-		var toolType, installCmd, upgradeCmd, versionCmd, transport, url, slashCmds, mcpServers, config sql.NullString
-		var createdAt time.Time
-		if scanErr := rows.Scan(
-			&t.Name, &toolType, &t.Command,
-			&installCmd, &upgradeCmd, &versionCmd,
-			&transport, &url,
-			&slashCmds, &mcpServers, &config,
-			&t.Builtin, &t.Enabled, &createdAt,
-		); scanErr != nil {
+		t, scanErr := pgScanToolFrom(rows)
+		if scanErr != nil {
 			return nil, scanErr
 		}
-		t.CreatedAt = createdAt
-		t.Type = toolType.String
-		t.InstallCmd = installCmd.String
-		t.UpgradeCmd = upgradeCmd.String
-		t.VersionCmd = versionCmd.String
-		t.Transport = transport.String
-		t.URL = url.String
-		t.SlashCmds = unmarshalStrings(slashCmds.String)
-		t.MCPServers = unmarshalStrings(mcpServers.String)
-		t.Config = unmarshalMap(config.String)
-		tools = append(tools, &t)
+		tools = append(tools, t)
 	}
 	return tools, rows.Err()
 }
