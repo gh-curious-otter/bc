@@ -46,6 +46,8 @@ interface AgentActivity {
   tool: string;
   role: string;
   tokens: number;
+  inputTokens: number;
+  outputTokens: number;
   costUsd: number;
   lastEventTime: number;
   nodes: ToolNode[];
@@ -267,6 +269,20 @@ function relativeTime(ts: number): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
   return `${Math.floor(diff / 86_400_000)}d ago`;
+}
+
+/** Estimate cost from token counts using approximate Claude pricing */
+const INPUT_COST_PER_TOKEN = 3 / 1_000_000;   // ~$3 per 1M input tokens
+const OUTPUT_COST_PER_TOKEN = 15 / 1_000_000;  // ~$15 per 1M output tokens
+
+function estimateCost(activity: AgentActivity): number {
+  // If API returned a real cost, use that
+  if (activity.costUsd > 0) return activity.costUsd;
+  // Otherwise estimate from token counts
+  if (activity.inputTokens > 0 || activity.outputTokens > 0) {
+    return activity.inputTokens * INPUT_COST_PER_TOKEN + activity.outputTokens * OUTPUT_COST_PER_TOKEN;
+  }
+  return 0;
 }
 
 /** Format idle duration like "Idle 5m" or "Idle 2h" */
@@ -808,11 +824,11 @@ const AgentCard = memo(function AgentCard({
                 {runningCount} running
               </span>
             )}
-            {activity.costUsd > 0 && (
-              <span className="text-[11px] text-bc-success font-mono tabular-nums">
-                ${activity.costUsd.toFixed(2)}
+            {(() => { const cost = estimateCost(activity); return cost > 0 ? (
+              <span className="text-[11px] text-bc-success font-mono tabular-nums" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
+                ${cost.toFixed(2)}
               </span>
-            )}
+            ) : null; })()}
             {activity.tokens > 0 && (
               <span className="text-[11px] text-bc-muted font-mono tabular-nums">
                 {activity.tokens.toLocaleString()} tok
@@ -873,6 +889,7 @@ export function Logs() {
         const next = new Map(prev);
         for (const a of agentList) {
           if (!next.has(a.name)) {
+            const updatedAt = a.updated_at ? new Date(a.updated_at).getTime() : 0;
             next.set(a.name, {
               name: a.name,
               state: a.state,
@@ -880,8 +897,10 @@ export function Logs() {
               tool: a.tool,
               role: a.role ?? "",
               tokens: a.total_tokens ?? 0,
+              inputTokens: 0,
+              outputTokens: 0,
               costUsd: a.cost_usd ?? 0,
-              lastEventTime: 0,
+              lastEventTime: updatedAt > 0 && !isNaN(updatedAt) ? updatedAt : 0,
               nodes: [],
               collapsed: a.state === "stopped",
             });
@@ -910,14 +929,14 @@ export function Logs() {
         if (!agentName) continue;
 
         let activity = next.get(agentName) ?? {
-          name: agentName, state: "working", task: "", tool: "", role: "", tokens: 0, costUsd: 0, lastEventTime: 0, nodes: [], collapsed: false,
+          name: agentName, state: "working", task: "", tool: "", role: "", tokens: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, lastEventTime: 0, nodes: [], collapsed: false,
         };
         activity = { ...activity, nodes: [...activity.nodes] };
         activity.lastEventTime = Date.now();
 
         if (evt.task) activity.task = evt.task;
-        if (evt.input_tokens) activity.tokens += evt.input_tokens;
-        if (evt.output_tokens) activity.tokens += evt.output_tokens;
+        if (evt.input_tokens) { activity.tokens += evt.input_tokens; activity.inputTokens += evt.input_tokens; }
+        if (evt.output_tokens) { activity.tokens += evt.output_tokens; activity.outputTokens += evt.output_tokens; }
 
         switch (evt.event) {
           case "UserPromptSubmit":
