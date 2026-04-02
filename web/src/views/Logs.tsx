@@ -1307,7 +1307,7 @@ export function Logs() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [focusedCardIdx, setFocusedCardIdx] = useState(-1);
   const [tasks, setTasks] = useState<Map<string, TaskItem>>(new Map());
-  const [, setHistoryLoaded] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const eventBuffer = useRef<HookEvent[]>([]);
@@ -1542,6 +1542,33 @@ export function Logs() {
           }
         }
 
+        // TaskCreate: also parse ID from tool_response string like "Task #95 created successfully: Subject"
+        if (evt.event === "PostToolUse" && toolName.includes("TaskCreate")) {
+          const resp = evt.tool_response;
+          if (typeof resp === "string") {
+            const match = resp.match(/Task\s+#(\d+)/);
+            if (match) {
+              const numId = match[1]!;
+              let replaced = false;
+              for (const [key, task] of nextTasks) {
+                if (key.startsWith("task-") && task.owner === evt.agent) {
+                  if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
+                  nextTasks.delete(key);
+                  nextTasks.set(numId, { ...task, id: numId });
+                  replaced = true;
+                  break;
+                }
+              }
+              if (!replaced && !nextTasks.has(numId)) {
+                if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
+                const subjectMatch = resp.match(/Task\s+#\d+\s+created\s+successfully:\s*(.+)/);
+                const subject = subjectMatch ? subjectMatch[1]!.trim() : "Task #" + numId;
+                nextTasks.set(numId, { id: numId, subject, status: "pending", owner: evt.agent });
+              }
+            }
+          }
+        }
+
         // TaskUpdate: update status
         if ((evt.event === "PreToolUse" || evt.event === "PostToolUse") && toolName.includes("TaskUpdate")) {
           const update = parseTaskUpdate(evt.tool_input);
@@ -1550,6 +1577,21 @@ export function Logs() {
             const existing = nextTasks.get(update.taskId);
             if (existing) {
               nextTasks.set(update.taskId, { ...existing, status: update.status });
+            }
+          }
+        }
+
+        // TaskList: bootstrap/sync task state from full list
+        if (evt.event === "PostToolUse" && toolName.includes("TaskList")) {
+          const resp = evt.tool_response;
+          if (typeof resp === "string" && resp.trim().length > 0) {
+            const parsed = parseTaskListResponse(resp);
+            if (parsed.length > 0) {
+              if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
+              nextTasks.clear();
+              for (const task of parsed) {
+                nextTasks.set(task.id, task);
+              }
             }
           }
         }
@@ -2060,6 +2102,15 @@ export function Logs() {
 
       {/* Tasks Panel (pinned below filter bar, above agent cards) */}
       <TasksPanel tasks={tasks} />
+
+      {/* Historical divider */}
+      {historyLoaded && (
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex-1 h-px bg-bc-border/60" />
+          <span className="text-[10px] text-bc-muted font-mono uppercase tracking-widest">Historical</span>
+          <div className="flex-1 h-px bg-bc-border/60" />
+        </div>
+      )}
 
       {/* Agent Activity Cards */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 space-y-3 relative">
