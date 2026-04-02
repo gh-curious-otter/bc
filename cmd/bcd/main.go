@@ -120,6 +120,10 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// SSE event persistence writer
+	eventsJSONL := filepath.Join(ws.StateDir(), "events.jsonl")
+	eventWriter := bcevents.NewJSONLWriter(eventsJSONL, 0)
+
 	hub := bcws.NewHub()
 	go hub.Run()
 	defer hub.Stop()
@@ -355,6 +359,7 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 		Tools:        toolStore,
 		Stats:        statsStore,
 		EventLog:     eventLog,
+		EventWriter:  eventWriter,
 		WS:           ws,
 		Gateway:      gwManager,
 	}

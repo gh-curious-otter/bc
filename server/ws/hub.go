@@ -17,6 +17,11 @@ type Event struct {
 	Type string `json:"type"`
 }
 
+// EventWriter persists SSE events for later retrieval.
+type EventWriter interface {
+	Write(eventType string, data any) error
+}
+
 type subscriber struct {
 	ch   chan []byte
 	done <-chan struct{}
@@ -28,6 +33,7 @@ type Hub struct {
 	subscribers map[*subscriber]struct{}
 	broadcast   chan []byte
 	done        chan struct{}
+	writer      EventWriter
 	mu          sync.RWMutex
 	stopOnce    sync.Once
 }
@@ -39,6 +45,11 @@ func NewHub() *Hub {
 		broadcast:   make(chan []byte, 256),
 		done:        make(chan struct{}),
 	}
+}
+
+// SetWriter attaches an EventWriter for persisting broadcast events.
+func (h *Hub) SetWriter(w EventWriter) {
+	h.writer = w
 }
 
 // Run processes the broadcast channel until Stop is called.
@@ -60,8 +71,10 @@ func (h *Hub) Stop() {
 
 // Publish implements agent.EventPublisher.
 // Data is redacted before broadcast to prevent secrets from leaking to the UI.
+// If an EventWriter is attached, the event is also persisted to disk.
 func (h *Hub) Publish(eventType string, data map[string]any) {
-	evt := Event{Type: eventType, Data: RedactMap(data)}
+	redacted := RedactMap(data)
+	evt := Event{Type: eventType, Data: redacted}
 	msg, err := json.Marshal(evt)
 	if err != nil {
 		return
@@ -70,6 +83,13 @@ func (h *Hub) Publish(eventType string, data map[string]any) {
 	case h.broadcast <- msg:
 	default:
 		log.Debug("event dropped: broadcast buffer full", "type", eventType)
+	}
+
+	// Persist to JSONL (best-effort)
+	if h.writer != nil {
+		if wErr := h.writer.Write(eventType, redacted); wErr != nil {
+			log.Debug("event persist failed", "type", eventType, "error", wErr)
+		}
 	}
 }
 
