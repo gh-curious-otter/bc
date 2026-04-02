@@ -1,12 +1,12 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./context/ThemeContext";
 
 // Lazy-loaded views — each gets its own chunk
-const Dashboard = lazy(() =>
-  import("./views/Dashboard").then((m) => ({ default: m.Dashboard })),
+const Live = lazy(() =>
+  import("./views/Live").then((m) => ({ default: m.Live })),
 );
 const Agents = lazy(() =>
   import("./views/Agents").then((m) => ({ default: m.Agents })),
@@ -21,13 +21,10 @@ const Roles = lazy(() =>
   import("./views/Roles").then((m) => ({ default: m.Roles })),
 );
 const Tools = lazy(() =>
-  import("./views/UnifiedTools").then((m) => ({ default: m.UnifiedTools })),
+  import("./views/Tools").then((m) => ({ default: m.Tools })),
 );
 const ProviderDetail = lazy(() =>
   import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })),
-);
-const Logs = lazy(() =>
-  import("./views/Logs").then((m) => ({ default: m.Logs })),
 );
 const Cron = lazy(() =>
   import("./views/Cron").then((m) => ({ default: m.Cron })),
@@ -54,8 +51,8 @@ function NotFound() {
     <div className="flex-1 flex flex-col items-center justify-center p-6">
       <p className="text-6xl font-bold font-mono text-bc-muted">404</p>
       <p className="mt-2 text-bc-muted">Page not found</p>
-      <Link to="/" className="mt-4 text-sm text-bc-accent hover:underline">
-        Back to Dashboard
+      <Link to="/live" className="mt-4 text-sm text-bc-accent hover:underline">
+        Back to Live
       </Link>
     </div>
   );
@@ -68,16 +65,19 @@ export function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<Layout />}>
+              <Route index element={<Navigate to="/live" replace />} />
               <Route
-                index
+                path="live"
                 element={
                   <Suspense fallback={<Loading />}>
                     <ErrorBoundary>
-                      <Dashboard />
+                      <Live />
                     </ErrorBoundary>
                   </Suspense>
                 }
               />
+              {/* Backward compat: /logs redirects to /live */}
+              <Route path="logs" element={<Navigate to="/live" replace />} />
               <Route
                 path="agents"
                 element={
@@ -134,16 +134,6 @@ export function App() {
                   <Suspense fallback={<Loading />}>
                     <ErrorBoundary>
                       <ProviderDetail />
-                    </ErrorBoundary>
-                  </Suspense>
-                }
-              />
-              <Route
-                path="logs"
-                element={
-                  <Suspense fallback={<Loading />}>
-                    <ErrorBoundary>
-                      <Logs />
                     </ErrorBoundary>
                   </Suspense>
                 }

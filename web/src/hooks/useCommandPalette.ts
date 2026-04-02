@@ -42,11 +42,11 @@ export function useCommandPalette() {
     () => [
       // Navigation
       {
-        id: "nav-dashboard",
-        label: "Dashboard",
+        id: "nav-live",
+        label: "Live",
         section: "Navigate",
         icon: "~",
-        action: () => navigate("/"),
+        action: () => navigate("/live"),
       },
       {
         id: "nav-agents",
@@ -102,7 +102,7 @@ export function useCommandPalette() {
         label: "Logs",
         section: "Navigate",
         icon: "L",
-        action: () => navigate("/logs"),
+        action: () => navigate("/live"),
       },
       {
         id: "nav-workspace",
