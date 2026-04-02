@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { api } from "../api/client";
 import type {
   ProviderDetailResponse,
@@ -10,6 +11,7 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
+import { CopyButton } from "../components/CopyButton";
 import { ToastContainer, useToast } from "../components/Toast";
 import { formatCost, formatTokens } from "../utils/format";
 
@@ -53,13 +55,23 @@ function ProviderHeader({
         >
           &larr; Tools
         </Link>
-        <h1 className="text-xl font-bold">{provider.name}</h1>
-        {provider.version && (
-          <span className="px-2 py-0.5 rounded text-xs font-mono bg-bc-surface border border-bc-border text-bc-muted">
-            v{provider.version}
+        {/* Monogram */}
+        <div className="w-9 h-9 rounded-full bg-bc-accent/20 flex items-center justify-center shrink-0">
+          <span className="text-sm font-bold text-bc-accent">
+            {provider.name.charAt(0).toUpperCase()}
           </span>
-        )}
-        <StatusBadge status={providerStatus(provider)} />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">{provider.name}</h1>
+            <StatusBadge status={providerStatus(provider)} />
+          </div>
+          {provider.version && (
+            <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-xs font-mono bg-bc-surface border border-bc-border text-bc-muted">
+              v{provider.version}
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-2">
         {!provider.installed && provider.install_hint && (
@@ -165,8 +177,11 @@ function ConfigPanel({
           </div>
           <div>
             <label className="text-xs text-bc-muted block mb-1">Install Hint</label>
-            <div className="text-sm font-mono text-bc-text/80 px-2.5 py-1.5 rounded bg-bc-bg border border-bc-border/50 truncate">
-              {provider.install_hint || "\u2014"}
+            <div className="flex items-center gap-1">
+              <div className="flex-1 text-sm font-mono text-bc-text/80 px-2.5 py-1.5 rounded bg-bc-bg border border-bc-border/50 truncate">
+                {provider.install_hint || "\u2014"}
+              </div>
+              {provider.install_hint && <CopyButton text={provider.install_hint} />}
             </div>
           </div>
         </div>
@@ -226,15 +241,40 @@ function resolveMCPHealth(server: ProviderMCPServer, healthMap: Record<string, {
     if (isHealthy(checked.status)) return { status: "connected" };
     return { status: "error", error: checked.error || checked.status };
   }
-
-  // Without a confirmed health check, only trust explicit error states
   if (server.status) {
     const s = server.status.toLowerCase();
     if (s === "error" || s === "failed") return { status: "error", error: server.error };
     return { status: "unknown" };
   }
-
   return { status: "unknown" };
+}
+
+/* ── MCP Health Summary Bar ── */
+function MCPHealthSummary({ servers, healthMap }: { servers: ProviderMCPServer[]; healthMap: Record<string, { status: string; error?: string }> }) {
+  if (servers.length === 0) return null;
+
+  const healthy = servers.filter((s) => {
+    const h = resolveMCPHealth(s, healthMap);
+    return h.status === "connected";
+  }).length;
+  const pct = Math.round((healthy / servers.length) * 100);
+
+  return (
+    <div className="mb-3">
+      <div className="flex items-center justify-between text-xs text-bc-muted mb-1">
+        <span>MCP Health</span>
+        <span>{healthy}/{servers.length} healthy</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-bc-border overflow-hidden">
+        <motion.div
+          className={`h-full rounded-full ${pct === 100 ? "bg-bc-success" : pct > 0 ? "bg-bc-warning" : "bg-bc-error"}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
+      </div>
+    </div>
+  );
 }
 
 function MCPSection({
@@ -327,6 +367,8 @@ function MCPSection({
         </div>
       </div>
 
+      <MCPHealthSummary servers={servers} healthMap={healthMap} />
+
       {showAdd && (
         <div className="rounded border border-bc-accent bg-bc-surface p-4 space-y-3 mb-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -404,7 +446,10 @@ function MCPSection({
                       </span>
                     </td>
                     <td className="px-4 py-2.5 font-mono text-xs text-bc-muted truncate max-w-xs">
-                      {s.url || s.command || "\u2014"}
+                      <div className="flex items-center gap-1">
+                        <span className="truncate">{s.url || s.command || "\u2014"}</span>
+                        {(s.url || s.command) && <CopyButton text={s.url || s.command || ""} />}
+                      </div>
                     </td>
                     <td className="px-4 py-2.5">
                       <MCPHealthBadge status={health.status} error={health.error} />
@@ -420,57 +465,152 @@ function MCPSection({
   );
 }
 
-/* ── Section: Agents ── */
+/* ── Stat Tile ── */
+function StatTile({ label, value, icon, accent }: { label: string; value: string; icon: React.ReactNode; accent?: boolean }) {
+  return (
+    <div className="rounded border border-bc-border bg-bc-surface p-3">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-bc-muted">{icon}</span>
+        <span className="text-[11px] text-bc-muted uppercase tracking-wider">{label}</span>
+      </div>
+      <p className={`text-lg font-bold ${accent ? "text-bc-accent" : ""}`}>{value}</p>
+    </div>
+  );
+}
 
-function AgentsSection({
+/* ── StatBar (4 tiles) ── */
+function StatBar({ provider }: { provider: ProviderDetailResponse }) {
+  const models = provider.cost_by_model ?? [];
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <StatTile
+        label="Cost"
+        value={formatCost(provider.total_cost_usd)}
+        accent
+        icon={
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+          </svg>
+        }
+      />
+      <StatTile
+        label="Tokens"
+        value={formatTokens(provider.total_tokens)}
+        icon={
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+          </svg>
+        }
+      />
+      <StatTile
+        label="Agents"
+        value={String(provider.agent_count)}
+        icon={
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        }
+      />
+      <StatTile
+        label="Models"
+        value={String(models.length)}
+        icon={
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+          </svg>
+        }
+      />
+    </div>
+  );
+}
+
+/* ── Cost Bars ── */
+function CostBars({ provider }: { provider: ProviderDetailResponse }) {
+  const models = provider.cost_by_model ?? [];
+  if (models.length === 0) return null;
+
+  const maxCost = Math.max(...models.map((m) => m.total_cost_usd), 0.01);
+
+  return (
+    <section>
+      <h3 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
+        Cost by Model
+      </h3>
+      <div className="space-y-2">
+        {models.map((m) => {
+          const pct = Math.max((m.total_cost_usd / maxCost) * 100, 2);
+          return (
+            <div key={m.model}>
+              <div className="flex items-center justify-between text-xs mb-0.5">
+                <span className="font-mono text-bc-text truncate mr-2">{m.model}</span>
+                <span className="text-bc-muted tabular-nums shrink-0">{formatCost(m.total_cost_usd)}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-bc-border overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-bc-accent transition-all duration-500 ease-out"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* ── Section: Agents (sidebar style) ── */
+
+function AgentsSidebar({
   agents,
 }: {
   agents: ProviderDetailResponse["agents"];
 }) {
   return (
     <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
-        Agents Using This Provider ({agents.length})
-      </h2>
+      <h3 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
+        Agents ({agents.length})
+      </h3>
       {agents.length === 0 ? (
-        <EmptyState
-          icon="*"
-          title="No agents"
-          description="No agents are currently using this provider."
-        />
+        <p className="text-xs text-bc-muted">No agents using this provider.</p>
       ) : (
-        <div className="rounded border border-bc-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-bc-border bg-bc-surface text-[11px] text-bc-muted uppercase tracking-wider">
-                <th className="px-4 py-2 font-medium text-left">Agent</th>
-                <th className="px-4 py-2 font-medium text-left">Role</th>
-                <th className="px-4 py-2 font-medium text-left">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agents.map((a) => (
-                <tr key={a.name} className="border-b border-bc-border/50 hover:bg-bc-surface/50 transition-colors">
-                  <td className="px-4 py-2.5">
-                    <Link
-                      to={`/agents/${encodeURIComponent(a.name)}`}
-                      className="font-medium text-bc-accent hover:underline"
-                    >
-                      {a.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-bc-accent/20 text-bc-accent">
-                      {a.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <StatusBadge status={a.state} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-1">
+          {agents.map((a) => {
+            const isRunning = a.state === "running" || a.state === "working";
+            return (
+              <Link
+                key={a.name}
+                to={`/agents/${encodeURIComponent(a.name)}`}
+                className="group flex items-center gap-2 px-3 py-2 rounded border border-bc-border hover:border-bc-accent/40 hover:bg-bc-surface-hover transition-colors"
+              >
+                {/* Pulse dot */}
+                <span className="relative flex h-2 w-2 shrink-0">
+                  {isRunning && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-bc-success opacity-75" />
+                  )}
+                  <span
+                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                      isRunning ? "bg-bc-success" : "bg-bc-muted"
+                    }`}
+                  />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-bc-text truncate block">{a.name}</span>
+                  <span className="text-[10px] text-bc-muted">{a.role}</span>
+                </div>
+                {/* Hover arrow */}
+                <svg
+                  className="w-3.5 h-3.5 text-bc-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            );
+          })}
         </div>
       )}
     </section>
@@ -502,80 +642,28 @@ function CommandsSection({ commands }: { commands: ProviderCommand[] }) {
               </tr>
             </thead>
             <tbody>
-              {commands.map((c) => (
-                <tr key={c.name} className="border-b border-bc-border/50 hover:bg-bc-surface/50 transition-colors">
-                  <td className="px-4 py-2.5 font-medium">{c.name}</td>
-                  <td className="px-4 py-2.5 text-bc-muted">{c.description}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-bc-text/80">
-                    {c.command}
-                    {c.args && <span className="text-bc-muted ml-1">{c.args}</span>}
-                  </td>
-                </tr>
-              ))}
+              {commands.map((c) => {
+                const fullCmd = c.args ? `${c.command} ${c.args}` : c.command;
+                return (
+                  <tr key={c.name} className="border-b border-bc-border/50 hover:bg-bc-surface/50 transition-colors">
+                    <td className="px-4 py-2.5 font-medium">{c.name}</td>
+                    <td className="px-4 py-2.5 text-bc-muted">{c.description}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-1">
+                        <code className="font-mono text-xs text-bc-text/80">
+                          {c.command}
+                          {c.args && <span className="text-bc-muted ml-1">{c.args}</span>}
+                        </code>
+                        <CopyButton text={fullCmd} />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
-    </section>
-  );
-}
-
-/* ── Section: Cost Breakdown ── */
-
-function CostSection({
-  provider,
-}: {
-  provider: ProviderDetailResponse;
-}) {
-  const models = provider.cost_by_model ?? [];
-  return (
-    <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
-        Cost Breakdown
-      </h2>
-      <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <div>
-            <span className="text-xs text-bc-muted block">Total Cost</span>
-            <span className="text-lg font-bold">{formatCost(provider.total_cost_usd)}</span>
-          </div>
-          <div>
-            <span className="text-xs text-bc-muted block">Total Tokens</span>
-            <span className="text-lg font-bold">{formatTokens(provider.total_tokens)}</span>
-          </div>
-          <div>
-            <span className="text-xs text-bc-muted block">Models Used</span>
-            <span className="text-lg font-bold">{models.length}</span>
-          </div>
-        </div>
-
-        {models.length > 0 && (
-          <div className="rounded border border-bc-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-bc-border bg-bc-bg text-[11px] text-bc-muted uppercase tracking-wider">
-                  <th className="px-4 py-2 font-medium text-left">Model</th>
-                  <th className="px-4 py-2 font-medium text-right">Tokens</th>
-                  <th className="px-4 py-2 font-medium text-right">Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {models.map((m) => (
-                  <tr key={m.model} className="border-b border-bc-border/50">
-                    <td className="px-4 py-2 font-mono text-xs">{m.model}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-bc-muted">
-                      {formatTokens(m.total_tokens)}
-                    </td>
-                    <td className="px-4 py-2 text-right tabular-nums">
-                      {formatCost(m.total_cost_usd)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </section>
   );
 }
@@ -689,20 +777,29 @@ export function ProviderDetail() {
         updating={updating}
       />
 
-      <ConfigPanel provider={provider} onSave={handleSaveConfig} />
+      {/* 2-column layout on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column: Config + MCP + Commands */}
+        <div className="lg:col-span-2 space-y-8">
+          <ConfigPanel provider={provider} onSave={handleSaveConfig} />
 
-      <MCPSection
-        providerName={provider.name}
-        servers={mcpServers ?? []}
-        onRefresh={refreshMCPs}
-        onToast={addToast}
-      />
+          <MCPSection
+            providerName={provider.name}
+            servers={mcpServers ?? []}
+            onRefresh={refreshMCPs}
+            onToast={addToast}
+          />
 
-      <AgentsSection agents={provider.agents ?? []} />
+          <CommandsSection commands={commands ?? []} />
+        </div>
 
-      <CommandsSection commands={commands ?? []} />
-
-      <CostSection provider={provider} />
+        {/* Right column: Stats + Cost bars + Agents */}
+        <div className="space-y-6">
+          <StatBar provider={provider} />
+          <CostBars provider={provider} />
+          <AgentsSidebar agents={provider.agents ?? []} />
+        </div>
+      </div>
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>

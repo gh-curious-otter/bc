@@ -21,6 +21,7 @@
   --bc-success: #22c55e;
   --bc-warning: #fb923c;
   --bc-error: #ef4444;
+  --bc-info: #06b6d4;
 
   font-family: Inter, "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   color-scheme: dark;
@@ -40,6 +41,7 @@ html.dark {
   --bc-success: #22c55e;
   --bc-warning: #f59e0b;
   --bc-error: #ef4444;
+  --bc-info: #38bdf8;
 
   color-scheme: dark;
 }
@@ -58,6 +60,7 @@ html.light {
   --bc-success: #16a34a;
   --bc-warning: #d97706;
   --bc-error: #dc2626;
+  --bc-info: #0891b2;
 
   color-scheme: light;
 }

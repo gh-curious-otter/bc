@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../api/client";
 import type { Tool } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ProvidersTable } from "../components/ProvidersTable";
+import { CopyButton } from "../components/CopyButton";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
 
@@ -22,6 +24,23 @@ const inputCls = "w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-
 
 function getStatusConfig(s: string) { return STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown!; }
 
+/* ── Animated chevron icon ── */
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <motion.svg
+      animate={{ rotate: expanded ? 90 : 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      className="w-3 h-3 text-bc-muted"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2.5}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+    </motion.svg>
+  );
+}
+
 function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, onExpand }: {
   tool: Tool; onToggle: () => void; onRemove: () => void;
   toggling: boolean; removing: boolean; expanded: boolean; onExpand: () => void;
@@ -38,11 +57,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
       >
         <td className="px-3 py-2 text-sm">
           <div className="flex items-center gap-2">
-            <span
-              className={`text-[10px] text-bc-muted inline-block transition-transform ${expanded ? "rotate-90" : ""}`}
-            >
-              &#9654;
-            </span>
+            <ChevronIcon expanded={expanded} />
             <span className="font-medium">{tool.name}</span>
           </div>
         </td>
@@ -87,37 +102,56 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
           </div>
         </td>
       </tr>
-      {expanded && (
-        <tr className="border-b border-bc-border bg-bc-surface/30">
-          <td colSpan={5} className="px-8 py-3">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-              {tool.install_cmd && (
-                <div>
-                  <span className="text-bc-muted">Install:</span>{" "}
-                  <span className="font-mono text-bc-text">{tool.install_cmd}</span>
+      <AnimatePresence>
+        {expanded && (
+          <tr className="border-b border-bc-border">
+            <td colSpan={5} className="p-0">
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="overflow-hidden bg-bc-surface/30"
+              >
+                <div className="px-8 py-3 space-y-2">
+                  {tool.install_cmd && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-bc-muted shrink-0">Install:</span>
+                      <code className="flex-1 text-xs font-mono text-bc-text bg-bc-bg rounded px-2 py-1 border border-bc-border/50">
+                        {tool.install_cmd}
+                      </code>
+                      <CopyButton text={tool.install_cmd} />
+                    </div>
+                  )}
+                  {tool.command && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-bc-muted shrink-0">Version cmd:</span>
+                        <code className="flex-1 text-xs font-mono text-bc-text bg-bc-bg rounded px-2 py-1 border border-bc-border/50">
+                          {tool.command} --version
+                        </code>
+                        <CopyButton text={`${tool.command} --version`} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-bc-muted shrink-0">Path:</span>
+                        <code className="flex-1 text-xs font-mono text-bc-text bg-bc-bg rounded px-2 py-1 border border-bc-border/50">
+                          {tool.command}
+                        </code>
+                        <CopyButton text={tool.command} />
+                      </div>
+                    </>
+                  )}
+                  {tool.error && (
+                    <div className="text-xs text-bc-error bg-bc-error/5 rounded px-2 py-1 border border-bc-error/20">
+                      Error: {tool.error}
+                    </div>
+                  )}
                 </div>
-              )}
-              {tool.command && (
-                <>
-                  <div>
-                    <span className="text-bc-muted">Version cmd:</span>{" "}
-                    <span className="font-mono text-bc-text">{tool.command} --version</span>
-                  </div>
-                  <div>
-                    <span className="text-bc-muted">Path:</span>{" "}
-                    <span className="font-mono text-bc-text">{tool.command}</span>
-                  </div>
-                </>
-              )}
-              {tool.error && (
-                <div className="sm:col-span-3">
-                  <span className="text-bc-error">Error: {tool.error}</span>
-                </div>
-              )}
-            </div>
-          </td>
-        </tr>
-      )}
+              </motion.div>
+            </td>
+          </tr>
+        )}
+      </AnimatePresence>
     </>
   );
 }
@@ -148,7 +182,13 @@ function AddCLIToolForm({ onClose, onAdded, onToast }: { onClose: () => void; on
   };
 
   return (
-    <div className="rounded border border-bc-accent bg-bc-surface p-4 space-y-3">
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.2 }}
+      className="rounded border border-bc-accent bg-bc-surface p-4 space-y-3"
+    >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">Add CLI Tool</h3>
         <button type="button" onClick={onClose} className="text-xs text-bc-muted hover:text-bc-text">Cancel</button>
@@ -173,7 +213,17 @@ function AddCLIToolForm({ onClose, onAdded, onToast }: { onClose: () => void; on
         className="px-3 py-1.5 text-sm rounded bg-bc-accent text-bc-bg font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent">
         {submitting ? "Adding..." : "Add CLI Tool"}
       </button>
-    </div>
+    </motion.div>
+  );
+}
+
+/* ── Spinner icon ── */
+function Spinner() {
+  return (
+    <svg className="animate-spin w-4 h-4 text-bc-muted" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
   );
 }
 
@@ -320,13 +370,24 @@ export function Tools() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Search with magnifying glass icon */}
           <div className="relative">
+            <svg
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-bc-muted pointer-events-none"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
+            </svg>
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search tools..."
-              className="w-40 sm:w-52 px-2 py-1.5 pr-7 text-sm rounded border border-bc-border bg-bc-bg text-bc-text placeholder:text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent"
+              className="w-40 sm:w-52 pl-7 pr-7 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text placeholder:text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent"
             />
             {search && (
               <button
@@ -340,7 +401,8 @@ export function Tools() {
             )}
           </div>
           <button type="button" onClick={() => void handleCheck()} disabled={checking}
-            className="px-3 py-1.5 text-sm rounded border border-bc-border text-bc-muted hover:text-bc-text transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent">
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-bc-border text-bc-muted hover:text-bc-text transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent">
+            {checking ? <Spinner /> : null}
             {checking ? "Checking..." : "Health Check"}
           </button>
           <button type="button" onClick={() => setShowAddForm(!showAddForm)}
@@ -350,7 +412,9 @@ export function Tools() {
         </div>
       </div>
 
-      {showAddForm && <AddCLIToolForm onClose={() => setShowAddForm(false)} onAdded={() => { setCheckedTools(null); refresh(); }} onToast={addToast} />}
+      <AnimatePresence>
+        {showAddForm && <AddCLIToolForm onClose={() => setShowAddForm(false)} onAdded={() => { setCheckedTools(null); refresh(); }} onToast={addToast} />}
+      </AnimatePresence>
 
       <section>
         <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
