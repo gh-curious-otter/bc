@@ -119,7 +119,7 @@ export function ProvidersTable({ providers, search }: Props) {
             {columns.map((col) => (
               <th
                 key={col.key}
-                onClick={(e) => { e.stopPropagation(); toggleSort(col.key); }}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); toggleSort(col.key); }}
                 className={`px-4 py-2 font-medium text-bc-muted cursor-pointer select-none hover:text-bc-text transition-colors text-left ${col.className ?? ""}`}
               >
                 {col.label}{sortIndicator(col.key)}
