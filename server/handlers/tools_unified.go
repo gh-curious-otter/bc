@@ -212,9 +212,9 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Check CLI tools
+	// Check CLI tools from roles
+	seen := make(map[string]bool)
 	if h.ws != nil && h.ws.RoleManager != nil {
-		seen := make(map[string]bool)
 		roles, _ := h.ws.RoleManager.LoadAllRoles()
 		for _, role := range roles {
 			for _, t := range role.Metadata.CLITools {
@@ -241,6 +241,65 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 				} else {
 					ut.Status = "not_installed"
 					ut.Error = t + " not found in PATH"
+				}
+				results = append(results, ut)
+			}
+		}
+	}
+
+	// Check CLI tools from tool store (user-added tools)
+	if h.toolStore != nil {
+		builtins, err := h.toolStore.List(r.Context())
+		if err == nil {
+			for _, t := range builtins {
+				if seen[t.Name] {
+					continue
+				}
+				seen[t.Name] = true
+				toolType := "cli"
+				if t.Type != "" {
+					toolType = t.Type
+				}
+				if toolType != "cli" {
+					continue
+				}
+				ut := UnifiedTool{
+					Name:       t.Name,
+					Type:       toolType,
+					Command:    t.Command,
+					InstallCmd: t.InstallCmd,
+					UpgradeCmd: t.UpgradeCmd,
+				}
+				if !t.Enabled {
+					ut.Status = "disabled"
+				} else {
+					bin := t.Command
+					if i := strings.IndexByte(bin, ' '); i > 0 {
+						bin = bin[:i]
+					}
+					if bin == "" {
+						bin = t.Name
+					}
+					if path, lookErr := exec.LookPath(bin); lookErr != nil {
+						ut.Status = "not_installed"
+						ut.Error = bin + " not found in PATH"
+					} else {
+						ut.Status = "installed"
+						ut.Command = path
+						// Try to get version
+						versionCmd := t.VersionCmd
+						if versionCmd == "" {
+							versionCmd = bin + " --version"
+						}
+						parts := strings.Fields(versionCmd)
+						if out, verr := exec.CommandContext(r.Context(), parts[0], parts[1:]...).Output(); verr == nil { //nolint:gosec // tool names from user config
+							ver := strings.TrimSpace(string(out))
+							if len(ver) > 80 {
+								ver = ver[:80]
+							}
+							ut.Version = ver
+						}
+					}
 				}
 				results = append(results, ut)
 			}

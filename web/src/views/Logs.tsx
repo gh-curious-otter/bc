@@ -276,9 +276,9 @@ function elapsed(start: number, end?: number): string {
 
 function durationColorClass(start: number, end?: number): string {
   const ms = (end ?? Date.now()) - start;
-  if (ms < 1000) return "text-emerald-400";
-  if (ms < 5000) return "text-yellow-400";
-  if (ms < 30000) return "text-orange-400";
+  if (ms < 500) return "text-emerald-400";
+  if (ms < 2000) return "text-yellow-400";
+  if (ms < 10000) return "text-orange-400";
   return "text-red-400";
 }
 
