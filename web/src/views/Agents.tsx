@@ -134,9 +134,29 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
             className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
           >
             <option value="">Default</option>
-            {tools.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
+            {(() => {
+              const AI_PROVIDERS = new Set(["claude", "codex", "cursor", "gemini", "aider", "openclaw", "opencode"]);
+              const providers = tools.filter((t) => AI_PROVIDERS.has(t));
+              const cliTools = tools.filter((t) => !AI_PROVIDERS.has(t));
+              return (
+                <>
+                  {providers.length > 0 && (
+                    <optgroup label="AI Providers">
+                      {providers.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {cliTools.length > 0 && (
+                    <optgroup label="CLI Tools">
+                      {cliTools.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              );
+            })()}
           </select>
         </div>
 
@@ -580,7 +600,7 @@ export function Agents() {
                     <td className="px-4 py-2 hidden md:table-cell">
                       <div className="flex flex-wrap gap-1">
                         {(a.mcp_servers ?? []).length === 0 ? (
-                          <span className="text-bc-muted">u2014</span>
+                          <span className="text-bc-muted">{"\u2014"}</span>
                         ) : (a.mcp_servers ?? []).length <= 3 ? (
                           (a.mcp_servers ?? []).map((s) => (
                             <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">

@@ -7,15 +7,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal } from "../components/WebTerminal";
-
-/** Strip ANSI escape sequences from a string. */
-function stripAnsi(s: string): string {
-  return s.replace(
-    // eslint-disable-next-line no-control-regex
-    /\x1b(?:\[[0-9;]*[A-Za-z]|\].*?(?:\x07|\x1b\\)|\([A-B0-2])/g,
-    "",
-  );
-}
+import { stripAnsi } from "../utils/text";
 
 function RoleBadge({ role }: { role: string }) {
   return (

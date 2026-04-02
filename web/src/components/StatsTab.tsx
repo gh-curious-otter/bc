@@ -37,7 +37,10 @@ const fmtBytes = (b: number) => {
   const i = Math.floor(Math.log(b) / Math.log(1024));
   return `${(b / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
 };
-const fmtMB = (b: number) => (b / 1024 / 1024).toFixed(1);
+const fmtMB = (b: number) => {
+  if (!b || !isFinite(b)) return "0.0";
+  return (b / 1024 / 1024).toFixed(1);
+};
 const fmtTokens = (n: number) => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -153,13 +156,13 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
   // ── Summary values ─────────────────────────────────────────────────────────
 
-  const cpuAvg = s?.cpu_avg ?? 0;
-  const cpuMax = s?.cpu_max ?? 0;
-  const memAvgMB = s ? parseFloat(fmtMB(s.mem_avg_bytes)) : 0;
-  const memMaxMB = s ? parseFloat(fmtMB(s.mem_max_bytes)) : 0;
+  const cpuAvg = isFinite(s?.cpu_avg ?? 0) ? (s?.cpu_avg ?? 0) : 0;
+  const cpuMax = isFinite(s?.cpu_max ?? 0) ? (s?.cpu_max ?? 0) : 0;
+  const memAvgMB = s ? parseFloat(fmtMB(s.mem_avg_bytes)) || 0 : 0;
+  const memMaxMB = s ? parseFloat(fmtMB(s.mem_max_bytes)) || 0 : 0;
   const totalIn = s?.input_tokens ?? 0;
   const totalOut = s?.output_tokens ?? 0;
-  const totalCost = s?.total_cost_usd ?? 0;
+  const totalCost = isFinite(s?.total_cost_usd ?? 0) ? (s?.total_cost_usd ?? 0) : 0;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
