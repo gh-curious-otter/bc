@@ -30,6 +30,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/gateway"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	"github.com/gh-curious-otter/bc/pkg/mcp"
+	"github.com/gh-curious-otter/bc/pkg/provider"
 	"github.com/gh-curious-otter/bc/pkg/secret"
 	"github.com/gh-curious-otter/bc/pkg/stats"
 	"github.com/gh-curious-otter/bc/pkg/tool"
@@ -277,6 +278,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	// Unified tools endpoint (MCP + CLI) — always registered
 	handlers.NewUnifiedToolsHandler(svc.MCP, svc.Tools, svc.Agents, svc.WS).Register(mux)
+
+	// Provider registry endpoint — always registered
+	handlers.NewProviderHandler(provider.DefaultRegistry, svc.Agents, svc.Costs, svc.WS).Register(mux)
 	if svc.EventLog != nil || svc.EventWriter != nil {
 		eh := handlers.NewEventHandler(svc.EventLog)
 		if svc.EventWriter != nil {
