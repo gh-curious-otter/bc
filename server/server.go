@@ -240,6 +240,30 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewSecretHandler(svc.Secrets).Register(mux)
 	}
 	if svc.MCP != nil {
+		// Wire config lookup so SetEnabled can auto-insert config-only servers
+		// (e.g., github, playwright) that exist in the tool store but not in
+		// the mcp_servers table.
+		if svc.Tools != nil {
+			svc.MCP.SetConfigLookup(func(name string) *mcp.ServerConfig {
+				t, err := svc.Tools.Get(context.Background(), name)
+				if err != nil || t == nil || t.Type != tool.ToolTypeMCP {
+					return nil
+				}
+				transport := mcp.TransportStdio
+				if t.Transport == "sse" {
+					transport = mcp.TransportSSE
+				}
+				return &mcp.ServerConfig{
+					Name:      t.Name,
+					Transport: transport,
+					Command:   t.Command,
+					URL:       t.URL,
+					Args:      t.Args,
+					Env:       t.Env,
+					Enabled:   t.Enabled,
+				}
+			})
+		}
 		handlers.NewMCPHandler(svc.MCP).Register(mux)
 	}
 	if svc.Tools != nil {
