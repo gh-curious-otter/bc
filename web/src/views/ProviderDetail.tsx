@@ -244,9 +244,8 @@ function resolveMCPHealth(server: ProviderMCPServer, healthMap: Record<string, {
     if (s === "error" || s === "failed") return { status: "error", error: server.error };
     return { status: "unknown" };
   }
-  // Default: enabled = connected, disabled = unknown
-  if (!server.enabled) return { status: "unknown" };
-  return { status: "connected" };
+  // Default: no confirmed health data — always unknown
+  return { status: "unknown" };
 }
 
 function MCPSection({

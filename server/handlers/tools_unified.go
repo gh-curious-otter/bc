@@ -227,8 +227,17 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 					Type:     "cli",
 					Required: true,
 				}
-				if _, err := exec.LookPath(t); err == nil {
+				if path, err := exec.LookPath(t); err == nil {
 					ut.Status = "installed"
+					ut.Command = path
+					// Try to get version
+					if out, verr := exec.Command(t, "--version").Output(); verr == nil {
+						ver := strings.TrimSpace(string(out))
+						if len(ver) > 80 {
+							ver = ver[:80]
+						}
+						ut.Version = ver
+					}
 				} else {
 					ut.Status = "not_installed"
 					ut.Error = t + " not found in PATH"
