@@ -83,36 +83,66 @@ function nextId(): string {
   return `n-${++_nodeId}-${Date.now()}`;
 }
 
-function parseToolName(name: string): { display: string; type: "mcp" | "bash" | "internal" } {
+interface ParsedTool {
+  display: string;
+  type: "mcp" | "bash" | "internal";
+  mcpServer?: string;
+  mcpFunction?: string;
+}
+
+function parseToolName(name: string): ParsedTool {
   if (!name) return { display: "unknown", type: "internal" };
   if (name === "Bash" || name === "bash") return { display: "Bash", type: "bash" };
   if (name.startsWith("mcp__")) {
     const parts = name.split("__");
-    const provider = parts[2] ?? parts[1] ?? "mcp";
-    const action = parts[parts.length - 1] ?? "call";
-    return { display: provider === action ? action : `${provider}:${action}`, type: "mcp" };
+    // mcp__<server>__<function> or mcp__plugin_<server>_<provider>__<function>
+    let server = parts[1] ?? "mcp";
+    const func = parts[parts.length - 1] ?? "call";
+    // Normalize plugin_ prefix: mcp__plugin_github_github__search_code -> github
+    if (server.startsWith("plugin_")) {
+      const pluginParts = server.replace("plugin_", "").split("_");
+      server = pluginParts[0] ?? server;
+    }
+    return { display: `${server}:${func}`, type: "mcp", mcpServer: server, mcpFunction: func };
   }
   if (name.includes("__")) {
     const parts = name.split("__");
     const action = parts[parts.length - 1] ?? name;
-    return { display: action, type: "mcp" };
-  }
-  if (["Read", "Write", "Edit", "Glob", "Grep", "Agent", "WebFetch", "WebSearch"].includes(name)) {
-    return { display: name, type: "internal" };
+    return { display: action, type: "mcp", mcpServer: parts[0], mcpFunction: action };
   }
   return { display: name, type: "internal" };
 }
 
+/** Emoji icon for non-MCP tools */
 function toolIcon(name: string): string {
-  if (name.startsWith("mcp__playwright") || name.startsWith("mcp__plugin_playwright")) return "\u{1F3AD}";
-  if (name.startsWith("mcp__bc")) return "\u26A1";
-  if (name.startsWith("mcp__")) return "\u{1F50C}";
-  if (name === "Bash" || name === "BashOutput") return "\u2328";
-  if (name === "Read" || name === "Write" || name === "Edit") return "\u{1F4C4}";
-  if (name === "Glob" || name === "Grep") return "\u{1F50D}";
-  if (name === "Agent") return "\u{1F916}";
-  if (name === "WebFetch" || name === "WebSearch") return "\u{1F310}";
-  return "\u2699";
+  if (name === "Bash" || name === "BashOutput") return "\u2328\uFE0F";
+  if (name === "Read") return "\uD83D\uDCD6";
+  if (name === "Write" || name === "Edit") return "\u270F\uFE0F";
+  if (name === "Glob" || name === "Grep") return "\uD83D\uDD0D";
+  if (name === "Agent") return "\uD83E\uDD16";
+  if (name === "WebFetch" || name === "WebSearch") return "\uD83C\uDF10";
+  if (name.startsWith("Task") || name === "TaskCreate" || name === "TaskUpdate" || name === "TaskList" || name === "TaskGet") return "\u2705";
+  if (name === "NotebookEdit") return "\uD83D\uDCD3";
+  if (name === "LSP" || name === "ToolSearch") return "\u2699\uFE0F";
+  if (name === "AskUserQuestion") return "\u2753";
+  if (name === "Skill") return "\uD83C\uDFAF";
+  return "\u2699\uFE0F";
+}
+
+/** MCP server icon */
+function mcpServerIcon(server: string): string {
+  if (server === "playwright" || server === "playwright2") return "\uD83C\uDFAD";
+  if (server === "github") return "\uD83D\uDC19";
+  if (server === "bc") return "\u26A1";
+  return "\uD83D\uDD0C";
+}
+
+/** MCP server badge colors (Tailwind classes) */
+function mcpBadgeColors(server: string): string {
+  if (server === "playwright" || server === "playwright2") return "bg-purple-900/50 text-purple-300";
+  if (server === "github") return "bg-gray-700 text-gray-300";
+  if (server === "bc") return "bg-blue-900/50 text-blue-300";
+  return "bg-zinc-700 text-zinc-300";
 }
 
 const SECRET_PATTERNS = [
@@ -144,7 +174,66 @@ function redactValue(value: unknown): unknown {
   return value;
 }
 
+/** Extract rich metadata from tool_input based on tool type */
+function extractToolMetadata(toolName: string, input: unknown): string {
+  if (!input || typeof input !== "object") return "";
+  const obj = input as Record<string, unknown>;
+  const trunc = (s: string, max = 80): string => s.length > max ? s.slice(0, max - 3) + "..." : s;
+
+  if (toolName === "Bash" || toolName === "bash") {
+    if (typeof obj.command === "string") return redactSecrets(trunc(obj.command));
+  }
+  if (toolName === "Read") {
+    if (typeof obj.file_path === "string") return trunc(obj.file_path);
+  }
+  if (toolName === "Write") {
+    if (typeof obj.file_path === "string") return trunc(obj.file_path);
+  }
+  if (toolName === "Edit") {
+    let s = typeof obj.file_path === "string" ? obj.file_path : "";
+    if (typeof obj.old_string === "string") {
+      s += " " + trunc(obj.old_string, 40);
+    }
+    return trunc(s);
+  }
+  if (toolName === "Grep") {
+    if (typeof obj.pattern === "string") return trunc(obj.pattern);
+  }
+  if (toolName === "Glob") {
+    if (typeof obj.pattern === "string") return trunc(obj.pattern);
+  }
+  if (toolName === "Agent") {
+    const parts: string[] = [];
+    if (typeof obj.subagent_type === "string") parts.push(obj.subagent_type);
+    if (typeof obj.description === "string") parts.push(trunc(obj.description, 60));
+    return parts.join(" ");
+  }
+  if (toolName === "WebFetch") {
+    if (typeof obj.url === "string") {
+      try { return new URL(obj.url).hostname; } catch { return trunc(obj.url); }
+    }
+  }
+  if (toolName === "WebSearch") {
+    if (typeof obj.query === "string") return trunc(obj.query);
+  }
+  // MCP tools: show first 2-3 key param values
+  if (toolName.startsWith("mcp__")) {
+    const vals = Object.entries(obj).slice(0, 3).map(([, v]) => {
+      if (typeof v === "string") return trunc(v, 30);
+      if (typeof v === "number" || typeof v === "boolean") return String(v);
+      return "";
+    }).filter(Boolean);
+    return redactSecrets(vals.join(" "));
+  }
+  // Fallback: JSON summary
+  const s = JSON.stringify(obj);
+  return redactSecrets(trunc(s));
+}
+
 function summarizeArgs(evt: HookEvent): string {
+  if (evt.tool_name && evt.tool_input) {
+    return extractToolMetadata(evt.tool_name, evt.tool_input);
+  }
   if (evt.command) {
     const s = evt.command.length > 80 ? evt.command.slice(0, 77) + "..." : evt.command;
     return redactSecrets(s);
@@ -360,18 +449,80 @@ function IdleTimer({ lastEventTime }: { lastEventTime: number }) {
   return <>{idleDuration(lastEventTime)}</>;
 }
 
+/* ── Copy Button ───────────────────────────────────────────────────── */
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  }, [text]);
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); handleCopy(); }}
+      className="text-[10px] text-bc-muted hover:text-bc-text px-1.5 py-0.5 rounded border border-bc-border/40 hover:border-bc-accent transition-colors shrink-0"
+      aria-label="Copy to clipboard"
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+/* ── MCP Badge ─────────────────────────────────────────────────────── */
+
+function McpBadge({ server, func }: { server: string; func: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono ${mcpBadgeColors(server)}`}>
+        <span aria-hidden="true">{mcpServerIcon(server)}</span>
+        <span>{server}</span>
+      </span>
+      <span className="font-mono text-[13px] text-bc-text font-medium">{func}</span>
+    </span>
+  );
+}
+
+/* ── Tool Name Display ─────────────────────────────────────────────── */
+
+function ToolNameDisplay({ toolName }: { toolName: string }) {
+  const parsed = parseToolName(toolName);
+  if (parsed.type === "mcp" && parsed.mcpServer && parsed.mcpFunction) {
+    return <McpBadge server={parsed.mcpServer} func={parsed.mcpFunction} />;
+  }
+  // Non-MCP: emoji icon + name
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-[12px]" aria-hidden="true">{toolIcon(toolName)}</span>
+      <span className="font-mono text-[13px] text-bc-text font-medium">{parsed.display}</span>
+    </span>
+  );
+}
+
 /* ── Tool Node Row ─────────────────────────────────────────────────── */
 
-function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
+function ToolNodeRow({ node, depth = 0, isSubagentChild = false }: { node: ToolNode; depth?: number; isSubagentChild?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const indent = depth * 20;
   const hasDetails = !!(node.fullInput || node.fullOutput || node.children.length > 0);
+  const isSubagentSpawn = node.toolName === "Agent" || node.toolName.startsWith("Agent:");
+
+  // Subagent tree: special rendering
+  if (isSubagentSpawn) {
+    return <SubagentRow node={node} depth={depth} />;
+  }
+
+  const inputJson = node.fullInput ? JSON.stringify(redactValue(node.fullInput), null, 2) : "";
+  const outputJson = node.fullOutput ? JSON.stringify(redactValue(node.fullOutput), null, 2) : "";
 
   return (
     <>
       <button
         type="button"
-        className="group flex items-start gap-2 py-0.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent"
+        className={`group flex items-start gap-2 py-0.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${isSubagentChild ? "" : ""}`}
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} tool ${node.toolName}`}
@@ -384,10 +535,7 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
           {hasDetails ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
         </span>
         <ToolDot status={node.status} />
-        <span className="text-[12px] mr-0.5" aria-hidden="true">{toolIcon(node.toolName)}</span>
-        <span className="font-mono text-[13px] text-bc-text font-medium">
-          {parseToolName(node.toolName).display}
-        </span>
+        <ToolNameDisplay toolName={node.toolName} />
         {node.args && (
           <span className="text-[12px] text-bc-muted truncate max-w-[400px] font-mono">
             {redactSecrets(node.args)}
@@ -416,29 +564,90 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
 
       {expanded && node.fullInput && (
         <div
-          className="text-[11px] text-bc-muted font-mono px-3 py-1 bg-bc-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
+          className="text-[11px] font-mono px-3 py-1 bg-bc-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
           style={{ marginLeft: `${indent + 12}px` }}
         >
-          <pre className="whitespace-pre-wrap break-all">
-            {JSON.stringify(redactValue(node.fullInput), null, 2)}
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-bc-muted uppercase tracking-wide font-semibold">Input</span>
+            <CopyButton text={inputJson} />
+          </div>
+          <pre className="whitespace-pre-wrap break-all text-bc-muted">
+            {inputJson}
           </pre>
         </div>
       )}
 
       {expanded && node.fullOutput && (
         <div
-          className="text-[11px] text-bc-success font-mono px-3 py-1 bg-bc-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
+          className="text-[11px] font-mono px-3 py-1 bg-bc-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
           style={{ marginLeft: `${indent + 12}px` }}
         >
-          <pre className="whitespace-pre-wrap break-all">
-            {JSON.stringify(redactValue(node.fullOutput), null, 2)}
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-bc-success uppercase tracking-wide font-semibold">Output</span>
+            <CopyButton text={outputJson} />
+          </div>
+          <pre className="whitespace-pre-wrap break-all text-bc-success/80">
+            {outputJson}
           </pre>
         </div>
       )}
 
       {node.children.map((child) => (
-        <ToolNodeRow key={child.id} node={child} depth={depth + 1} />
+        <ToolNodeRow key={child.id} node={child} depth={depth + 1} isSubagentChild={isSubagentChild} />
       ))}
+    </>
+  );
+}
+
+/* ── Subagent Tree Row ─────────────────────────────────────────────── */
+
+function SubagentRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
+  const [expanded, setExpanded] = useState(true);
+  const indent = depth * 20;
+  const duration = node.endTime ? elapsed(node.startTime, node.endTime) : undefined;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent bg-blue-950/20"
+        style={{ paddingLeft: `${indent + 12}px` }}
+        onClick={() => setExpanded(!expanded)}
+        aria-label={`${expanded ? "Collapse" : "Expand"} subagent ${node.toolName}`}
+      >
+        <span className="text-bc-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-bc-muted">
+          {expanded ? "\u25BC" : "\u25B6"}
+        </span>
+        <ToolDot status={node.status} />
+        <span className="text-[13px]" aria-hidden="true">{"\uD83E\uDD16"}</span>
+        <span className="font-mono text-[13px] text-bc-text font-semibold">{node.toolName}</span>
+        {node.args && (
+          <span className="text-[12px] text-bc-muted truncate max-w-[300px] font-mono italic">
+            {node.args}
+          </span>
+        )}
+        <span className="ml-auto flex items-center gap-2 shrink-0">
+          <RelativeTimestamp ts={node.startTime} />
+          {node.status === "running" ? (
+            <span className="text-[11px] text-blue-400 font-mono tabular-nums">
+              <ElapsedTimer start={node.startTime} />
+            </span>
+          ) : duration ? (
+            <span className="text-[11px] text-bc-muted font-mono tabular-nums">{duration}</span>
+          ) : null}
+          {node.status === "completed" && (
+            <span className="text-[10px] text-bc-success font-mono">done</span>
+          )}
+        </span>
+      </button>
+
+      {expanded && node.children.length > 0 && (
+        <div className="border-l-2 border-blue-500 pl-3 ml-6">
+          {node.children.map((child) => (
+            <ToolNodeRow key={child.id} node={child} depth={depth + 1} isSubagentChild />
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -460,10 +669,7 @@ function AggregatedNodeRow({ node }: { node: AggregatedNode }) {
           {expanded ? "\u25BC" : "\u25B6"}
         </span>
         <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-bc-success" />
-        <span className="text-[12px] mr-0.5" aria-hidden="true">{toolIcon(node.toolName)}</span>
-        <span className="font-mono text-[13px] text-bc-text font-medium">
-          {parseToolName(node.toolName).display}
-        </span>
+        <ToolNameDisplay toolName={node.toolName} />
         <span className="text-[12px] font-mono font-semibold text-bc-accent px-1.5 py-0 rounded bg-bc-accent/10">
           &times;{node.count}
         </span>
