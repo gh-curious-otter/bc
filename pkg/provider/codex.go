@@ -55,10 +55,8 @@ func (p *CodexProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Pipes "n" to stdin via echo so any interactive update prompt is
-// automatically declined, and sets NO_UPDATE_NOTIFIER=1 as a belt-and-suspenders measure.
 func (p *CodexProvider) BuildCommand(_ CommandOpts) string {
-	return "echo n | NO_UPDATE_NOTIFIER=1 " + p.command
+	return p.command
 }
 
 // IsInstalled checks if the provider binary is available.
