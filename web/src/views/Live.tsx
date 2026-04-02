@@ -1158,13 +1158,6 @@ function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string, TaskIt
 
   if (total === 0) return null;
 
-  const statusColor: Record<string, string> = {
-    pending: "bg-zinc-500",
-    in_progress: "bg-blue-500",
-    completed: "bg-emerald-500",
-    deleted: "bg-red-500",
-  };
-
   return (
     <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden mb-4">
       <button
@@ -2201,7 +2194,6 @@ export function Live() {
 
   const hasFilters = agentFilter || typeFilter !== "all" || searchFilter;
 
-  const sseStatus = connected ? "connected" : reconnecting ? "reconnecting" : "disconnected";
   const sseDotColor = connected ? "bg-emerald-500" : reconnecting ? "bg-yellow-500" : "bg-red-500";
   const sseTooltip = connected ? "SSE connected" : reconnecting ? "Reconnecting..." : "Disconnected";
 
