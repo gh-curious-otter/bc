@@ -267,9 +267,7 @@ export function Layout() {
           </li>
           <NavList items={UTIL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
         </ul>
-        <div
-          className={`p-3 border-t border-bc-border flex items-center ${collapsed && !isMobile ? "justify-center" : "justify-center"}`}
-        >
+        <div className="p-3 border-t border-bc-border flex items-center justify-center">
           <button
             type="button"
             onClick={toggle}
