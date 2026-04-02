@@ -11,25 +11,25 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
 import { ToastContainer, useToast } from "../components/Toast";
-
-/* ──────────────────────── Helpers ──────────────────────── */
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
-}
-
-function formatCost(n: number): string {
-  if (n === 0) return "$0.00";
-  if (n < 0.01) return `$${n.toFixed(4)}`;
-  return `$${n.toFixed(2)}`;
-}
+import { formatCost, formatTokens } from "../utils/format";
 
 const inputCls =
   "w-full px-2.5 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent";
 
-/* ──────────────────────── Section: Header ──────────────────────── */
+const HEALTHY_STATUSES = new Set(["ok", "active", "connected"]);
+
+function isHealthy(status: string): boolean {
+  return HEALTHY_STATUSES.has(status);
+}
+
+function providerStatus(provider: ProviderDetailResponse): string {
+  if (!provider.installed) return "error";
+  if (provider.agent_count > 0) return "running";
+  return "stopped";
+}
+
+
+/* ── Section: Header ── */
 
 function ProviderHeader({
   provider,
@@ -59,15 +59,7 @@ function ProviderHeader({
             v{provider.version}
           </span>
         )}
-        <StatusBadge
-          status={
-            provider.installed
-              ? provider.agent_count > 0
-                ? "running"
-                : "stopped"
-              : "error"
-          }
-        />
+        <StatusBadge status={providerStatus(provider)} />
       </div>
       <div className="flex items-center gap-2">
         {!provider.installed && provider.install_hint && (
@@ -107,7 +99,7 @@ function ProviderHeader({
   );
 }
 
-/* ──────────────────────── Section: Configuration ──────────────────────── */
+/* ── Section: Configuration ── */
 
 function ConfigPanel({
   provider,
@@ -206,15 +198,15 @@ function ConfigPanel({
   );
 }
 
-/* ──────────────────────── Section: MCP Servers ──────────────────────── */
+/* ── Section: MCP Servers ── */
 
 type MCPHealthStatus = "connected" | "error" | "unknown";
 
 function MCPHealthBadge({ status, error }: { status: MCPHealthStatus; error?: string }) {
-  const styles: Record<MCPHealthStatus, { bg: string; text: string; label: string }> = {
-    connected: { bg: "bg-bc-success/15", text: "text-bc-success", label: "Connected" },
-    error:     { bg: "bg-bc-error/15",   text: "text-bc-error",   label: "Error" },
-    unknown:   { bg: "bg-bc-warning/15", text: "text-bc-warning", label: "Unknown" },
+  const styles: Record<MCPHealthStatus, { bg: string; text: string; dot: string; label: string }> = {
+    connected: { bg: "bg-bc-success/15", text: "text-bc-success", dot: "bg-bc-success", label: "Connected" },
+    error:     { bg: "bg-bc-error/15",   text: "text-bc-error",   dot: "bg-bc-error",   label: "Error" },
+    unknown:   { bg: "bg-bc-warning/15", text: "text-bc-warning", dot: "bg-bc-warning", label: "Unknown" },
   };
   const s = styles[status];
   return (
@@ -222,30 +214,26 @@ function MCPHealthBadge({ status, error }: { status: MCPHealthStatus; error?: st
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${s.bg} ${s.text}`}
       title={error || undefined}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${status === "connected" ? "bg-bc-success" : status === "error" ? "bg-bc-error" : "bg-bc-warning"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {s.label}
     </span>
   );
 }
 
 function resolveMCPHealth(server: ProviderMCPServer, healthMap: Record<string, { status: string; error?: string }>): { status: MCPHealthStatus; error?: string } {
-  // Check health map from unified check first
   const checked = healthMap[server.name];
   if (checked) {
-    if (checked.status === "ok" || checked.status === "active" || checked.status === "connected") {
-      return { status: "connected" };
-    }
+    if (isHealthy(checked.status)) return { status: "connected" };
     return { status: "error", error: checked.error || checked.status };
   }
-  // Fall back to server's own status field — but never trust "connected"
-  // without a confirmed health check (only healthMap above provides that).
+
+  // Without a confirmed health check, only trust explicit error states
   if (server.status) {
     const s = server.status.toLowerCase();
     if (s === "error" || s === "failed") return { status: "error", error: server.error };
-    // Any other status without a health check is treated as unknown
     return { status: "unknown" };
   }
-  // Default: no confirmed health data — always unknown
+
   return { status: "unknown" };
 }
 
@@ -299,11 +287,11 @@ function MCPSection({
         newMap[t.name] = { status: t.status, error: t.error };
       }
       setHealthMap(newMap);
-      const errors = mcpTools.filter((t) => t.status !== "ok" && t.status !== "active" && t.status !== "connected");
-      if (errors.length === 0) {
+      const unhealthy = mcpTools.filter((t) => !isHealthy(t.status));
+      if (unhealthy.length === 0) {
         onToast("success", `All ${mcpTools.length} MCP server(s) healthy`);
       } else {
-        onToast("error", `${errors.length} of ${mcpTools.length} MCP server(s) have issues`);
+        onToast("error", `${unhealthy.length} of ${mcpTools.length} MCP server(s) have issues`);
       }
     } catch (err) {
       onToast("error", err instanceof Error ? err.message : "Health check failed");
@@ -405,25 +393,25 @@ function MCPSection({
               </tr>
             </thead>
             <tbody>
-              {servers.map((s) => (
-                <tr key={s.name} className="border-b border-bc-border/50 hover:bg-bc-surface/50 transition-colors">
-                  <td className="px-4 py-2.5 font-medium">{s.name}</td>
-                  <td className="px-4 py-2.5">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-bc-surface border border-bc-border">
-                      {s.transport}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-bc-muted truncate max-w-xs">
-                    {s.url || s.command || "\u2014"}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {(() => {
-                      const h = resolveMCPHealth(s, healthMap);
-                      return <MCPHealthBadge status={h.status} error={h.error} />;
-                    })()}
-                  </td>
-                </tr>
-              ))}
+              {servers.map((s) => {
+                const health = resolveMCPHealth(s, healthMap);
+                return (
+                  <tr key={s.name} className="border-b border-bc-border/50 hover:bg-bc-surface/50 transition-colors">
+                    <td className="px-4 py-2.5 font-medium">{s.name}</td>
+                    <td className="px-4 py-2.5">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-bc-surface border border-bc-border">
+                        {s.transport}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-bc-muted truncate max-w-xs">
+                      {s.url || s.command || "\u2014"}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <MCPHealthBadge status={health.status} error={health.error} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -432,7 +420,7 @@ function MCPSection({
   );
 }
 
-/* ──────────────────────── Section: Agents ──────────────────────── */
+/* ── Section: Agents ── */
 
 function AgentsSection({
   agents,
@@ -489,7 +477,7 @@ function AgentsSection({
   );
 }
 
-/* ──────────────────────── Section: Commands ──────────────────────── */
+/* ── Section: Commands ── */
 
 function CommandsSection({ commands }: { commands: ProviderCommand[] }) {
   return (
@@ -532,7 +520,7 @@ function CommandsSection({ commands }: { commands: ProviderCommand[] }) {
   );
 }
 
-/* ──────────────────────── Section: Cost Breakdown ──────────────────────── */
+/* ── Section: Cost Breakdown ── */
 
 function CostSection({
   provider,
@@ -546,7 +534,6 @@ function CostSection({
         Cost Breakdown
       </h2>
       <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-4">
-        {/* Summary row */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <div>
             <span className="text-xs text-bc-muted block">Total Cost</span>
@@ -562,7 +549,6 @@ function CostSection({
           </div>
         </div>
 
-        {/* Per-model table */}
         {models.length > 0 && (
           <div className="rounded border border-bc-border overflow-hidden">
             <table className="w-full text-sm">
@@ -594,7 +580,7 @@ function CostSection({
   );
 }
 
-/* ──────────────────────── Main Component ──────────────────────── */
+/* ── Main Component ── */
 
 export function ProviderDetail() {
   const { provider: providerName } = useParams<{ provider: string }>();
@@ -602,7 +588,6 @@ export function ProviderDetail() {
   const [installing, setInstalling] = useState(false);
   const [updating, setUpdating] = useState(false);
 
-  // Fetch provider detail
   const detailFetcher = useCallback(async () => {
     if (!providerName) throw new Error("No provider name");
     return api.getProvider(providerName);
@@ -614,14 +599,12 @@ export function ProviderDetail() {
     refresh,
   } = usePolling<ProviderDetailResponse>(detailFetcher, 10000);
 
-  // Fetch commands
   const cmdFetcher = useCallback(async () => {
     if (!providerName) throw new Error("No provider name");
     return api.getProviderCommands(providerName);
   }, [providerName]);
   const { data: commands } = usePolling<ProviderCommand[]>(cmdFetcher, 30000);
 
-  // Fetch MCP servers
   const mcpFetcher = useCallback(async () => {
     if (!providerName) throw new Error("No provider name");
     return api.getProviderMCPs(providerName);
