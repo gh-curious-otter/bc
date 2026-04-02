@@ -122,12 +122,12 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 					if t.Type != "" {
 						toolType = t.Type
 					}
-					status := "installed"
-					if toolType == "mcp" {
+					// Determine status: disabled overrides all other states
+					var status string
+					if !t.Enabled {
+						status = "disabled"
+					} else if toolType == "mcp" {
 						status = "configured"
-						if !t.Enabled {
-							status = "disabled"
-						}
 					} else {
 						// Extract binary name (first word) from command — e.g. "claude --dangerously-skip-permissions" → "claude"
 						bin := t.Command
@@ -139,6 +139,8 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 						}
 						if _, lookErr := exec.LookPath(bin); lookErr != nil {
 							status = "not_installed"
+						} else {
+							status = "installed"
 						}
 					}
 					ut := UnifiedTool{
