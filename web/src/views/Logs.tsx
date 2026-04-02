@@ -84,6 +84,14 @@ interface TaskItem {
 
 type FilterType = "all" | "tools" | "state";
 
+type DrillDownTab = "live" | "raw" | "tasks";
+
+interface RawEvent {
+  timestamp: number;
+  eventType: string;
+  raw: unknown;
+}
+
 /* ── Constants ─────────────────────────────────────────────────────── */
 
 const MAX_NODES = 50;
@@ -847,7 +855,7 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false, searchQuery = "
     <>
       <button
         type="button"
-        className={`group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${node.status === "failed" ? "bg-red-950/10" : ""}`}
+        className={`group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${node.status === "failed" ? "!bg-red-950/30 hover:!bg-red-950/40" : ""}`}
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} tool ${node.toolName}`}
@@ -1162,12 +1170,274 @@ function TasksPanel({ tasks }: { tasks: Map<string, TaskItem> }) {
   );
 }
 
+/* ── Agent Drill-Down View ─────────────────────────────────────────── */
+
+function AgentDrillDown({
+  activity,
+  rawEvents,
+  tasks,
+  onBack,
+}: {
+  activity: AgentActivity;
+  rawEvents: RawEvent[];
+  tasks: Map<string, TaskItem>;
+  onBack: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<DrillDownTab>("live");
+  const [rawExpanded, setRawExpanded] = useState<Set<number>>(new Set());
+
+  const cost = estimateCost(activity);
+  const displayNodes = aggregateNodes(sortNodes(activity.nodes));
+
+  // Filter tasks owned by this agent
+  const agentTasks = useMemo(() => {
+    const result = new Map<string, TaskItem>();
+    for (const [id, task] of tasks) {
+      if (task.owner === activity.name || !task.owner) {
+        result.set(id, task);
+      }
+    }
+    return result;
+  }, [tasks, activity.name]);
+
+  const allTasks = Array.from(agentTasks.values()).filter((t) => t.status !== "deleted");
+  const completedCount = allTasks.filter((t) => t.status === "completed").length;
+  const total = allTasks.length;
+  const progressPct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+
+  const toggleRawExpanded = useCallback((idx: number) => {
+    setRawExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }, []);
+
+  const statusColor: Record<string, string> = {
+    pending: "bg-zinc-500",
+    in_progress: "bg-blue-500",
+    completed: "bg-emerald-500",
+    deleted: "bg-red-500",
+  };
+
+  const tabs: { key: DrillDownTab; label: string }[] = [
+    { key: "live", label: "Live Stream" },
+    { key: "raw", label: "Raw Stream" },
+    { key: "tasks", label: `Tasks${total > 0 ? ` (${completedCount}/${total})` : ""}` },
+  ];
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header bar */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-sm text-bc-muted hover:text-bc-text px-2 py-1 rounded border border-bc-border hover:border-bc-accent transition-colors shrink-0"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M8 2l-4 4 4 4" />
+          </svg>
+          Back
+        </button>
+        <StateDot state={activity.state} />
+        <span className="text-lg font-bold text-bc-text">{activity.name}</span>
+        <span className="text-xs text-bc-muted font-mono">{activity.role}</span>
+        <span className="text-xs text-bc-muted capitalize font-mono">{activity.state}</span>
+        {activity.tokens > 0 && (
+          <span className="text-xs text-bc-muted font-mono tabular-nums">
+            {activity.tokens.toLocaleString()} tok
+          </span>
+        )}
+        {cost > 0 && (
+          <span className="text-xs text-bc-success font-mono tabular-nums">
+            ${cost.toFixed(2)}
+          </span>
+        )}
+        {activity.task && (
+          <span className="text-xs text-bc-muted truncate max-w-[400px]">{activity.task}</span>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-0 border-b border-bc-border mb-4">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === tab.key
+                ? "border-bc-accent text-bc-text"
+                : "border-transparent text-bc-muted hover:text-bc-text hover:border-bc-border"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {/* Live Stream tab */}
+        {activeTab === "live" && (
+          <div className="space-y-0">
+            {displayNodes.length === 0 ? (
+              <div className="text-sm text-bc-muted italic py-8 text-center">
+                No tool events yet for this agent.
+              </div>
+            ) : (
+              displayNodes.map((node) => (
+                <div key={isAggregatedNode(node) ? node.id : node.id}>
+                  <DisplayNodeRow node={node} />
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Raw Stream tab */}
+        {activeTab === "raw" && (
+          <div className="space-y-1">
+            {rawEvents.length === 0 ? (
+              <div className="text-sm text-bc-muted italic py-8 text-center">
+                No raw events captured for this agent yet.
+              </div>
+            ) : (
+              rawEvents.map((evt, idx) => {
+                const isOpen = rawExpanded.has(idx);
+                const jsonStr = JSON.stringify(redactValue(evt.raw), null, 2);
+                return (
+                  <div key={idx} className="border border-bc-border/40 rounded bg-bc-surface overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleRawExpanded(idx)}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-bc-surface-hover transition-colors"
+                    >
+                      <span className="text-bc-muted/50 text-[10px] select-none w-3 text-center">
+                        {isOpen ? "\u25BC" : "\u25B6"}
+                      </span>
+                      <span className="text-[10px] text-bc-muted font-mono tabular-nums shrink-0">
+                        {new Date(evt.timestamp).toLocaleTimeString()}
+                      </span>
+                      <span className="text-[12px] text-bc-accent font-mono font-medium shrink-0">
+                        {evt.eventType}
+                      </span>
+                      <span className="text-[11px] text-bc-muted font-mono truncate flex-1">
+                        {jsonStr.length > 100 ? jsonStr.slice(0, 97) + "..." : jsonStr.replace(/\n/g, " ")}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="border-t border-bc-border/40 px-3 py-2 bg-bc-bg">
+                        <div className="flex justify-end mb-1">
+                          <CopyButton text={jsonStr} />
+                        </div>
+                        <pre className="text-[11px] font-mono text-bc-muted whitespace-pre-wrap break-all max-h-64 overflow-y-auto">
+                          {jsonStr}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* Tasks tab */}
+        {activeTab === "tasks" && (
+          <div>
+            {/* Progress bar */}
+            {total > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-sm font-medium text-bc-text">Progress</span>
+                  <span className="text-xs text-bc-muted font-mono tabular-nums">
+                    {completedCount}/{total} ({progressPct}%)
+                  </span>
+                </div>
+                <div className="h-2 bg-bc-bg rounded-full overflow-hidden border border-bc-border/40">
+                  <div
+                    className="h-full bg-bc-success rounded-full transition-all duration-300"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {total === 0 ? (
+              <div className="text-sm text-bc-muted italic py-8 text-center">
+                No tasks found for this agent.
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {allTasks.map((task) => {
+                  const isBlocked = task.blockedBy && task.blockedBy.length > 0 && task.status !== "completed";
+                  return (
+                    <div
+                      key={task.id}
+                      className={`flex items-start gap-3 py-2 px-3 rounded border border-bc-border/40 bg-bc-surface ${isBlocked ? "opacity-60" : ""}`}
+                    >
+                      {/* Status indicator */}
+                      <span className={`inline-flex h-2.5 w-2.5 mt-1 rounded-full shrink-0 ${statusColor[task.status] ?? "bg-zinc-500"}`} />
+
+                      {/* Task info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-bc-muted font-mono shrink-0">#{task.id}</span>
+                          <span className={`text-sm font-mono ${
+                            task.status === "completed" ? "line-through text-bc-muted/60" : "text-bc-text"
+                          }`}>
+                            {task.subject.length > 80 ? task.subject.slice(0, 77) + "..." : task.subject}
+                          </span>
+                        </div>
+
+                        {/* Blocked by */}
+                        {isBlocked && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-[10px] text-yellow-500/80 font-mono">
+                              Blocked by: {task.blockedBy!.map((b) => `#${b}`).join(", ")}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Owner */}
+                        {task.owner && (
+                          <span className="text-[10px] text-bc-muted font-mono">
+                            Owner: {task.owner}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Status badge */}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono capitalize shrink-0 ${
+                        task.status === "completed" ? "bg-emerald-900/30 text-emerald-400" :
+                        task.status === "in_progress" ? "bg-blue-900/30 text-blue-400" :
+                        task.status === "pending" ? "bg-zinc-800 text-zinc-400" :
+                        "bg-red-900/30 text-red-400"
+                      }`}>
+                        {task.status.replace("_", " ")}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Agent Activity Card ───────────────────────────────────────────── */
 
 const AgentCard = memo(function AgentCard({
   activity,
   onToggle,
   onClickFilter,
+  onDrillDown,
   isFilterActive,
   searchTerm,
   typeFilter,
@@ -1176,6 +1446,7 @@ const AgentCard = memo(function AgentCard({
   activity: AgentActivity;
   onToggle: () => void;
   onClickFilter: () => void;
+  onDrillDown: () => void;
   isFilterActive: boolean;
   searchTerm: string;
   typeFilter: FilterType;
@@ -1272,6 +1543,19 @@ const AgentCard = memo(function AgentCard({
             )}
           </span>
         </button>
+
+        {/* Drill-down chevron */}
+        <button
+          type="button"
+          onClick={onDrillDown}
+          className="px-3 py-3 text-bc-muted hover:text-bc-accent hover:bg-bc-surface-hover transition-colors shrink-0 border-l border-bc-border/40"
+          title={`Open ${activity.name} detail view`}
+          aria-label={`Open ${activity.name} detail view`}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M5 2l5 5-5 5" />
+          </svg>
+        </button>
       </div>
 
       {!activity.collapsed && showToolNodes && displayNodes.length > 0 && (
@@ -1355,6 +1639,9 @@ export function Logs() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [focusedCardIdx, setFocusedCardIdx] = useState(-1);
   const [tasks, setTasks] = useState<Map<string, TaskItem>>(new Map());
+  const [drillDownAgent, setDrillDownAgent] = useState<string | null>(null);
+  const rawEventsRef = useRef<Map<string, RawEvent[]>>(new Map());
+  const [rawEventsVersion, setRawEventsVersion] = useState(0);
   // historyLoaded state removed — history persistence disabled
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -1732,7 +2019,15 @@ export function Logs() {
   useEffect(() => {
     const unsub = subscribe("agent.hook", (wsEvent) => {
       const d = wsEvent.data as unknown as HookEvent;
-      if (d?.agent) eventBuffer.current.push(d);
+      if (d?.agent) {
+        eventBuffer.current.push(d);
+        // Capture raw event for drill-down raw stream
+        const agentRaw = rawEventsRef.current.get(d.agent) ?? [];
+        agentRaw.push({ timestamp: Date.now(), eventType: d.event, raw: d });
+        if (agentRaw.length > 500) agentRaw.splice(0, agentRaw.length - 500);
+        rawEventsRef.current.set(d.agent, agentRaw);
+        setRawEventsVersion((v) => v + 1);
+      }
     });
     return unsub;
   }, [subscribe]);
@@ -1881,6 +2176,25 @@ export function Logs() {
   const sseDotColor = connected ? "bg-emerald-500" : reconnecting ? "bg-yellow-500" : "bg-red-500";
   const sseTooltip = connected ? "SSE connected" : reconnecting ? "Reconnecting..." : "Disconnected";
 
+  // Drill-down view
+  const drillDownActivity = drillDownAgent ? activities.get(drillDownAgent) : null;
+  const drillDownRawEvents = drillDownAgent ? (rawEventsRef.current.get(drillDownAgent) ?? []) : [];
+  // Reference rawEventsVersion to trigger re-render when raw events change
+  void rawEventsVersion;
+
+  if (drillDownAgent && drillDownActivity) {
+    return (
+      <div className="p-6 flex flex-col h-full relative">
+        <AgentDrillDown
+          activity={drillDownActivity}
+          rawEvents={drillDownRawEvents}
+          tasks={tasks}
+          onBack={() => setDrillDownAgent(null)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 flex flex-col h-full relative">
       {/* Header */}
@@ -1907,9 +2221,7 @@ export function Logs() {
           >
             {paused ? "\u25B6" : "\u23F8"}
             {paused && pausedCount > 0 && (
-              <span className="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-amber-500 rounded-full leading-none animate-bounce">
-                {pausedCount}
-              </span>
+              <span className="text-[10px] font-bold text-amber-300 ml-0.5">({pausedCount})</span>
             )}
           </button>
           <button
@@ -2052,6 +2364,7 @@ export function Logs() {
                 activity={activity}
                 onToggle={() => toggleAgent(activity.name)}
                 onClickFilter={() => toggleCardFilter(activity.name)}
+                onDrillDown={() => setDrillDownAgent(activity.name)}
                 isFilterActive={agentFilter === activity.name}
                 searchTerm={searchFilter}
                 typeFilter={typeFilter}
