@@ -16,9 +16,12 @@ function NavIcon({ name }: { name: string }) {
     cron: <path d="M8 3a5 5 0 100 10A5 5 0 008 3zM8 5v3l2 2" />,
     secrets: <path d="M8 3a2 2 0 00-2 2v2H5v5h6V7H10V5a2 2 0 00-2-2zm0 6a1 1 0 110 2 1 1 0 010-2z" />,
     metrics: <path d="M3 11l3-4 2 2 4-5" strokeLinecap="round" strokeLinejoin="round" />,
-    logs: <path d="M4 3h8M4 6h6M4 9h8M4 12h5" />,
+    live: <>
+      <path d="M2.5 11.5a7.5 7.5 0 0111-10" strokeLinecap="round" />
+      <path d="M4.5 10a4.5 4.5 0 016.5-6" strokeLinecap="round" />
+      <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+    </>,
     workspace: <path d="M3 4h10v8H3zM5 4V3h6v1" />,
-    doctor: <path d="M8 3v10M3 8h10" />,
     settings: <path d="M8 6a2 2 0 100 4 2 2 0 000-4zM8 2v2M8 12v2M2 8h2M12 8h2M3.8 3.8l1.4 1.4M10.8 10.8l1.4 1.4M3.8 12.2l1.4-1.4M10.8 5.2l1.4-1.4" />,
   };
   return (
@@ -40,9 +43,8 @@ const MAIN_NAV_ITEMS = [
 ] as const;
 
 const UTIL_NAV_ITEMS = [
-  { to: "/logs", label: "Logs", icon: "logs" },
+  { to: "/logs", label: "Live", icon: "live" },
   { to: "/workspace", label: "Workspace", icon: "workspace" },
-  { to: "/doctor", label: "Doctor", icon: "doctor" },
   { to: "/settings", label: "Settings", icon: "settings" },
 ] as const;
 
@@ -94,6 +96,9 @@ function NavList({
               <NavIcon name={icon} />
             </span>
             {(!collapsed || isMobile) && <span>{label}</span>}
+            {label === "Live" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            )}
           </NavLink>
         </li>
       ))}

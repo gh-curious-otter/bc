@@ -157,7 +157,7 @@ export interface MCPServer {
 
 export interface UnifiedTool {
   name: string;
-  type: "mcp" | "cli";
+  type: "provider" | "mcp" | "cli";
   status: string;
   transport?: string;
   command?: string;

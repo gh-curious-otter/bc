@@ -7,7 +7,6 @@ import { Channels } from "../Channels";
 import { Roles } from "../Roles";
 import { UnifiedTools } from "../UnifiedTools";
 import { Logs } from "../Logs";
-import { Doctor } from "../Doctor";
 import { Cron } from "../Cron";
 import { Secrets } from "../Secrets";
 import { Workspace } from "../Workspace";
@@ -199,26 +198,6 @@ describe("Logs", () => {
     wrap(<Logs />);
     await waitFor(() => {
       expect(screen.getByText("No events recorded yet")).toBeInTheDocument();
-    });
-  });
-});
-
-describe("Doctor", () => {
-  it("renders skeleton loading then report", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse({
-        Categories: [
-          {
-            Name: "System",
-            Items: [{ Name: "go", Message: "installed", Fix: "", Severity: 0 }],
-          },
-        ],
-      }),
-    );
-    const { container } = wrap(<Doctor />);
-    expectSkeletonLoading(container);
-    await waitFor(() => {
-      expect(screen.getByText("Doctor")).toBeInTheDocument();
     });
   });
 });

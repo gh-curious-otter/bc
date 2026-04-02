@@ -1,27 +1,195 @@
-import { useCallback, useEffect, useRef, useState, Fragment } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Agent } from "../api/client";
-import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
-interface LogEntry {
-  id?: number;
-  type: string;
-  agent?: string;
+interface FeedEvent {
+  id: string;
+  type: "hook" | "state" | "output" | "channel";
+  agent: string;
+  timestamp: string;
+  tool?: string;
+  toolType?: "mcp" | "bash" | "internal";
+  args?: string;
+  duration?: string;
+  state?: string;
   message?: string;
-  created_at?: string;
+  channel?: string;
+  raw?: Record<string, unknown>;
 }
 
-export function Logs() {
-  const [agentFilter, setAgentFilter] = useState("");
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [streamedLogs, setStreamedLogs] = useState<LogEntry[]>([]);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+interface EventGroup {
+  agent: string;
+  events: FeedEvent[];
+  totalDuration: number;
+}
 
-  const toggleRow = (key: string) => {
-    setExpandedRows((prev) => {
+let eventCounter = 0;
+
+function parseToolName(name: string): { display: string; type: "mcp" | "bash" | "internal" } {
+  if (!name) return { display: "unknown", type: "internal" };
+  if (name === "Bash" || name === "bash") return { display: "Bash", type: "bash" };
+  if (name.startsWith("mcp__")) {
+    const parts = name.split("__");
+    const provider = parts[2] ?? parts[1] ?? "mcp";
+    const action = parts[parts.length - 1] ?? "call";
+    return { display: `${provider}:${action}`, type: "mcp" };
+  }
+  return { display: name, type: "internal" };
+}
+
+function toolIcon(type: "mcp" | "bash" | "internal") {
+  if (type === "bash") return "\u{1F4BB}";
+  if (type === "mcp") return "\u{1F50C}";
+  return "\u2699\uFE0F";
+}
+
+function stateColor(state: string) {
+  if (state === "working") return "bg-bc-success";
+  if (state === "idle") return "bg-yellow-400";
+  return "bg-bc-muted";
+}
+
+function formatTime(ts: string): string {
+  try {
+    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return "--:--:--";
+  }
+}
+
+function formatDuration(ms: number): string {
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms)}ms`;
+}
+
+type FilterType = "all" | "hook" | "state" | "output" | "channel";
+
+export function Logs() {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentFilter, setAgentFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<FilterType>("all");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [events, setEvents] = useState<FeedEvent[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const containerRef = useRef<HTMLDivElement>(null);
+  const userScrolled = useRef(false);
+  const { subscribe } = useWebSocket();
+
+  useEffect(() => {
+    api.listAgents().then(setAgents).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handleEvent = (evt: FeedEvent) => {
+      setEvents((prev) => [evt, ...prev].slice(0, 500));
+    };
+
+    const unsubs = [
+      subscribe("agent.hook", (event) => {
+        const d = event.data as Record<string, unknown>;
+        const toolName = String(d.tool_name ?? d.name ?? "");
+        const parsed = parseToolName(toolName);
+        handleEvent({
+          id: `evt-${++eventCounter}`,
+          type: "hook",
+          agent: String(d.agent ?? ""),
+          timestamp: event.timestamp || new Date().toISOString(),
+          tool: parsed.display,
+          toolType: parsed.type,
+          args: JSON.stringify(d.args ?? d.input ?? {}).slice(0, 60),
+          duration: d.duration_ms ? formatDuration(Number(d.duration_ms)) : "",
+          raw: d,
+        });
+      }),
+      subscribe("agent.state_changed", (event) => {
+        const d = event.data as Record<string, unknown>;
+        handleEvent({
+          id: `evt-${++eventCounter}`,
+          type: "state",
+          agent: String(d.agent ?? ""),
+          timestamp: event.timestamp || new Date().toISOString(),
+          state: String(d.state ?? d.status ?? "unknown"),
+        });
+      }),
+      subscribe("agent.output", (event) => {
+        const d = event.data as Record<string, unknown>;
+        const msg = String(d.output ?? d.message ?? d.text ?? "");
+        handleEvent({
+          id: `evt-${++eventCounter}`,
+          type: "output",
+          agent: String(d.agent ?? ""),
+          timestamp: event.timestamp || new Date().toISOString(),
+          message: msg.split("\n")[0]?.slice(0, 120) ?? "",
+        });
+      }),
+      subscribe("channel.message", (event) => {
+        const d = event.data as Record<string, unknown>;
+        handleEvent({
+          id: `evt-${++eventCounter}`,
+          type: "channel",
+          agent: String(d.sender ?? d.agent ?? ""),
+          timestamp: event.timestamp || new Date().toISOString(),
+          channel: String(d.channel ?? ""),
+          message: String(d.message ?? d.text ?? "").slice(0, 120),
+        });
+      }),
+    ];
+    return () => unsubs.forEach((fn) => fn());
+  }, [subscribe]);
+
+  // Auto-scroll: scroll to top when new events arrive unless user scrolled down
+  useEffect(() => {
+    if (!userScrolled.current && containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    }
+  }, [events]);
+
+  const handleScroll = () => {
+    if (!containerRef.current) return;
+    userScrolled.current = containerRef.current.scrollTop > 50;
+  };
+
+  // Filtering
+  const filtered = events.filter((e) => {
+    if (agentFilter && e.agent !== agentFilter) return false;
+    if (typeFilter !== "all" && e.type !== typeFilter) return false;
+    if (searchFilter) {
+      const q = searchFilter.toLowerCase();
+      const haystack = `${e.agent} ${e.tool ?? ""} ${e.args ?? ""} ${e.message ?? ""} ${e.state ?? ""} ${e.channel ?? ""}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // Group consecutive tool calls from same agent
+  const grouped: (FeedEvent | EventGroup)[] = [];
+  let i = 0;
+  while (i < filtered.length) {
+    const cur = filtered[i]!;
+    if (cur.type === "hook") {
+      const batch: FeedEvent[] = [cur];
+      while (i + 1 < filtered.length && filtered[i + 1]!.type === "hook" && filtered[i + 1]!.agent === cur.agent) {
+        batch.push(filtered[++i]!);
+      }
+      if (batch.length >= 3) {
+        const totalMs = batch.reduce((sum, e) => {
+          const raw = e.raw;
+          return sum + (raw?.duration_ms ? Number(raw.duration_ms) : 0);
+        }, 0);
+        grouped.push({ agent: cur.agent, events: batch, totalDuration: totalMs });
+      } else {
+        grouped.push(...batch);
+      }
+    } else {
+      grouped.push(cur);
+    }
+    i++;
+  }
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -29,229 +197,191 @@ export function Logs() {
     });
   };
 
-  const formatJSON = (msg: string): string => {
-    try {
-      return JSON.stringify(JSON.parse(msg), null, 2);
-    } catch {
-      return msg;
-    }
+  const hasFilters = agentFilter || typeFilter !== "all" || searchFilter;
+
+  const clearFilters = () => {
+    setAgentFilter("");
+    setTypeFilter("all");
+    setSearchFilter("");
   };
 
-  const summarize = (msg: string): string => {
-    try {
-      const obj = JSON.parse(msg);
-      const parts: string[] = [];
-      if (obj.event) parts.push(obj.event);
-      if (obj.tool_name) parts.push(obj.tool_name);
-      if (obj.task) parts.push(obj.task);
-      else if (obj.command) parts.push(obj.command);
-      return parts.join(" - ") || msg.slice(0, 80);
-    } catch {
-      return msg.slice(0, 80);
+  const renderEvent = (e: FeedEvent) => {
+    const ts = formatTime(e.timestamp);
+    switch (e.type) {
+      case "hook":
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-bc-muted text-xs font-mono shrink-0">{ts}</span>
+            <span className="font-medium text-bc-text truncate shrink-0 max-w-[140px]">{e.agent}</span>
+            <span className="text-xs shrink-0">{toolIcon(e.toolType!)}</span>
+            <span className="text-bc-accent font-mono text-xs truncate">{e.tool}</span>
+            {e.args && e.args !== "{}" && (
+              <span className="text-bc-muted text-xs font-mono truncate hidden sm:inline">{e.args}</span>
+            )}
+            {e.duration && (
+              <span className="ml-auto text-bc-muted text-xs font-mono shrink-0">{e.duration}</span>
+            )}
+          </div>
+        );
+      case "state":
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-bc-muted text-xs font-mono shrink-0">{ts}</span>
+            <span className="font-medium text-bc-text truncate shrink-0 max-w-[140px]">{e.agent}</span>
+            <span className="text-bc-muted text-xs">&rarr;</span>
+            <span className={`w-2 h-2 rounded-full shrink-0 ${stateColor(e.state ?? "")}`} />
+            <span className="text-xs text-bc-text">{e.state}</span>
+          </div>
+        );
+      case "output":
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-bc-muted text-xs font-mono shrink-0">{ts}</span>
+            <span className="font-medium text-bc-text truncate shrink-0 max-w-[140px]">{e.agent}</span>
+            <span className="text-xs shrink-0">{"\u{1F4AC}"}</span>
+            <span className="text-bc-muted text-xs truncate">{e.message}</span>
+          </div>
+        );
+      case "channel":
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-bc-muted text-xs font-mono shrink-0">{ts}</span>
+            <span className="text-bc-accent text-xs font-mono shrink-0">#{e.channel}</span>
+            <span className="font-medium text-bc-text text-xs shrink-0">{e.agent}:</span>
+            <span className="text-bc-muted text-xs truncate">{e.message}</span>
+          </div>
+        );
     }
   };
-  const { subscribe } = useWebSocket();
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
-
-  useEffect(() => {
-    api
-      .listAgents()
-      .then(setAgents)
-      .catch(() => {});
-  }, []);
-
-  // Subscribe to real-time hook events via SSE
-  useEffect(() => {
-    return subscribe("agent.hook", (event) => {
-      const d = event.data;
-      const entry: LogEntry = {
-        type: `hook.${(d.event as string) || "unknown"}`,
-        agent: d.agent as string,
-        message: JSON.stringify(d),
-        created_at: event.timestamp || new Date().toISOString(),
-      };
-      // Filter if agent filter is active
-      if (agentFilter && entry.agent !== agentFilter) return;
-      setStreamedLogs((prev) => [...prev.slice(-499), entry]);
-    });
-  }, [subscribe, agentFilter]);
-
-  // Auto-scroll to bottom when new events arrive
-  useEffect(() => {
-    if (autoScroll) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [streamedLogs, autoScroll]);
-
-  // Clear streamed logs when filter changes
-  useEffect(() => {
-    setStreamedLogs([]);
-  }, [agentFilter]);
-
-  const fetcher = useCallback(() => {
-    if (agentFilter) {
-      return api.getAgentLogs(agentFilter, 100);
-    }
-    return api.getLogs(100);
-  }, [agentFilter]);
-
-  const {
-    data: polledLogs,
-    loading,
-    error,
-    refresh,
-    timedOut,
-  } = usePolling(fetcher, 10000); // Slower polling since we have SSE
-
-  // Merge polled logs with streamed logs, dedup by timestamp+type+agent
-  const allLogs = [...(polledLogs || []), ...streamedLogs];
-
-  if (loading && !polledLogs && streamedLogs.length === 0) {
-    return (
-      <div className="p-6 space-y-4">
-        <div className="h-6 w-28 animate-pulse rounded bg-bc-border/50" />
-        <LoadingSkeleton variant="table" rows={6} />
-      </div>
-    );
-  }
-  if (timedOut && !polledLogs) {
-    return (
-      <div className="p-6">
-        <EmptyState
-          icon="!"
-          title="Logs took too long to load"
-          description="The server may be unavailable. Check your connection and try again."
-          actionLabel="Retry"
-          onAction={refresh}
-        />
-      </div>
-    );
-  }
-  if (error && !polledLogs) {
-    return (
-      <div className="p-6">
-        <EmptyState
-          icon="!"
-          title="Failed to load logs"
-          description={error}
-          actionLabel="Retry"
-          onAction={refresh}
-        />
-      </div>
-    );
-  }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold">Event Log</h1>
-          <select
-            value={agentFilter}
-            onChange={(e) => setAgentFilter(e.target.value)}
-            className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          >
-            <option value="">All agents</option>
-            {agents.map((a) => (
-              <option key={a.name} value={a.name}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-          <label className="flex items-center gap-1.5 text-xs text-bc-muted cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={autoScroll}
-              onChange={(e) => setAutoScroll(e.target.checked)}
-              className="rounded"
-            />
-            Auto-scroll
-          </label>
-        </div>
-        <span className="text-sm text-bc-muted">
-          {allLogs.length} events
-          {streamedLogs.length > 0 && (
-            <span className="ml-2 text-bc-success">
-              +{streamedLogs.length} live
-            </span>
-          )}
-        </span>
+    <div className="p-6 flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <h1 className="text-xl font-bold text-bc-text flex items-center gap-2">
+          Live
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+          </span>
+        </h1>
+        <span className="text-sm text-bc-muted">Real-time agent activity</span>
+        <span className="ml-auto text-xs text-bc-muted">{filtered.length} events</span>
       </div>
 
-      {allLogs.length === 0 ? (
-        <EmptyState
-          icon="[]"
-          title="No events recorded yet"
-          description="Events will appear here in real-time as agents work."
+      {/* Filter Bar */}
+      <div className="flex flex-wrap items-center gap-2 mb-4 sticky top-0 z-10 bg-bc-bg py-2">
+        <select
+          value={agentFilter}
+          onChange={(e) => setAgentFilter(e.target.value)}
+          className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1.5 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
+        >
+          <option value="">All agents</option>
+          {agents.map((a) => (
+            <option key={a.name} value={a.name}>{a.name}</option>
+          ))}
+        </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as FilterType)}
+          className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1.5 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
+        >
+          <option value="all">All types</option>
+          <option value="hook">Tool Calls</option>
+          <option value="state">State Changes</option>
+          <option value="output">Messages</option>
+          <option value="channel">Channels</option>
+        </select>
+        <input
+          type="text"
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          placeholder="Search events..."
+          className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1.5 text-bc-text placeholder:text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent w-48"
         />
-      ) : (
-        <div className="rounded border border-bc-border overflow-hidden">
-          <div className="overflow-auto max-h-[70vh]">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-bc-surface">
-                <tr className="border-b border-bc-border text-left">
-                  <th className="px-4 py-2 font-medium text-bc-muted">Time</th>
-                  <th className="px-4 py-2 font-medium text-bc-muted">Type</th>
-                  <th className="px-4 py-2 font-medium text-bc-muted">Agent</th>
-                  <th className="px-4 py-2 font-medium text-bc-muted">
-                    Message
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {allLogs.map((entry, i) => {
-                  const rowKey = String(entry.id || `stream-${i}`);
-                  const isExpanded = expandedRows.has(rowKey);
-                  const isJSON = entry.message?.startsWith("{");
-                  return (
-                    <Fragment key={rowKey}>
-                      <tr
-                        className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface/50"
-                        onClick={() => entry.message && toggleRow(rowKey)}
-                      >
-                        <td className="px-4 py-2 text-bc-muted whitespace-nowrap">
-                          {entry.created_at
-                            ? new Date(entry.created_at).toLocaleTimeString()
-                            : "\u2014"}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span className="text-xs px-2 py-0.5 rounded bg-bc-border text-bc-muted">
-                            {entry.type}
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-xs text-bc-muted hover:text-bc-text px-2 py-1.5 rounded border border-bc-border hover:border-bc-accent transition-colors"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Activity Feed */}
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto min-h-0 space-y-px"
+      >
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon="[]"
+            title="No activity yet"
+            description="Events will stream here in real-time as agents work."
+          />
+        ) : (
+          grouped.map((item) => {
+            if ("events" in item) {
+              // Grouped tool calls
+              const group = item as EventGroup;
+              const key = group.events[0]!.id;
+              const isOpen = expandedGroups.has(key);
+              return (
+                <div key={key} className="rounded border border-bc-border/50 bg-bc-surface/30">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(key)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bc-surface/50 transition-colors"
+                  >
+                    <span className="text-bc-muted text-xs">{isOpen ? "\u25BC" : "\u25B6"}</span>
+                    <span className="font-medium text-bc-text text-sm truncate max-w-[140px]">{group.agent}</span>
+                    <span className="text-bc-muted text-xs">
+                      {group.events.length} tool calls
+                    </span>
+                    {group.totalDuration > 0 && (
+                      <span className="text-bc-muted text-xs font-mono ml-auto">
+                        {formatDuration(group.totalDuration)} total
+                      </span>
+                    )}
+                  </button>
+                  {isOpen && (
+                    <div className="border-t border-bc-border/30 pl-4">
+                      {group.events.map((e, idx) => (
+                        <div
+                          key={e.id}
+                          className="flex items-center gap-2 px-3 py-1.5 text-xs min-w-0"
+                        >
+                          <span className="text-bc-border shrink-0">
+                            {idx === group.events.length - 1 ? "\u2514" : "\u251C"}
                           </span>
-                        </td>
-                        <td className="px-4 py-2 font-medium">
-                          {entry.agent || "\u2014"}
-                        </td>
-                        <td className="px-4 py-2 text-bc-muted text-xs">
-                          <span className="flex items-center gap-1">
-                            {isJSON && (
-                              <span className="text-bc-muted/50 text-[10px]">
-                                {isExpanded ? "\u25BC" : "\u25B6"}
-                              </span>
-                            )}
-                            {isJSON ? summarize(entry.message!) : (entry.message || "\u2014")}
-                          </span>
-                        </td>
-                      </tr>
-                      {isExpanded && entry.message && (
-                        <tr className="border-b border-bc-border/50">
-                          <td colSpan={4} className="px-4 py-2 bg-bc-surface">
-                            <pre className="text-xs font-mono text-bc-muted whitespace-pre-wrap overflow-x-auto max-h-64 overflow-y-auto">
-                              {formatJSON(entry.message)}
-                            </pre>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div ref={bottomRef} />
-          </div>
-        </div>
-      )}
+                          <span className="shrink-0">{toolIcon(e.toolType!)}</span>
+                          <span className="text-bc-accent font-mono truncate">{e.tool}</span>
+                          {e.args && e.args !== "{}" && (
+                            <span className="text-bc-muted font-mono truncate hidden sm:inline">{e.args}</span>
+                          )}
+                          {e.duration && (
+                            <span className="ml-auto text-bc-muted font-mono shrink-0">{e.duration}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            // Single event
+            const e = item as FeedEvent;
+            return (
+              <div key={e.id} className="px-3 py-2 hover:bg-bc-surface/30 rounded transition-colors">
+                {renderEvent(e)}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }

@@ -126,13 +126,6 @@ export function useCommandPalette() {
         action: () => navigate("/daemons"),
       },
       {
-        id: "nav-doctor",
-        label: "Doctor",
-        section: "Navigate",
-        icon: "+",
-        action: () => navigate("/doctor"),
-      },
-      {
         id: "nav-settings",
         label: "Settings",
         section: "Navigate",

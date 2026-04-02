@@ -26,9 +26,6 @@ const Tools = lazy(() =>
 const Logs = lazy(() =>
   import("./views/Logs").then((m) => ({ default: m.Logs })),
 );
-const Doctor = lazy(() =>
-  import("./views/Doctor").then((m) => ({ default: m.Doctor })),
-);
 const Cron = lazy(() =>
   import("./views/Cron").then((m) => ({ default: m.Cron })),
 );
@@ -135,16 +132,6 @@ export function App() {
                   <Suspense fallback={<Loading />}>
                     <ErrorBoundary>
                       <Logs />
-                    </ErrorBoundary>
-                  </Suspense>
-                }
-              />
-              <Route
-                path="doctor"
-                element={
-                  <Suspense fallback={<Loading />}>
-                    <ErrorBoundary>
-                      <Doctor />
                     </ErrorBoundary>
                   </Suspense>
                 }
