@@ -1160,6 +1160,7 @@ export function Logs() {
   const [searchFilter, setSearchFilter] = useState("");
   const [eventCount, setEventCount] = useState(0);
   const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
   const pausedBuffer = useRef<HookEvent[]>([]);
   const [pausedCount, setPausedCount] = useState(0);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -1171,6 +1172,11 @@ export function Logs() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const eventBuffer = useRef<HookEvent[]>([]);
   const { connected, reconnecting, subscribe } = useWebSocket();
+
+  // Keep pausedRef in sync so interval/event handlers always see current value
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   // Seed from agents API + initial logs
   useEffect(() => {
@@ -1211,7 +1217,7 @@ export function Logs() {
     const events = eventBuffer.current.splice(0);
     if (events.length === 0) return;
 
-    if (paused) {
+    if (pausedRef.current) {
       pausedBuffer.current.push(...events);
       setPausedCount(pausedBuffer.current.length);
       return;
@@ -1469,7 +1475,7 @@ export function Logs() {
       }
       return next;
     });
-  }, [paused]);
+  }, []);
 
   const handleResume = useCallback(() => {
     setPaused(false);
@@ -1498,9 +1504,17 @@ export function Logs() {
       const d = wsEvent.data as Record<string, unknown>;
       const name = (d.name ?? d.agent) as string;
       const state = d.state as string;
-      if (name && state) {
-        setEventCount((c) => c + 1);
-        setActivities((prev) => {
+      if (!name || !state) return;
+
+      // When paused, buffer state changes as synthetic hook events
+      if (pausedRef.current) {
+        pausedBuffer.current.push({ agent: name, event: "state_changed", task: d.task as string | undefined });
+        setPausedCount(pausedBuffer.current.length);
+        return;
+      }
+
+      setEventCount((c) => c + 1);
+      setActivities((prev) => {
           const next = new Map(prev);
           const existing = next.get(name);
           if (existing) {
@@ -1511,7 +1525,6 @@ export function Logs() {
           }
           return next;
         });
-      }
     });
     return unsub;
   }, [subscribe]);
@@ -1651,12 +1664,12 @@ export function Logs() {
           <button
             type="button"
             onClick={() => paused ? handleResume() : setPaused(true)}
-            className="relative inline-flex items-center gap-1 text-xs px-2 py-1 rounded border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-text transition-colors"
+            className={`relative inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${paused ? "border-amber-500 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 animate-pulse" : "border-bc-border hover:border-bc-accent bg-bc-surface text-bc-text"}`}
             title={paused ? `Resume (${pausedCount} buffered)` : "Pause stream"}
           >
             {paused ? "\u25B6" : "\u23F8"}
             {paused && pausedCount > 0 && (
-              <span className="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-bc-accent rounded-full leading-none">
+              <span className="absolute -top-2 -right-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-amber-500 rounded-full leading-none animate-bounce">
                 {pausedCount}
               </span>
             )}
