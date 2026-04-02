@@ -6,7 +6,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+    // Try to extract the error message from the JSON response body
+    let message = `API error: ${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (body && typeof body.error === "string") {
+        message = body.error;
+      }
+    } catch {
+      // Response body wasn't valid JSON; use the default message
+    }
+    throw new Error(message);
   }
   return res.json() as Promise<T>;
 }

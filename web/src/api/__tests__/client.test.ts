@@ -33,6 +33,15 @@ describe("api.request", () => {
     );
   });
 
+  it("extracts error message from JSON response body", async () => {
+    fetchMock.mockReturnValue(
+      jsonResponse({ error: 'tool "wget" already exists' }, 400, "Bad Request"),
+    );
+    await expect(api.listAgents()).rejects.toThrow(
+      'tool "wget" already exists',
+    );
+  });
+
   it("formats URL with path", async () => {
     fetchMock.mockReturnValue(jsonResponse({}));
     await api.getAgent("test-agent");
