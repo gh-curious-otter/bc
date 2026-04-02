@@ -171,14 +171,9 @@ func (p *PostgresStore) SetEnabled(name string, enabled bool) error {
 	return nil
 }
 
-// --- helpers ---
-
-// pgMCPScanner is implemented by both *sql.Row and *sql.Rows.
-type pgMCPScanner interface {
-	Scan(dest ...any) error
-}
-
-func pgScanMCPInto(sc pgMCPScanner) (*ServerConfig, error) {
+// pgScanMCPInto scans a Postgres row into a ServerConfig.
+// Uses the scanner interface defined in store.go.
+func pgScanMCPInto(sc scanner) (*ServerConfig, error) {
 	var (
 		cfg               ServerConfig
 		command, url      sql.NullString

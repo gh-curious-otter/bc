@@ -289,7 +289,7 @@ func (w *JSONLWriter) CurrentTasks() ([]TaskItem, error) {
 		toolName, _ := data["tool_name"].(string)
 
 		// TaskCreate: extract from PostToolUse events
-		if eventName == "PostToolUse" && containsTaskCreate(toolName) {
+		if eventName == "PostToolUse" && strings.Contains(toolName, "TaskCreate") {
 			task := extractTaskCreate(data)
 			if task != nil {
 				if _, exists := tasks[task.ID]; !exists {
@@ -300,7 +300,7 @@ func (w *JSONLWriter) CurrentTasks() ([]TaskItem, error) {
 		}
 
 		// TaskUpdate: extract from Pre/PostToolUse events
-		if (eventName == "PreToolUse" || eventName == "PostToolUse") && containsTaskUpdate(toolName) {
+		if (eventName == "PreToolUse" || eventName == "PostToolUse") && strings.Contains(toolName, "TaskUpdate") {
 			id, status, blockedBy := extractTaskUpdate(data)
 			if id != "" && status != "" {
 				if t, exists := tasks[id]; exists {
@@ -321,14 +321,6 @@ func (w *JSONLWriter) CurrentTasks() ([]TaskItem, error) {
 		}
 	}
 	return result, nil
-}
-
-func containsTaskCreate(s string) bool {
-	return strings.Contains(s, "TaskCreate")
-}
-
-func containsTaskUpdate(s string) bool {
-	return strings.Contains(s, "TaskUpdate")
 }
 
 func extractTaskCreate(data map[string]any) *TaskItem {

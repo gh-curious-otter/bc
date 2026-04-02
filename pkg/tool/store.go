@@ -291,8 +291,7 @@ func (s *Store) seedBuiltins(ctx context.Context) error {
 		return s.pg.SeedBuiltins(ctx)
 	}
 
-	// Seed provider tools (claude, gemini, cursor, etc.)
-	for _, t := range builtinTools {
+	for _, t := range allBuiltins() {
 		t := t
 		existing, err := s.Get(ctx, t.Name)
 		if err != nil {
@@ -305,35 +304,16 @@ func (s *Store) seedBuiltins(ctx context.Context) error {
 			return fmt.Errorf("failed to seed %s: %w", t.Name, err)
 		}
 	}
-	// Seed MCP server tools (bc, playwright, github)
-	for _, t := range builtinMCPServers {
-		t := t
-		existing, err := s.Get(ctx, t.Name)
-		if err != nil {
-			return fmt.Errorf("failed to check MCP %s: %w", t.Name, err)
-		}
-		if existing != nil {
-			continue
-		}
-		if err := s.add(ctx, &t); err != nil {
-			return fmt.Errorf("failed to seed MCP %s: %w", t.Name, err)
-		}
-	}
-	// Seed CLI tools (gh, git, go, make, docker, etc.)
-	for _, t := range builtinCLITools {
-		t := t
-		existing, err := s.Get(ctx, t.Name)
-		if err != nil {
-			return fmt.Errorf("failed to check CLI %s: %w", t.Name, err)
-		}
-		if existing != nil {
-			continue
-		}
-		if err := s.add(ctx, &t); err != nil {
-			return fmt.Errorf("failed to seed CLI %s: %w", t.Name, err)
-		}
-	}
 	return nil
+}
+
+// allBuiltins returns all built-in tool definitions (providers, MCP servers, CLI tools).
+func allBuiltins() []Tool {
+	all := make([]Tool, 0, len(builtinTools)+len(builtinMCPServers)+len(builtinCLITools))
+	all = append(all, builtinTools...)
+	all = append(all, builtinMCPServers...)
+	all = append(all, builtinCLITools...)
+	return all
 }
 
 func marshalJSON(v any) (string, error) {
@@ -433,16 +413,22 @@ func (s *Store) Get(ctx context.Context, name string) (*Tool, error) {
 	}
 	row := s.db.QueryRowContext(ctx,
 		`SELECT `+allColumns+` FROM tools WHERE name = ?`, name)
-	return scanTool(row)
+	return scanToolFrom(row)
 }
 
-func scanTool(row *sql.Row) (*Tool, error) {
+// toolScanner is implemented by both *sql.Row and *sql.Rows.
+type toolScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanToolFrom scans a row into a Tool. Returns (nil, nil) for sql.ErrNoRows.
+func scanToolFrom(sc toolScanner) (*Tool, error) {
 	var t Tool
 	var toolType, installCmd, upgradeCmd, versionCmd sql.NullString
 	var transport, url, argsJSON, envJSON sql.NullString
 	var slashCmds, mcpServers, config sql.NullString
 	var healthStatus, lastChecked sql.NullString
-	if err := row.Scan(
+	if err := sc.Scan(
 		&t.Name, &toolType, &t.Command,
 		&installCmd, &upgradeCmd, &versionCmd,
 		&transport, &url, &argsJSON, &envJSON,
@@ -510,38 +496,11 @@ func (s *Store) ListWithOptions(ctx context.Context, opts ListOptions) ([]*Tool,
 
 	var tools []*Tool
 	for rows.Next() {
-		var t Tool
-		var toolType, installCmd, upgradeCmd, versionCmd sql.NullString
-		var transport, url, argsJSON, envJSON sql.NullString
-		var slashCmds, mcpServers, config sql.NullString
-		var healthStatus, lastChecked sql.NullString
-		if err := rows.Scan(
-			&t.Name, &toolType, &t.Command,
-			&installCmd, &upgradeCmd, &versionCmd,
-			&transport, &url, &argsJSON, &envJSON,
-			&slashCmds, &mcpServers, &config,
-			&healthStatus, &lastChecked,
-			&t.Builtin, &t.Enabled, &t.CreatedAt,
-		); err != nil {
-			return nil, err
+		t, scanErr := scanToolFrom(rows)
+		if scanErr != nil {
+			return nil, scanErr
 		}
-		t.Type = toolType.String
-		if t.Type == "" {
-			t.Type = ToolTypeProvider
-		}
-		t.InstallCmd = installCmd.String
-		t.UpgradeCmd = upgradeCmd.String
-		t.VersionCmd = versionCmd.String
-		t.Transport = transport.String
-		t.URL = url.String
-		t.Args = unmarshalStrings(argsJSON.String)
-		t.Env = unmarshalStringMap(envJSON.String)
-		t.SlashCmds = unmarshalStrings(slashCmds.String)
-		t.MCPServers = unmarshalStrings(mcpServers.String)
-		t.Config = unmarshalMap(config.String)
-		t.HealthStatus = healthStatus.String
-		t.LastChecked = lastChecked.String
-		tools = append(tools, &t)
+		tools = append(tools, t)
 	}
 	return tools, rows.Err()
 }
