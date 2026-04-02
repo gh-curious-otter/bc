@@ -307,7 +307,28 @@ function nodeMatchesSearch(node: ToolNode, query: string): boolean {
   return hay.includes(query);
 }
 
+/* ── Smart sorting ────────────────────────────────────────────────── */
+
+function sortNodes(nodes: ToolNode[]): ToolNode[] {
+  return [...nodes].sort((a, b) => {
+    // Running first (newest first among running)
+    if (a.status === "running" && b.status !== "running") return -1;
+    if (b.status === "running" && a.status !== "running") return 1;
+    if (a.status === "running" && b.status === "running") return b.startTime - a.startTime;
+    // Failed second (newest first among failed)
+    if (a.status === "failed" && b.status !== "failed") return -1;
+    if (b.status === "failed" && a.status !== "failed") return 1;
+    if (a.status === "failed" && b.status === "failed") return b.startTime - a.startTime;
+    // Completed: sort by duration (longest first)
+    const aDur = (a.endTime ?? a.startTime) - a.startTime;
+    const bDur = (b.endTime ?? b.startTime) - b.startTime;
+    return bDur - aDur;
+  });
+}
+
 /* ── Aggregation ──────────────────────────────────────────────────── */
+
+const AGGREGATION_MIN_COUNT = 3;
 
 const NEVER_AGGREGATE_EVENTS = new Set([
   "SubagentStart", "SubagentStop", "Agent",
@@ -388,10 +409,109 @@ function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number): DisplayN
     });
 
     const recentAggregated = aggregateConsecutive(recentNodes);
-    return [...recentAggregated, ...oldAggregated];
+    return aggregateByType([...recentAggregated, ...oldAggregated]);
   }
 
-  return aggregateConsecutive(nodes);
+  return aggregateByType(aggregateConsecutive(nodes));
+}
+
+/** Post-completion aggregation: collapse completed tool calls of the same type
+ *  across non-consecutive positions when count >= AGGREGATION_MIN_COUNT.
+ *  Running and failed events are never aggregated -- always shown individually. */
+function aggregateByType(displayNodes: DisplayNode[]): DisplayNode[] {
+  const pinned: DisplayNode[] = [];
+  const candidates: DisplayNode[] = [];
+
+  for (const node of displayNodes) {
+    if (isAggregatedNode(node)) {
+      candidates.push(node);
+    } else {
+      const tn = node as ToolNode;
+      if (tn.status === "running" || tn.status === "failed") {
+        pinned.push(node);
+      } else {
+        candidates.push(node);
+      }
+    }
+  }
+
+  const byTool = new Map<string, DisplayNode[]>();
+  const ungroupable: DisplayNode[] = [];
+
+  for (const node of candidates) {
+    if (isAggregatedNode(node)) {
+      const key = node.toolName;
+      if (!byTool.has(key)) byTool.set(key, []);
+      byTool.get(key)!.push(node);
+    } else {
+      const tn = node as ToolNode;
+      if (shouldNeverAggregate(tn)) {
+        ungroupable.push(node);
+      } else {
+        const key = tn.toolName;
+        if (!byTool.has(key)) byTool.set(key, []);
+        byTool.get(key)!.push(node);
+      }
+    }
+  }
+
+  const aggregated: DisplayNode[] = [];
+  for (const [toolName, group] of byTool) {
+    let totalIndividual = 0;
+    for (const g of group) {
+      totalIndividual += isAggregatedNode(g) ? g.count : 1;
+    }
+
+    if (totalIndividual >= AGGREGATION_MIN_COUNT) {
+      const allChildren: ToolNode[] = [];
+      let totalDuration = 0;
+      let totalTokens = 0;
+      let successCount = 0;
+      let failCount = 0;
+      let minStart = Infinity;
+      let maxEnd = 0;
+
+      for (const g of group) {
+        if (isAggregatedNode(g)) {
+          allChildren.push(...g.children);
+          totalDuration += g.totalDuration;
+          totalTokens += g.totalTokens;
+          successCount += g.successCount;
+          failCount += g.failCount;
+          if (g.startTime < minStart) minStart = g.startTime;
+          if (g.endTime > maxEnd) maxEnd = g.endTime;
+        } else {
+          const tn = g as ToolNode;
+          allChildren.push(tn);
+          const dur = tn.endTime ? tn.endTime - tn.startTime : 0;
+          totalDuration += dur;
+          if (tn.status === "completed") successCount++;
+          if (tn.status === "failed") failCount++;
+          if (tn.startTime < minStart) minStart = tn.startTime;
+          if (tn.endTime && tn.endTime > maxEnd) maxEnd = tn.endTime;
+        }
+      }
+
+      aggregated.push({
+        type: "aggregate",
+        id: `agg-type-${allChildren[0]!.id}`,
+        toolName,
+        count: allChildren.length,
+        children: allChildren,
+        totalDuration,
+        totalTokens,
+        successCount,
+        failCount,
+        startTime: minStart,
+        endTime: maxEnd || Date.now(),
+      });
+    } else {
+      ungroupable.push(...group);
+    }
+  }
+
+  // Pinned (running/failed) first, then ungroupable individuals, then aggregated summaries at bottom
+  return [...pinned, ...ungroupable, ...aggregated];
 }
 
 function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
@@ -531,6 +651,31 @@ function parseTaskUpdate(toolInput: unknown): { taskId: string; status: TaskItem
 
   const status = statusMap[rawStatus] ?? "pending";
   return { taskId, status };
+}
+
+function parseTaskListResponse(text: string): TaskItem[] {
+  const tasks: TaskItem[] = [];
+  const statusMap: Record<string, TaskItem["status"]> = {
+    pending: "pending",
+    in_progress: "in_progress",
+    "in-progress": "in_progress",
+    completed: "completed",
+    done: "completed",
+    deleted: "deleted",
+  };
+
+  const lines = text.split("\n");
+  for (const line of lines) {
+    const match = line.match(/^#(\d+)\s+\[(\w+)]\s+(.+)$/);
+    if (match) {
+      const id = match[1]!;
+      const rawStatus = match[2]!.toLowerCase();
+      const subject = match[3]!.trim();
+      const status = statusMap[rawStatus] ?? "pending";
+      tasks.push({ id, subject, status });
+    }
+  }
+  return tasks;
 }
 
 /* ── State Dots ────────────────────────────────────────────────────── */
@@ -861,25 +1006,17 @@ function AggregatedNodeRow({ node }: { node: AggregatedNode }) {
         <span className="text-[12px] font-mono font-semibold text-bc-accent px-1.5 py-0 rounded bg-bc-accent/10">
           &times;{node.count}
         </span>
-        <span className="ml-auto flex items-center gap-3">
-          {node.totalDuration > 0 && (
-            <span className="text-[11px] text-bc-muted font-mono tabular-nums">
-              {elapsed(0, node.totalDuration)}
-            </span>
+        <span className="text-[11px] text-bc-muted font-mono tabular-nums truncate">
+          {node.count} total
+          {node.totalDuration > 0 && <> &middot; {elapsed(0, node.totalDuration)}</>}
+          {node.totalDuration > 0 && node.count > 1 && (
+            <> &middot; avg {elapsed(0, Math.round(node.totalDuration / node.count))}</>
           )}
-          {node.totalTokens > 0 && (
-            <span className="text-[11px] text-bc-muted font-mono tabular-nums">
-              {node.totalTokens.toLocaleString()} tok
-            </span>
-          )}
+          {node.totalTokens > 0 && <> &middot; {node.totalTokens.toLocaleString()} tok</>}
           {node.failCount > 0 && (
-            <span className="text-[11px] text-bc-error font-mono">
-              {node.failCount} failed
-            </span>
+            <span className="text-bc-error"> &middot; {node.failCount} failed</span>
           )}
-          <span className="text-[11px] text-bc-muted font-mono tabular-nums">
-            {node.successCount}/{node.count} ok
-          </span>
+          <> &middot; {node.successCount}/{node.count} ok</>
         </span>
       </button>
 
@@ -1002,9 +1139,11 @@ const AgentCard = memo(function AgentCard({
     ? activity.nodes.filter((n) => nodeMatchesSearch(n, searchTerm.toLowerCase()))
     : activity.nodes;
 
-  const runningCount = visibleNodes.filter((n) => n.status === "running").length;
+  const sortedNodes = sortNodes(visibleNodes);
+
+  const runningCount = sortedNodes.filter((n) => n.status === "running").length;
   const errorCount = activity.nodes.filter((n) => n.status === "failed").length;
-  const displayNodes = aggregateNodes(visibleNodes, collapseOld ? AUTO_COLLAPSE_MS : undefined);
+  const displayNodes = aggregateNodes(sortedNodes, collapseOld ? AUTO_COLLAPSE_MS : undefined);
   const matchCount = searchTerm ? visibleNodes.length : 0;
   const showToolNodes = typeFilter !== "state";
 
@@ -1168,6 +1307,7 @@ export function Logs() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [focusedCardIdx, setFocusedCardIdx] = useState(-1);
   const [tasks, setTasks] = useState<Map<string, TaskItem>>(new Map());
+  const [, setHistoryLoaded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const eventBuffer = useRef<HookEvent[]>([]);
@@ -1210,6 +1350,166 @@ export function Logs() {
     api.getLogs(50).then((logs) => {
       setEventCount((c) => c + logs.length);
     }).catch(() => {});
+  }, []);
+
+  // Load history on mount: fetch historical events and bootstrap tasks + agent activities
+  useEffect(() => {
+    fetch("/api/events/history?limit=200")
+      .then((res) => res.json())
+      .then((data: { events?: Array<{ type: string; data: unknown; ts: string }> }) => {
+        const evts = data.events;
+        if (!evts || evts.length === 0) {
+          setHistoryLoaded(true);
+          return;
+        }
+
+        // Process historical events for tasks
+        const historicalTasks = new Map<string, TaskItem>();
+        for (const sseEvt of evts) {
+          if (sseEvt.type !== "agent.hook") continue;
+          const evt = sseEvt.data as HookEvent;
+          if (!evt || !evt.agent) continue;
+          const toolName = evt.tool_name ?? "";
+
+          if (evt.event === "PostToolUse" && toolName.includes("TaskCreate")) {
+            const task = parseTaskCreate(evt.tool_input, evt.tool_response, evt.agent);
+            if (task) historicalTasks.set(task.id, task);
+            const resp = evt.tool_response;
+            if (typeof resp === "string") {
+              const match = resp.match(/Task\s+#(\d+)/);
+              if (match) {
+                const numId = match[1]!;
+                for (const [key, t] of historicalTasks) {
+                  if (key.startsWith("task-") && t.owner === evt.agent) {
+                    historicalTasks.delete(key);
+                    historicalTasks.set(numId, { ...t, id: numId });
+                    break;
+                  }
+                }
+                if (!historicalTasks.has(numId)) {
+                  const subjectMatch = resp.match(/Task\s+#\d+\s+created\s+successfully:\s*(.+)/);
+                  const subject = subjectMatch ? subjectMatch[1]!.trim() : "Task #" + numId;
+                  historicalTasks.set(numId, { id: numId, subject, status: "pending", owner: evt.agent });
+                }
+              }
+            }
+          }
+
+          if ((evt.event === "PreToolUse" || evt.event === "PostToolUse") && toolName.includes("TaskUpdate")) {
+            const update = parseTaskUpdate(evt.tool_input);
+            if (update) {
+              const existing = historicalTasks.get(update.taskId);
+              if (existing) {
+                historicalTasks.set(update.taskId, { ...existing, status: update.status });
+              }
+            }
+          }
+
+          if (evt.event === "PostToolUse" && toolName.includes("TaskList")) {
+            const resp = evt.tool_response;
+            if (typeof resp === "string" && resp.trim().length > 0) {
+              const parsed = parseTaskListResponse(resp);
+              if (parsed.length > 0) {
+                historicalTasks.clear();
+                for (const task of parsed) {
+                  historicalTasks.set(task.id, task);
+                }
+              }
+            }
+          }
+        }
+
+        if (historicalTasks.size > 0) {
+          setTasks((prev) => {
+            const next = new Map(historicalTasks);
+            for (const [k, v] of prev) {
+              if (!next.has(k)) next.set(k, v);
+            }
+            return next;
+          });
+        }
+
+        // Process historical events for agent activities
+        const histActivities = new Map<string, AgentActivity>();
+        for (const sseEvt of evts) {
+          if (sseEvt.type !== "agent.hook") continue;
+          const evt = sseEvt.data as HookEvent;
+          if (!evt || !evt.agent) continue;
+          const ts = new Date(sseEvt.ts).getTime() || Date.now();
+
+          let activity = histActivities.get(evt.agent) ?? {
+            name: evt.agent, state: "idle", task: "", tool: "", role: "", tokens: 0,
+            inputTokens: 0, outputTokens: 0, costUsd: 0, lastEventTime: 0, nodes: [], collapsed: false,
+          };
+          activity = { ...activity, nodes: [...activity.nodes] };
+          if (ts > activity.lastEventTime) activity.lastEventTime = ts;
+          if (evt.task) activity.task = evt.task;
+          if (evt.input_tokens) { activity.tokens += evt.input_tokens; activity.inputTokens += evt.input_tokens; }
+          if (evt.output_tokens) { activity.tokens += evt.output_tokens; activity.outputTokens += evt.output_tokens; }
+
+          if (evt.event === "PreToolUse" && evt.tool_name) {
+            activity.nodes.push({
+              id: nextId(), toolName: evt.tool_name, args: summarizeArgs(evt),
+              fullInput: evt.tool_input, fullOutput: null, status: "running",
+              startTime: ts, children: [],
+            });
+          } else if (evt.event === "PostToolUse" && evt.tool_name) {
+            const idx = findLastIdx(activity.nodes,
+              (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
+            );
+            if (idx >= 0) {
+              const node = activity.nodes[idx]!;
+              activity.nodes[idx] = { ...node, status: "completed", endTime: ts, fullOutput: evt.tool_response ?? evt.tool_input };
+            }
+            activity.state = "working";
+          } else if (evt.event === "PostToolUseFailure" && evt.tool_name) {
+            const idx = findLastIdx(activity.nodes,
+              (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
+            );
+            if (idx >= 0) {
+              const node = activity.nodes[idx]!;
+              activity.nodes[idx] = { ...node, status: "failed", endTime: ts, error: evt.error ?? "Failed" };
+            }
+          } else if (evt.event === "Stop" || evt.event === "SessionEnd" || evt.event === "TaskCompleted") {
+            activity.state = "idle";
+          }
+
+          if (activity.nodes.length > MAX_NODES) {
+            activity.nodes = activity.nodes.slice(-MAX_NODES);
+          }
+          histActivities.set(evt.agent, activity);
+        }
+
+        if (histActivities.size > 0) {
+          setActivities((prev) => {
+            const next = new Map(prev);
+            for (const [name, hist] of histActivities) {
+              const existing = next.get(name);
+              if (existing) {
+                const mergedNodes = [...hist.nodes, ...existing.nodes].slice(-MAX_NODES);
+                next.set(name, {
+                  ...existing,
+                  nodes: mergedNodes,
+                  tokens: Math.max(existing.tokens, hist.tokens),
+                  inputTokens: Math.max(existing.inputTokens, hist.inputTokens),
+                  outputTokens: Math.max(existing.outputTokens, hist.outputTokens),
+                  task: existing.task || hist.task,
+                  lastEventTime: Math.max(existing.lastEventTime, hist.lastEventTime),
+                });
+              } else {
+                next.set(name, hist);
+              }
+            }
+            return next;
+          });
+          setEventCount((c) => c + evts.filter((e) => e.type === "agent.hook").length);
+        }
+
+        setHistoryLoaded(true);
+      })
+      .catch(() => {
+        setHistoryLoaded(true);
+      });
   }, []);
 
   // Process buffered hook events
