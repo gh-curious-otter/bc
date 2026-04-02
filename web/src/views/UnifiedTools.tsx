@@ -262,23 +262,7 @@ export function UnifiedTools() {
     finally { setChecking(false); }
   };
 
-  if (loading && !tools) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="h-6 w-32 animate-pulse rounded bg-bc-border/50" />
-        <LoadingSkeleton variant="cards" rows={4} />
-      </div>
-    );
-  }
-  if (timedOut && !tools) {
-    return <div className="p-6"><EmptyState icon="!" title="Tools timed out" actionLabel="Retry" onAction={refresh} /></div>;
-  }
-  if (error && !tools) {
-    return <div className="p-6"><EmptyState icon="!" title="Failed to load tools" description={error} actionLabel="Retry" onAction={refresh} /></div>;
-  }
-
-  // Deduplicate tools by name (first occurrence wins) and apply optimistic toggles.
-  // This prevents duplicate DOM entries when the same tool appears in multiple backend stores.
+  // Hooks MUST be called before any early returns (React rules of hooks).
   const allTools = useMemo(() => {
     const source = checkedTools ?? tools ?? [];
     const seen = new Set<string>();
@@ -294,7 +278,6 @@ export function UnifiedTools() {
 
   const searchLower = search.toLowerCase().trim();
 
-  // Derive filtered views from allTools — never mutate the source array.
   const { providers, mcpTools, cliTools, filteredProviders, filteredMcp, filteredCli } = useMemo(() => {
     const matchesSearch = (t: UnifiedTool) => !searchLower || t.name.toLowerCase().includes(searchLower);
     const prov = allTools.filter((t) => t.type === "provider");
@@ -307,6 +290,22 @@ export function UnifiedTools() {
       filteredCli: cli.filter(matchesSearch),
     };
   }, [allTools, searchLower]);
+
+  // Early returns for loading/error states (after all hooks).
+  if (loading && !tools) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="h-6 w-32 animate-pulse rounded bg-bc-border/50" />
+        <LoadingSkeleton variant="cards" rows={4} />
+      </div>
+    );
+  }
+  if (timedOut && !tools) {
+    return <div className="p-6"><EmptyState icon="!" title="Tools timed out" actionLabel="Retry" onAction={refresh} /></div>;
+  }
+  if (error && !tools) {
+    return <div className="p-6"><EmptyState icon="!" title="Failed to load tools" description={error} actionLabel="Retry" onAction={refresh} /></div>;
+  }
 
   const totalCount = allTools.length;
   const matchCount = filteredProviders.length + filteredMcp.length + filteredCli.length;
