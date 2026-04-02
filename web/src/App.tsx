@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -125,7 +125,6 @@ export function App() {
                   </Suspense>
                 }
               />
-              <Route path="mcp" element={<Navigate to="/tools" replace />} />
               <Route
                 path="logs"
                 element={

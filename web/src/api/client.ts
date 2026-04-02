@@ -177,22 +177,6 @@ export interface EventLogEntry {
   created_at: string;
 }
 
-export interface DoctorItem {
-  name: string;
-  message: string;
-  fix: string;
-  severity: string; // "ok" | "warn" | "error"
-}
-
-export interface DoctorCategory {
-  name: string;
-  items: DoctorItem[];
-}
-
-export interface DoctorReport {
-  categories: DoctorCategory[];
-}
-
 export interface CronJob {
   name: string;
   schedule: string;
@@ -550,8 +534,6 @@ export const api = {
     request<EventLogEntry[]>(
       `/logs?${new URLSearchParams({ tail: String(tail), agent })}`,
     ),
-  getDoctor: () => request<DoctorReport>("/doctor"),
-
   listCron: () => request<CronJob[]>("/cron"),
   createCron: (job: { name: string; schedule: string; command: string }) =>
     request<CronJob>("/cron", { method: "POST", body: JSON.stringify(job) }),

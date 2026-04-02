@@ -77,13 +77,6 @@ export function useCommandPalette() {
         action: () => navigate("/tools"),
       },
       {
-        id: "nav-mcp",
-        label: "MCP",
-        section: "Navigate",
-        icon: "M",
-        action: () => navigate("/mcp"),
-      },
-      {
         id: "nav-cron",
         label: "Cron",
         section: "Navigate",
@@ -117,13 +110,6 @@ export function useCommandPalette() {
         section: "Navigate",
         icon: "W",
         action: () => navigate("/workspace"),
-      },
-      {
-        id: "nav-daemons",
-        label: "Daemons",
-        section: "Navigate",
-        icon: "D",
-        action: () => navigate("/daemons"),
       },
       {
         id: "nav-settings",
