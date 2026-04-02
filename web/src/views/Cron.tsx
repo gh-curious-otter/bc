@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { CronJob, CronLogEntry } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -670,9 +670,6 @@ export function Cron() {
   }
 
   const jobList = jobs ?? [];
-  const pollInterval = jobList.some((j) => j.running) ? 5000 : 10000;
-  // Use pollInterval to hint the polling hook on next render
-  void pollInterval;
 
   return (
     <div className="p-6 space-y-5">
@@ -714,8 +711,8 @@ export function Cron() {
       ) : (
         <div className="grid grid-cols-1 gap-3">
           {jobList.map((j) => (
-            <Fragment key={j.name}>
               <JobCard
+                key={j.name}
                 job={j}
                 expanded={expandedJob === j.name}
                 onToggleExpand={() =>
@@ -725,7 +722,6 @@ export function Cron() {
                 }
                 onRefresh={refresh}
               />
-            </Fragment>
           ))}
         </div>
       )}
