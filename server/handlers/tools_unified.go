@@ -117,7 +117,7 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 		builtins, err := h.toolStore.List(r.Context())
 		if err == nil {
 			for _, t := range builtins {
-				if t.Builtin {
+				if true { // Include all tools from store (builtin and user-added)
 					toolType := "cli"
 					if t.Type != "" {
 						toolType = t.Type
