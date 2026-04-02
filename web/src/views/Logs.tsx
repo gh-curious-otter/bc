@@ -84,7 +84,7 @@ interface TaskItem {
 
 type FilterType = "all" | "tools" | "state";
 
-type DrillDownTab = "live" | "raw" | "tasks";
+type DrillDownTab = "live" | "raw";
 
 interface RawEvent {
   timestamp: number;
@@ -1145,90 +1145,86 @@ function DisplayNodeRow({ node, searchQuery = "" }: { node: DisplayNode; searchQ
   return <ToolNodeRow node={node} searchQuery={searchQuery} />;
 }
 
-/* ── Tasks Panel ───────────────────────────────────────────────────── */
+/* ── Agent Drill-Down View ─────────────────────────────────────────── */
 
-function TasksPanel({ tasks }: { tasks: Map<string, TaskItem> }) {
+function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string, TaskItem>; agentName: string }) {
   const [collapsed, setCollapsed] = useState(false);
 
-  const visible = Array.from(tasks.values()).filter((t) => t.status !== "deleted");
+  const agentTasks = useMemo(() => {
+    const result: TaskItem[] = [];
+    for (const [, task] of tasks) {
+      if (task.owner === agentName || !task.owner) {
+        if (task.status !== "deleted") result.push(task);
+      }
+    }
+    return result;
+  }, [tasks, agentName]);
 
-  const completedCount = visible.filter((t) => t.status === "completed").length;
-  const total = visible.length;
+  const completedCount = agentTasks.filter((t) => t.status === "completed").length;
+  const total = agentTasks.length;
   const progressPct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
 
+  if (total === 0) return null;
+
+  const statusColor: Record<string, string> = {
+    pending: "bg-zinc-500",
+    in_progress: "bg-blue-500",
+    completed: "bg-emerald-500",
+    deleted: "bg-red-500",
+  };
+
   return (
-    <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden mb-3">
+    <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden mb-4">
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
         className="flex items-center gap-2 w-full px-4 py-2.5 text-left hover:bg-bc-surface-hover transition-colors"
       >
+        <span className="text-bc-muted/50 text-[10px] select-none w-3 text-center">
+          {collapsed ? "\u25B6" : "\u25BC"}
+        </span>
         <span className="text-[13px]">{"\u2705"}</span>
         <span className="text-sm font-semibold text-bc-text">Tasks</span>
         <span className="text-xs text-bc-muted font-mono tabular-nums">
-          ({total === 0 ? "0" : `${completedCount}/${total} complete`})
+          ({completedCount}/{total} complete)
         </span>
-        {total > 0 && (
-          <span className="flex-1 mx-2 h-1.5 bg-bc-bg rounded-full overflow-hidden max-w-[200px]">
-            <span
-              className="h-full bg-bc-success rounded-full transition-all duration-300"
-              style={{ width: `${progressPct}%` }}
-            />
-          </span>
-        )}
-        <span className="text-bc-muted text-[10px] select-none shrink-0">
-          {collapsed ? "\u25B6" : "\u25BC"}
+        <span className="flex-1 mx-2 h-1.5 bg-bc-bg rounded-full overflow-hidden max-w-[200px]">
+          <span
+            className="h-full bg-bc-success rounded-full transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
         </span>
       </button>
 
-      {!collapsed && total === 0 && (
-        <div className="border-t border-bc-border/60 px-4 py-3 text-[12px] text-bc-muted italic">
-          No active tasks — tasks appear when agents create them.
-        </div>
-      )}
-
-      {!collapsed && total > 0 && (
+      {!collapsed && (
         <div className="border-t border-bc-border/60 px-4 py-2 space-y-1">
-          {visible.map((task) => {
+          {agentTasks.map((task) => {
             const isBlocked = task.blockedBy && task.blockedBy.length > 0 && task.status !== "completed";
             return (
-            <div key={task.id} className={`flex items-center gap-2 py-0.5 ${isBlocked ? "opacity-50" : ""}`}>
-              {task.status === "completed" ? (
-                <span className="text-bc-success text-xs shrink-0">{"\u2713"}</span>
-              ) : isBlocked ? (
-                <span className="inline-flex h-2 w-2 rounded-full bg-yellow-500/60 shrink-0" />
-              ) : task.status === "in_progress" ? (
-                <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 shrink-0" />
-              ) : (
-                <span className="inline-flex h-2 w-2 rounded-full border border-bc-muted/50 shrink-0" />
-              )}
-              <span
-                className={`text-sm font-mono ${
-                  task.status === "completed"
-                    ? "line-through text-bc-muted/60"
-                    : isBlocked
-                      ? "text-bc-muted"
-                      : task.status === "in_progress"
-                        ? "text-blue-400 font-semibold"
-                        : "text-bc-text"
-                }`}
-              >
-                {task.subject}
-              </span>
-              {isBlocked && (
-                <span className="text-[10px] text-yellow-500/80 font-mono shrink-0">
-                  Blocked by {task.blockedBy!.map(b => `#${b}`).join(", ")}
+              <div key={task.id} className={`flex items-center gap-2 py-1 ${isBlocked ? "opacity-50" : ""}`}>
+                <span className={`inline-flex h-2.5 w-2.5 rounded-full shrink-0 ${statusColor[task.status] ?? "bg-zinc-500"}`} />
+                <span className="text-[11px] text-bc-muted font-mono shrink-0">#{task.id}</span>
+                <span className={`text-sm font-mono min-w-0 ${
+                  task.status === "completed" ? "line-through text-bc-muted/60" :
+                  task.status === "in_progress" ? "text-blue-400 font-semibold" :
+                  "text-bc-text"
+                }`}>
+                  {task.subject.length > 80 ? task.subject.slice(0, 77) + "..." : task.subject}
                 </span>
-              )}
-              {task.owner && (
-                <span className="text-[10px] text-bc-muted font-mono shrink-0">
-                  {task.owner}
+                {isBlocked && (
+                  <span className="text-[10px] text-yellow-500/80 font-mono shrink-0">
+                    Blocked by {task.blockedBy!.map((b) => `#${b}`).join(", ")}
+                  </span>
+                )}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono capitalize shrink-0 ml-auto ${
+                  task.status === "completed" ? "bg-emerald-900/30 text-emerald-400" :
+                  task.status === "in_progress" ? "bg-blue-900/30 text-blue-400" :
+                  task.status === "pending" ? "bg-zinc-800 text-zinc-400" :
+                  "bg-red-900/30 text-red-400"
+                }`}>
+                  {task.status.replace("_", " ")}
                 </span>
-              )}
-              <span className="text-[10px] text-bc-muted font-mono ml-auto shrink-0 capitalize">
-                {task.status.replace("_", " ")}
-              </span>
-            </div>
+              </div>
             );
           })}
         </div>
@@ -1237,7 +1233,81 @@ function TasksPanel({ tasks }: { tasks: Map<string, TaskItem> }) {
   );
 }
 
-/* ── Agent Drill-Down View ─────────────────────────────────────────── */
+/* ── Drill-Down: Full-width individual event row ──────────────────── */
+
+function DrillDownEventRow({ node }: { node: ToolNode }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDetails = !!(node.fullInput || node.fullOutput);
+  const inputJson = node.fullInput ? JSON.stringify(redactValue(node.fullInput), null, 2) : "";
+  const outputJson = node.fullOutput ? JSON.stringify(redactValue(node.fullOutput), null, 2) : "";
+
+  return (
+    <div className={`border-b border-bc-border/30 ${node.status === "failed" ? "bg-red-950/20" : ""}`}>
+      <button
+        type="button"
+        className="group flex items-start gap-3 py-2 px-4 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors"
+        onClick={() => setExpanded(!expanded)}
+        aria-label={`${expanded ? "Collapse" : "Expand"} ${node.toolName} event`}
+      >
+        <span className="text-bc-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-bc-muted">
+          {hasDetails ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
+        </span>
+        <ToolDot status={node.status} />
+        <span className="shrink-0">
+          <ToolNameDisplay toolName={node.toolName} />
+        </span>
+        <span className="text-[12px] text-bc-muted font-mono min-w-0 flex-1 break-words">
+          {redactSecrets(node.args)}
+        </span>
+        <span className="flex items-center gap-2 shrink-0">
+          <RelativeTimestamp ts={node.startTime} />
+          <span className={`text-[11px] tabular-nums font-mono ${node.status === "running" ? "text-bc-muted" : durationColorClass(node.startTime, node.endTime)}`}>
+            {node.status === "running" ? <ElapsedTimer start={node.startTime} /> : elapsed(node.startTime, node.endTime)}
+          </span>
+        </span>
+      </button>
+
+      {node.error && (
+        <div className="text-[11px] text-bc-error/80 font-mono px-4 py-0.5 ml-8">
+          {redactSecrets(node.error.length > 200 ? node.error.slice(0, 197) + "..." : node.error)}
+        </div>
+      )}
+
+      {expanded && !!node.fullInput && (
+        <div className="text-[11px] font-mono px-4 py-2 bg-bc-surface mx-4 mb-1 rounded overflow-x-auto max-h-64 overflow-y-auto">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-bc-muted uppercase tracking-wide font-semibold">Input</span>
+            <CopyButton text={inputJson} />
+          </div>
+          <pre className="whitespace-pre-wrap break-all text-bc-muted">{inputJson}</pre>
+        </div>
+      )}
+
+      {expanded && !!node.fullOutput && (
+        <div className="text-[11px] font-mono px-4 py-2 bg-bc-surface mx-4 mb-1 rounded overflow-x-auto max-h-64 overflow-y-auto">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-bc-success uppercase tracking-wide font-semibold">Output</span>
+            <CopyButton text={outputJson} />
+          </div>
+          <pre className="whitespace-pre-wrap break-all text-bc-success/80">{outputJson}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Drill-Down: Raw event type badge colors ──────────────────────── */
+
+function rawEventBadgeColor(eventType: string): string {
+  if (eventType === "PreToolUse") return "bg-blue-900/40 text-blue-300";
+  if (eventType === "PostToolUse") return "bg-emerald-900/40 text-emerald-300";
+  if (eventType === "PostToolUseFailure") return "bg-red-900/40 text-red-300";
+  if (eventType === "UserPromptSubmit") return "bg-purple-900/40 text-purple-300";
+  if (eventType.startsWith("Subagent")) return "bg-amber-900/40 text-amber-300";
+  if (eventType === "PermissionRequest" || eventType === "Elicitation") return "bg-yellow-900/40 text-yellow-300";
+  if (eventType === "SessionStart" || eventType === "SessionEnd") return "bg-zinc-700 text-zinc-300";
+  return "bg-zinc-800 text-zinc-400";
+}
 
 function AgentDrillDown({
   activity,
@@ -1254,23 +1324,11 @@ function AgentDrillDown({
   const [rawExpanded, setRawExpanded] = useState<Set<number>>(new Set());
 
   const cost = estimateCost(activity);
-  const displayNodes = aggregateNodes(sortNodes(activity.nodes), undefined, activity.nodes.length);
 
-  // Filter tasks owned by this agent
-  const agentTasks = useMemo(() => {
-    const result = new Map<string, TaskItem>();
-    for (const [id, task] of tasks) {
-      if (task.owner === activity.name || !task.owner) {
-        result.set(id, task);
-      }
-    }
-    return result;
-  }, [tasks, activity.name]);
-
-  const allTasks = Array.from(agentTasks.values()).filter((t) => t.status !== "deleted");
-  const completedCount = allTasks.filter((t) => t.status === "completed").length;
-  const total = allTasks.length;
-  const progressPct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+  // Show ALL events individually in drill-down — no aggregation
+  const allNodes = useMemo(() => {
+    return [...activity.nodes].sort((a, b) => b.startTime - a.startTime);
+  }, [activity.nodes]);
 
   const toggleRawExpanded = useCallback((idx: number) => {
     setRawExpanded((prev) => {
@@ -1281,17 +1339,12 @@ function AgentDrillDown({
     });
   }, []);
 
-  const statusColor: Record<string, string> = {
-    pending: "bg-zinc-500",
-    in_progress: "bg-blue-500",
-    completed: "bg-emerald-500",
-    deleted: "bg-red-500",
-  };
+  // Reverse raw events so newest at top
+  const reversedRawEvents = useMemo(() => [...rawEvents].reverse(), [rawEvents]);
 
   const tabs: { key: DrillDownTab; label: string }[] = [
     { key: "live", label: "Live Stream" },
     { key: "raw", label: "Raw Stream" },
-    { key: "tasks", label: `Tasks${total > 0 ? ` (${completedCount}/${total})` : ""}` },
   ];
 
   return (
@@ -1310,7 +1363,7 @@ function AgentDrillDown({
         </button>
         <StateDot state={activity.state} />
         <span className="text-lg font-bold text-bc-text">{activity.name}</span>
-        <span className="text-xs text-bc-muted font-mono">{activity.role}</span>
+        <span className="text-xs text-bc-muted font-mono">({activity.role})</span>
         <span className="text-xs text-bc-muted capitalize font-mono">{activity.state}</span>
         {activity.tokens > 0 && (
           <span className="text-xs text-bc-muted font-mono tabular-nums">
@@ -1326,6 +1379,9 @@ function AgentDrillDown({
           <span className="text-xs text-bc-muted truncate max-w-[400px]">{activity.task}</span>
         )}
       </div>
+
+      {/* Tasks section — above tabs */}
+      <DrillDownTasksSection tasks={tasks} agentName={activity.name} />
 
       {/* Tabs */}
       <div className="flex items-center gap-0 border-b border-bc-border mb-4">
@@ -1347,32 +1403,30 @@ function AgentDrillDown({
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        {/* Live Stream tab */}
+        {/* Live Stream tab — ALL events individually, no aggregation */}
         {activeTab === "live" && (
-          <div className="space-y-0">
-            {displayNodes.length === 0 ? (
+          <div>
+            {allNodes.length === 0 ? (
               <div className="text-sm text-bc-muted italic py-8 text-center">
                 No tool events yet for this agent.
               </div>
             ) : (
-              displayNodes.map((node) => (
-                <div key={isAggregatedNode(node) ? node.id : node.id}>
-                  <DisplayNodeRow node={node} />
-                </div>
+              allNodes.map((node) => (
+                <DrillDownEventRow key={node.id} node={node} />
               ))
             )}
           </div>
         )}
 
-        {/* Raw Stream tab */}
+        {/* Raw Stream tab — timestamped JSON blocks, newest at top */}
         {activeTab === "raw" && (
           <div className="space-y-1">
-            {rawEvents.length === 0 ? (
+            {reversedRawEvents.length === 0 ? (
               <div className="text-sm text-bc-muted italic py-8 text-center">
                 No raw events captured for this agent yet.
               </div>
             ) : (
-              rawEvents.map((evt, idx) => {
+              reversedRawEvents.map((evt, idx) => {
                 const isOpen = rawExpanded.has(idx);
                 const jsonStr = JSON.stringify(redactValue(evt.raw), null, 2);
                 return (
@@ -1386,9 +1440,9 @@ function AgentDrillDown({
                         {isOpen ? "\u25BC" : "\u25B6"}
                       </span>
                       <span className="text-[10px] text-bc-muted font-mono tabular-nums shrink-0">
-                        {new Date(evt.timestamp).toLocaleTimeString()}
+                        {new Date(evt.timestamp).toISOString().replace("T", " ").slice(0, 23)}
                       </span>
-                      <span className="text-[12px] text-bc-accent font-mono font-medium shrink-0">
+                      <span className={`text-[11px] font-mono font-medium shrink-0 px-1.5 py-0.5 rounded ${rawEventBadgeColor(evt.eventType)}`}>
                         {evt.eventType}
                       </span>
                       <span className="text-[11px] text-bc-muted font-mono truncate flex-1">
@@ -1411,88 +1465,6 @@ function AgentDrillDown({
             )}
           </div>
         )}
-
-        {/* Tasks tab */}
-        {activeTab === "tasks" && (
-          <div>
-            {/* Progress bar */}
-            {total > 0 && (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-sm font-medium text-bc-text">Progress</span>
-                  <span className="text-xs text-bc-muted font-mono tabular-nums">
-                    {completedCount}/{total} ({progressPct}%)
-                  </span>
-                </div>
-                <div className="h-2 bg-bc-bg rounded-full overflow-hidden border border-bc-border/40">
-                  <div
-                    className="h-full bg-bc-success rounded-full transition-all duration-300"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {total === 0 ? (
-              <div className="text-sm text-bc-muted italic py-8 text-center">
-                No tasks found for this agent.
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {allTasks.map((task) => {
-                  const isBlocked = task.blockedBy && task.blockedBy.length > 0 && task.status !== "completed";
-                  return (
-                    <div
-                      key={task.id}
-                      className={`flex items-start gap-3 py-2 px-3 rounded border border-bc-border/40 bg-bc-surface ${isBlocked ? "opacity-60" : ""}`}
-                    >
-                      {/* Status indicator */}
-                      <span className={`inline-flex h-2.5 w-2.5 mt-1 rounded-full shrink-0 ${statusColor[task.status] ?? "bg-zinc-500"}`} />
-
-                      {/* Task info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-bc-muted font-mono shrink-0">#{task.id}</span>
-                          <span className={`text-sm font-mono ${
-                            task.status === "completed" ? "line-through text-bc-muted/60" : "text-bc-text"
-                          }`}>
-                            {task.subject.length > 80 ? task.subject.slice(0, 77) + "..." : task.subject}
-                          </span>
-                        </div>
-
-                        {/* Blocked by */}
-                        {isBlocked && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <span className="text-[10px] text-yellow-500/80 font-mono">
-                              Blocked by: {task.blockedBy!.map((b) => `#${b}`).join(", ")}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Owner */}
-                        {task.owner && (
-                          <span className="text-[10px] text-bc-muted font-mono">
-                            Owner: {task.owner}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Status badge */}
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono capitalize shrink-0 ${
-                        task.status === "completed" ? "bg-emerald-900/30 text-emerald-400" :
-                        task.status === "in_progress" ? "bg-blue-900/30 text-blue-400" :
-                        task.status === "pending" ? "bg-zinc-800 text-zinc-400" :
-                        "bg-red-900/30 text-red-400"
-                      }`}>
-                        {task.status.replace("_", " ")}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1503,7 +1475,6 @@ function AgentDrillDown({
 const AgentCard = memo(function AgentCard({
   activity,
   onToggle,
-  onClickFilter,
   onDrillDown,
   isFilterActive,
   searchTerm,
@@ -1512,7 +1483,6 @@ const AgentCard = memo(function AgentCard({
 }: {
   activity: AgentActivity;
   onToggle: () => void;
-  onClickFilter: () => void;
   onDrillDown: () => void;
   isFilterActive: boolean;
   searchTerm: string;
@@ -1538,11 +1508,12 @@ const AgentCard = memo(function AgentCard({
   return (
     <div className={`rounded-lg border bg-bc-surface overflow-hidden transition-colors ${isFilterActive ? "border-bc-accent ring-1 ring-bc-accent/30" : "border-bc-border"}`}>
       <div className="flex items-center">
+        {/* Expand/collapse chevron for tool list */}
         <button
           type="button"
-          onClick={onToggle}
+          onClick={(e) => { e.stopPropagation(); onToggle(); }}
           className="flex items-center gap-3 px-4 py-3 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent shrink-0"
-          aria-label={`${activity.collapsed ? "Expand" : "Collapse"} ${activity.name}`}
+          aria-label={`${activity.collapsed ? "Expand" : "Collapse"} ${activity.name} tool list`}
         >
           <svg
             width="12" height="12" viewBox="0 0 12 12" fill="none"
@@ -1553,11 +1524,12 @@ const AgentCard = memo(function AgentCard({
           </svg>
         </button>
 
+        {/* Clickable header area — opens drill-down */}
         <button
           type="button"
-          onClick={onClickFilter}
-          className="flex-1 flex items-center gap-3 py-3 pr-4 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent min-w-0"
-          title={isFilterActive ? "Click to clear agent filter" : `Click to filter by ${activity.name}`}
+          onClick={onDrillDown}
+          className="flex-1 flex items-center gap-3 py-3 pr-4 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent min-w-0 cursor-pointer"
+          title={`Open ${activity.name} detail view`}
         >
           <StateDot state={activity.state} />
 
@@ -1608,20 +1580,10 @@ const AgentCard = memo(function AgentCard({
                 {activity.tokens.toLocaleString()} tok
               </span>
             )}
+            <span className="text-[11px] text-bc-muted/60 group-hover:text-bc-accent transition-colors">
+              View details &rarr;
+            </span>
           </span>
-        </button>
-
-        {/* Drill-down chevron */}
-        <button
-          type="button"
-          onClick={onDrillDown}
-          className="px-3 py-3 text-bc-muted hover:text-bc-accent hover:bg-bc-surface-hover transition-colors shrink-0 border-l border-bc-border/40"
-          title={`Open ${activity.name} detail view`}
-          aria-label={`Open ${activity.name} detail view`}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M5 2l5 5-5 5" />
-          </svg>
         </button>
       </div>
 
@@ -2183,10 +2145,6 @@ export function Logs() {
     });
   }, []);
 
-  const toggleCardFilter = useCallback((name: string) => {
-    setAgentFilter((prev) => (prev === name ? "" : name));
-  }, []);
-
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -2408,9 +2366,6 @@ export function Logs() {
         )}
       </div>
 
-      {/* Tasks Panel (pinned below filter bar, above agent cards) */}
-      <TasksPanel tasks={tasks} />
-
       {/* Historical divider removed — history persistence disabled */}
 
       {/* Agent Activity Cards */}
@@ -2430,7 +2385,6 @@ export function Logs() {
               <AgentCard
                 activity={activity}
                 onToggle={() => toggleAgent(activity.name)}
-                onClickFilter={() => toggleCardFilter(activity.name)}
                 onDrillDown={() => setDrillDownAgent(activity.name)}
                 isFilterActive={agentFilter === activity.name}
                 searchTerm={searchFilter}
