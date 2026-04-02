@@ -28,6 +28,7 @@ function providerStatus(provider: ProviderDetailResponse): string {
   return "stopped";
 }
 
+
 /* ── Section: Header ── */
 
 function ProviderHeader({
@@ -286,11 +287,11 @@ function MCPSection({
         newMap[t.name] = { status: t.status, error: t.error };
       }
       setHealthMap(newMap);
-      const errors = mcpTools.filter((t) => !isHealthy(t.status));
-      if (errors.length === 0) {
+      const unhealthy = mcpTools.filter((t) => !isHealthy(t.status));
+      if (unhealthy.length === 0) {
         onToast("success", `All ${mcpTools.length} MCP server(s) healthy`);
       } else {
-        onToast("error", `${errors.length} of ${mcpTools.length} MCP server(s) have issues`);
+        onToast("error", `${unhealthy.length} of ${mcpTools.length} MCP server(s) have issues`);
       }
     } catch (err) {
       onToast("error", err instanceof Error ? err.message : "Health check failed");

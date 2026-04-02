@@ -1,21 +1,11 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ProviderInfo } from "../api/client";
+import { formatCost, formatTokens } from "../utils/format";
 import { EmptyState } from "./EmptyState";
 
 type SortKey = "name" | "status" | "version" | "agent_count" | "total_tokens" | "total_cost_usd";
 type SortDir = "asc" | "desc";
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
-}
-
-function formatCost(n: number): string {
-  if (n === 0) return "$0.00";
-  return `$${n.toFixed(2)}`;
-}
 
 function statusOrder(p: ProviderInfo): number {
   if (p.installed && p.agent_count > 0) return 0; // active
