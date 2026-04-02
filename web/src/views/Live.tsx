@@ -284,10 +284,25 @@ function elapsed(start: number, end?: number): string {
 
 function durationColorClass(start: number, end?: number): string {
   const ms = (end ?? Date.now()) - start;
-  if (ms < 500) return "text-emerald-400";
-  if (ms < 2000) return "text-yellow-400";
-  if (ms < 10000) return "text-orange-400";
-  return "text-red-400";
+  if (ms < 500) return "text-bc-success";
+  if (ms < 2000) return "text-bc-warning";
+  if (ms < 10000) return "text-bc-accent";
+  return "text-bc-error";
+}
+
+function durationPillClass(start: number, end?: number): string {
+  const ms = (end ?? Date.now()) - start;
+  if (ms < 500) return "bg-bc-success/15 text-bc-success";
+  if (ms < 2000) return "bg-bc-warning/15 text-bc-warning";
+  if (ms < 10000) return "bg-bc-accent/15 text-bc-accent";
+  return "bg-bc-error/15 text-bc-error";
+}
+
+function stateBadgeClass(state: string): string {
+  if (state === "working") return "bg-bc-success/15 text-bc-success";
+  if (state === "stuck") return "bg-bc-warning/15 text-bc-warning";
+  if (state === "error" || state === "stopped") return "bg-bc-error/15 text-bc-error";
+  return "bg-bc-muted/15 text-bc-muted";
 }
 
 function relativeTime(ts: number): string {
@@ -688,14 +703,19 @@ function StateDot({ state }: { state: string }) {
   if (state === "working")
     return (
       <span className="relative flex h-2.5 w-2.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500" />
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-bc-success opacity-75" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-bc-success" />
       </span>
     );
   if (state === "stuck")
-    return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />;
+    return (
+      <span className="relative flex h-2.5 w-2.5">
+        <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-bc-warning opacity-50" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-bc-warning" />
+      </span>
+    );
   if (state === "error" || state === "stopped")
-    return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-bc-error/60" />;
+    return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-bc-error" />;
   return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-bc-muted/40" />;
 }
 
@@ -703,8 +723,8 @@ function ToolDot({ status }: { status: ToolNode["status"] }) {
   if (status === "running")
     return (
       <span className="relative flex h-2 w-2 mt-[5px] shrink-0">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+        <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-bc-accent opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-bc-accent" />
       </span>
     );
   if (status === "failed")
@@ -813,7 +833,7 @@ function ToolNameDisplay({ toolName, searchQuery }: { toolName: string; searchQu
   return (
     <span className="inline-flex items-center gap-1">
       <span className="text-[12px]" aria-hidden="true">{toolIcon(toolName)}</span>
-      <span className="font-mono text-[13px] text-bc-text font-medium">
+      <span className="font-mono text-[13px] text-bc-text font-semibold">
         {searchQuery ? <SearchHighlight text={parsed.display} query={searchQuery} /> : parsed.display}
       </span>
     </span>
@@ -840,19 +860,29 @@ function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolNode; de
     <>
       <button
         type="button"
-        className={`group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${node.status === "failed" ? "!bg-red-950/30 hover:!bg-red-950/40" : ""}`}
+        className={`group flex items-center gap-2 py-1.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${node.status === "failed" ? "!bg-bc-error/5 hover:!bg-bc-error/10" : ""}`}
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} tool ${node.toolName}`}
       >
-        <span className="text-bc-muted text-xs select-none mt-[3px] shrink-0">
+        <span className="text-bc-muted text-xs select-none shrink-0">
           {depth > 0 ? "\u251C\u2500" : ""}
         </span>
-        <span className="text-bc-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-bc-muted">
-          {hasDetails ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
+        {/* Animated chevron */}
+        <motion.span
+          className="text-bc-muted/50 text-[10px] select-none shrink-0 w-3 text-center group-hover:text-bc-muted"
+          animate={{ rotate: hasDetails ? (expanded ? 90 : 0) : 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          {hasDetails ? "\u25B6" : "\u00B7"}
+        </motion.span>
+        {/* Tool icon in rounded container */}
+        <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-bc-surface border border-bc-border/60 shrink-0">
+          <ToolDot status={node.status} />
         </span>
-        <ToolDot status={node.status} />
-        <ToolNameDisplay toolName={node.toolName} searchQuery={searchQuery} />
+        <span className="shrink-0">
+          <ToolNameDisplay toolName={node.toolName} searchQuery={searchQuery} />
+        </span>
         {node.args && (
           <span className="text-[12px] text-bc-muted font-mono min-w-0 flex-1 break-words" title={redactSecrets(node.args)}>
             {searchQuery ? <SearchHighlight text={redactSecrets(node.args)} query={searchQuery} /> : redactSecrets(node.args)}
@@ -860,7 +890,8 @@ function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolNode; de
         )}
         <span className="flex items-center gap-2 shrink-0">
           <RelativeTimestamp ts={node.startTime} />
-          <span className={`text-[11px] tabular-nums font-mono ${node.status === "running" ? "text-bc-muted" : durationColorClass(node.startTime, node.endTime)}`}>
+          {/* Duration pill with color-coded background */}
+          <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${node.status === "running" ? "bg-bc-muted/10 text-bc-muted" : durationPillClass(node.startTime, node.endTime)}`}>
             {node.status === "running" ? (
               <ElapsedTimer start={node.startTime} />
             ) : (
@@ -1158,30 +1189,33 @@ function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string, TaskIt
       </button>
 
       {!collapsed && (
-        <div className="border-t border-bc-border/60 px-4 py-2 space-y-1">
+        <div className="border-t border-bc-border/60 px-4 py-2 space-y-1.5">
           {agentTasks.map((task) => {
             const isBlocked = task.blockedBy && task.blockedBy.length > 0 && task.status !== "completed";
+            const borderColor = task.status === "completed" ? "border-l-bc-success" :
+              task.status === "in_progress" ? "border-l-bc-accent" :
+              task.status === "pending" ? "border-l-bc-muted" :
+              "border-l-bc-error";
             return (
-              <div key={task.id} className={`flex items-center gap-2 py-1 ${isBlocked ? "opacity-50" : ""}`}>
-                <span className={`inline-flex h-2.5 w-2.5 rounded-full shrink-0 ${statusColor[task.status] ?? "bg-zinc-500"}`} />
+              <div key={task.id} className={`flex items-center gap-2 py-1.5 px-2.5 rounded-md bg-bc-bg border-l-2 ${borderColor} ${isBlocked ? "opacity-50" : ""}`}>
                 <span className="text-[11px] text-bc-muted font-mono shrink-0">#{task.id}</span>
                 <span className={`text-sm font-mono min-w-0 ${
                   task.status === "completed" ? "line-through text-bc-muted/60" :
-                  task.status === "in_progress" ? "text-blue-400 font-semibold" :
+                  task.status === "in_progress" ? "text-bc-accent font-semibold" :
                   "text-bc-text"
                 }`}>
                   {task.subject.length > 80 ? task.subject.slice(0, 77) + "..." : task.subject}
                 </span>
                 {isBlocked && (
-                  <span className="text-[10px] text-yellow-500/80 font-mono shrink-0">
+                  <span className="text-[10px] text-bc-warning/80 font-mono shrink-0">
                     Blocked by {task.blockedBy!.map((b) => `#${b}`).join(", ")}
                   </span>
                 )}
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono capitalize shrink-0 ml-auto ${
-                  task.status === "completed" ? "bg-emerald-900/30 text-emerald-400" :
-                  task.status === "in_progress" ? "bg-blue-900/30 text-blue-400" :
-                  task.status === "pending" ? "bg-zinc-800 text-zinc-400" :
-                  "bg-red-900/30 text-red-400"
+                  task.status === "completed" ? "bg-bc-success/15 text-bc-success" :
+                  task.status === "in_progress" ? "bg-bc-accent/15 text-bc-accent" :
+                  task.status === "pending" ? "bg-bc-muted/15 text-bc-muted" :
+                  "bg-bc-error/15 text-bc-error"
                 }`}>
                   {task.status.replace("_", " ")}
                 </span>
@@ -1203,17 +1237,25 @@ function DrillDownEventRow({ node }: { node: ToolNode }) {
   const outputJson = node.fullOutput ? JSON.stringify(redactValue(node.fullOutput), null, 2) : "";
 
   return (
-    <div className={`border-b border-bc-border/30 ${node.status === "failed" ? "bg-red-950/20" : ""}`}>
+    <div className={`border-b border-bc-border/30 ${node.status === "failed" ? "bg-bc-error/5" : ""}`}>
       <button
         type="button"
-        className="group flex items-start gap-3 py-2 px-4 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors"
+        className="group flex items-center gap-3 py-2.5 px-4 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors"
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${node.toolName} event`}
       >
-        <span className="text-bc-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-bc-muted">
-          {hasDetails ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
+        {/* Animated chevron */}
+        <motion.span
+          className="text-bc-muted/50 text-[10px] select-none shrink-0 w-3 text-center group-hover:text-bc-muted"
+          animate={{ rotate: hasDetails ? (expanded ? 90 : 0) : 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          {hasDetails ? "\u25B6" : "\u00B7"}
+        </motion.span>
+        {/* Icon container */}
+        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-bc-surface border border-bc-border/60 shrink-0">
+          <ToolDot status={node.status} />
         </span>
-        <ToolDot status={node.status} />
         <span className="shrink-0">
           <ToolNameDisplay toolName={node.toolName} />
         </span>
@@ -1222,7 +1264,7 @@ function DrillDownEventRow({ node }: { node: ToolNode }) {
         </span>
         <span className="flex items-center gap-2 shrink-0">
           <RelativeTimestamp ts={node.startTime} />
-          <span className={`text-[11px] tabular-nums font-mono ${node.status === "running" ? "text-bc-muted" : durationColorClass(node.startTime, node.endTime)}`}>
+          <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${node.status === "running" ? "bg-bc-muted/10 text-bc-muted" : durationPillClass(node.startTime, node.endTime)}`}>
             {node.status === "running" ? <ElapsedTimer start={node.startTime} /> : elapsed(node.startTime, node.endTime)}
           </span>
         </span>
@@ -1417,7 +1459,13 @@ function AgentDrillDown({
                           <CopyButton text={jsonStr} />
                         </div>
                         <pre className="text-[11px] font-mono text-bc-muted whitespace-pre-wrap break-all max-h-64 overflow-y-auto">
-                          {jsonStr}
+                          {jsonStr.split("\n").map((line, i) => (
+                            <span key={i} className="flex">
+                              <span className="select-none text-bc-muted/30 w-8 text-right pr-3 shrink-0 tabular-nums">{i + 1}</span>
+                              <span>{line}</span>
+                              {"\n"}
+                            </span>
+                          ))}
                         </pre>
                       </div>
                     )}
@@ -1467,127 +1515,158 @@ const AgentCard = memo(function AgentCard({
 
   const skipAnimation = isPaused || visibleNodes.length > 5;
 
+  const monogram = activity.name.charAt(0).toUpperCase();
+  const cost = estimateCost(activity);
+  const isIdle = activity.state === "idle" || activity.state === "stopped";
+
   return (
-    <div className={`rounded-lg border bg-bc-surface overflow-hidden transition-colors ${isFilterActive ? "border-bc-accent ring-1 ring-bc-accent/30" : "border-bc-border"}`}>
+    <motion.div
+      className={`rounded-lg border bg-bc-surface overflow-hidden transition-colors ${isFilterActive ? "border-bc-accent ring-1 ring-bc-accent/30" : "border-bc-border"}`}
+      whileHover={{ y: -1 }}
+      transition={{ duration: 0.15 }}
+    >
       <div className="flex items-center">
         {/* Expand/collapse chevron for tool list */}
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
-          className="flex items-center gap-3 px-4 py-3 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent shrink-0"
+          className="flex items-center gap-3 px-3 py-3 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent shrink-0"
           aria-label={`${activity.collapsed ? "Expand" : "Collapse"} ${activity.name} tool list`}
         >
-          <svg
+          <motion.svg
             width="12" height="12" viewBox="0 0 12 12" fill="none"
             stroke="currentColor" strokeWidth="2"
-            className={`text-bc-muted transition-transform ${activity.collapsed ? "" : "rotate-90"}`}
+            className="text-bc-muted"
+            animate={{ rotate: activity.collapsed ? 0 : 90 }}
+            transition={{ duration: 0.15 }}
           >
             <path d="M4 2l4 4-4 4" />
-          </svg>
+          </motion.svg>
         </button>
 
-        {/* Clickable header area — opens drill-down */}
+        {/* Clickable header area -- opens drill-down */}
         <button
           type="button"
           onClick={onDrillDown}
-          className="flex-1 flex items-center gap-3 py-3 pr-4 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent min-w-0 cursor-pointer"
+          className="group flex-1 flex items-center gap-3 py-3 pr-4 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent min-w-0 cursor-pointer"
           title={`Open ${activity.name} detail view`}
         >
-          <StateDot state={activity.state} />
-
-          <span className="font-semibold text-[14px] text-bc-text">
-            {activity.name}
+          {/* Monogram circle */}
+          <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-bc-accent/20 text-bc-accent font-bold text-sm shrink-0">
+            {monogram}
           </span>
 
-          {errorCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-bc-error rounded-full leading-none">
-              {errorCount}
+          {/* Name + role + state */}
+          <div className="flex flex-col min-w-0">
+            <span className="flex items-center gap-2">
+              <span className="font-bold text-[15px] text-bc-text leading-tight">
+                {activity.name}
+              </span>
+              <StateDot state={activity.state} />
+              {errorCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-bc-error rounded-full leading-none">
+                  {errorCount}
+                </span>
+              )}
             </span>
-          )}
+            <span className="flex items-center gap-2 mt-0.5">
+              <span className="text-[11px] text-bc-muted font-mono">{activity.role}</span>
+              <span className={`text-[10px] font-mono capitalize px-1.5 py-0.5 rounded-full leading-none ${stateBadgeClass(activity.state)}`}>
+                {activity.state}
+              </span>
+            </span>
+          </div>
 
           {searchTerm && matchCount > 0 && (
-            <span className="text-[11px] text-bc-accent font-mono">
+            <span className="text-[11px] text-bc-accent font-mono shrink-0">
               {matchCount} {matchCount === 1 ? "match" : "matches"}
             </span>
           )}
 
-          <span className="text-[11px] text-bc-muted font-mono">
-            {activity.role}
-          </span>
-
           {activity.task && (
-            <span className="text-[12px] text-bc-muted truncate max-w-[300px]">
+            <span className="text-[12px] text-bc-muted truncate max-w-[250px] hidden lg:inline">
               {activity.task}
             </span>
           )}
 
-          <span className="ml-auto flex items-center gap-3">
-            {typeFilter === "state" && (
-              <span className="text-[11px] text-bc-muted font-mono capitalize">
-                {activity.state}
-              </span>
-            )}
+          <span className="ml-auto flex items-center gap-3 shrink-0">
             {runningCount > 0 && (
-              <span className="text-[11px] text-blue-400 font-mono">
+              <span className="text-[11px] text-bc-accent font-mono tabular-nums">
                 {runningCount} running
               </span>
             )}
-            {estimateCost(activity) > 0 && (
-              <span className="text-[11px] text-bc-success font-mono tabular-nums" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
-                ${estimateCost(activity).toFixed(2)}
+            {/* Cost -- prominent */}
+            {cost > 0 && (
+              <span className="text-xs font-semibold text-bc-success font-mono tabular-nums px-1.5 py-0.5 rounded bg-bc-success/10" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
+                ${cost.toFixed(2)}
               </span>
             )}
+            {/* Tokens */}
             {activity.tokens > 0 && (
               <span className="text-[11px] text-bc-muted font-mono tabular-nums">
                 {activity.tokens.toLocaleString()} tok
               </span>
             )}
-            <span className="text-[11px] text-bc-muted/60 group-hover:text-bc-accent transition-colors">
-              View details &rarr;
+            {/* Idle chip */}
+            {isIdle && activity.lastEventTime > 0 && (
+              <span className="text-[10px] text-bc-muted/60 font-mono px-1.5 py-0.5 rounded bg-bc-muted/10">
+                <IdleTimer lastEventTime={activity.lastEventTime} />
+              </span>
+            )}
+            <span className="text-[11px] text-bc-muted/60 group-hover:text-bc-accent transition-colors hidden sm:inline">
+              &rarr;
             </span>
           </span>
         </button>
       </div>
 
-      {!activity.collapsed && showToolNodes && displayNodes.length > 0 && (
-        <div className="border-t border-bc-border/60 py-1">
-          {visibleNodes.length > 3 && (
-            <div className="flex justify-end px-3 py-1">
-              <button
-                type="button"
-                onClick={() => setCollapseOld((prev) => !prev)}
-                className="text-[10px] text-bc-muted hover:text-bc-accent font-mono transition-colors"
-              >
-                {collapseOld ? "Show all" : "Collapse old"}
-              </button>
-            </div>
-          )}
-          <AnimatePresence mode="popLayout" initial={false}>
-            {displayNodes.map((node) => {
-              const nodeKey = node.id;
-              if (skipAnimation) {
-                return (
-                  <div key={nodeKey}>
-                    <DisplayNodeRow node={node} searchQuery={searchTerm} />
-                  </div>
-                );
-              }
-              return (
-                <motion.div
-                  key={nodeKey}
-                  initial={{ opacity: 0, y: -20, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                  layout
+      <AnimatePresence initial={false}>
+        {!activity.collapsed && showToolNodes && displayNodes.length > 0 && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="border-t border-bc-border/60 py-1 overflow-hidden"
+          >
+            {visibleNodes.length > 3 && (
+              <div className="flex justify-end px-3 py-1">
+                <button
+                  type="button"
+                  onClick={() => setCollapseOld((prev) => !prev)}
+                  className="text-[10px] text-bc-muted hover:text-bc-accent font-mono transition-colors"
                 >
-                  <DisplayNodeRow node={node} searchQuery={searchTerm} />
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </div>
-      )}
+                  {collapseOld ? "Show all" : "Collapse old"}
+                </button>
+              </div>
+            )}
+            <AnimatePresence mode="popLayout" initial={false}>
+              {displayNodes.map((node) => {
+                const nodeKey = node.id;
+                if (skipAnimation) {
+                  return (
+                    <div key={nodeKey}>
+                      <DisplayNodeRow node={node} searchQuery={searchTerm} />
+                    </div>
+                  );
+                }
+                return (
+                  <motion.div
+                    key={nodeKey}
+                    initial={{ opacity: 0, y: -20, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    layout
+                  >
+                    <DisplayNodeRow node={node} searchQuery={searchTerm} />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {!activity.collapsed && showToolNodes && visibleNodes.length === 0 && !searchTerm && (
         <div className="border-t border-bc-border/60 py-3 px-4 text-[12px] text-bc-muted italic">
@@ -1608,7 +1687,7 @@ const AgentCard = memo(function AgentCard({
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 });
 
@@ -2152,28 +2231,37 @@ export function Live() {
         <h1 className="text-xl font-bold text-bc-text flex items-center gap-2 shrink-0 pl-10 sm:pl-0">
           Live
           <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-bc-error opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-bc-error" />
           </span>
         </h1>
         <span className="text-sm text-bc-muted hidden sm:inline">Real-time agent activity</span>
-        <span className="ml-auto flex items-center gap-3">
-          <span className="flex items-center gap-1.5" title={sseTooltip}>
-            <span className={`inline-flex h-2 w-2 rounded-full ${sseDotColor}${reconnecting ? " animate-pulse" : ""}`} />
-            <span className={`text-[10px] font-mono hidden sm:inline ${reconnecting ? "text-yellow-400" : "text-bc-muted"}`}>{sseStatus}</span>
+        <span className="ml-auto flex items-center gap-2">
+          {/* SSE connection indicator */}
+          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono ${connected ? "bg-bc-success/10 text-bc-success" : reconnecting ? "bg-bc-warning/10 text-bc-warning" : "bg-bc-error/10 text-bc-error"}`} title={sseTooltip}>
+            <span className={`inline-flex h-1.5 w-1.5 rounded-full ${sseDotColor}${reconnecting ? " animate-pulse" : ""}`} />
+            <span className="hidden sm:inline">{connected ? "Connected" : reconnecting ? "Reconnecting" : "Disconnected"}</span>
           </span>
-          <span className="text-xs text-bc-muted font-mono tabular-nums">{eventCount} events</span>
+          {/* Event count pill */}
+          <span className="text-[11px] text-bc-muted font-mono tabular-nums px-2 py-1 rounded-md bg-bc-surface border border-bc-border">{eventCount.toLocaleString()} events</span>
+          {/* Pause/Resume button */}
           <button
             type="button"
             onClick={() => paused ? handleResume() : setPaused(true)}
-            className={`relative inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${paused ? "border-amber-500 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 animate-pulse" : "border-bc-border hover:border-bc-accent bg-bc-surface text-bc-text"}`}
+            className={`relative inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors ${paused ? "border-bc-warning bg-bc-warning/15 text-bc-warning hover:bg-bc-warning/25" : "border-bc-border hover:border-bc-accent bg-bc-surface text-bc-text"}`}
             title={paused ? `Resume (${pausedCount} buffered)` : "Pause stream"}
           >
-            {paused ? "\u25B6" : "\u23F8"}
+            {paused ? (
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="1,0 10,5 1,10" /></svg>
+            ) : (
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="1" y="0" width="3" height="10" /><rect x="6" y="0" width="3" height="10" /></svg>
+            )}
+            <span className="hidden sm:inline">{paused ? "Resume" : "Pause"}</span>
             {paused && pausedCount > 0 && (
-              <span className="text-[10px] font-bold text-amber-300 ml-0.5">({pausedCount})</span>
+              <span className="text-[10px] font-bold text-bc-warning ml-0.5">({pausedCount})</span>
             )}
           </button>
+          {/* Export button with download icon */}
           <button
             type="button"
             onClick={() => {
@@ -2202,15 +2290,19 @@ export function Live() {
               a.click();
               URL.revokeObjectURL(url);
             }}
-            className="text-xs px-2 py-1 rounded border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-muted hover:text-bc-text transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-muted hover:text-bc-text transition-colors"
             title="Export event feed as JSON"
           >
-            Export
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M6 1v7M3 5l3 3 3-3M2 10h8" />
+            </svg>
+            <span className="hidden sm:inline">Export</span>
           </button>
+          {/* Help button */}
           <button
             type="button"
             onClick={() => setShowShortcuts((prev) => !prev)}
-            className="text-xs px-1.5 py-1 rounded border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-muted hover:text-bc-text transition-colors"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-muted hover:text-bc-text text-xs transition-colors"
             title="Keyboard shortcuts (?)"
           >
             ?
@@ -2256,7 +2348,8 @@ export function Live() {
         <select
           value={agentFilter}
           onChange={(e) => setAgentFilter(e.target.value)}
-          className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1.5 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
+          className="text-sm rounded-md border border-bc-border bg-bc-surface px-2.5 py-1.5 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent appearance-none pr-7"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c7e72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
         >
           <option value="">All agents</option>
           {agents.map((a) => (
@@ -2266,28 +2359,57 @@ export function Live() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as FilterType)}
-          className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1.5 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
+          className="text-sm rounded-md border border-bc-border bg-bc-surface px-2.5 py-1.5 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent appearance-none pr-7"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c7e72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
         >
           <option value="all">All</option>
           <option value="tools">Tool Calls</option>
           <option value="state">State Changes</option>
         </select>
-        <input
-          ref={searchInputRef}
-          type="text"
-          value={searchFilter}
-          onChange={(e) => setSearchFilter(e.target.value)}
-          placeholder="Search events... (/ to focus)"
-          className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1.5 text-bc-text placeholder:text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent w-48"
-        />
+        {/* Search with magnifying glass icon */}
+        <div className="relative">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-bc-muted pointer-events-none">
+            <circle cx="6" cy="6" r="4.5" />
+            <path d="M9.5 9.5L13 13" />
+          </svg>
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            placeholder="Search events... (/ to focus)"
+            className="text-sm rounded-md border border-bc-border bg-bc-surface pl-8 pr-2.5 py-1.5 text-bc-text placeholder:text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent w-56"
+          />
+        </div>
+        {/* Active filter pills */}
         {hasFilters && (
-          <button
-            type="button"
-            onClick={() => { setAgentFilter(""); setTypeFilter("all"); setSearchFilter(""); }}
-            className="text-xs text-bc-muted hover:text-bc-text px-2 py-1.5 rounded border border-bc-border hover:border-bc-accent transition-colors"
-          >
-            Clear
-          </button>
+          <div className="flex items-center gap-1.5">
+            {agentFilter && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-full bg-bc-accent/10 text-bc-accent border border-bc-accent/30">
+                {agentFilter}
+                <button type="button" onClick={() => setAgentFilter("")} className="hover:text-bc-text ml-0.5" aria-label="Remove agent filter">&times;</button>
+              </span>
+            )}
+            {typeFilter !== "all" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-full bg-bc-accent/10 text-bc-accent border border-bc-accent/30">
+                {typeFilter === "tools" ? "Tool Calls" : "State Changes"}
+                <button type="button" onClick={() => setTypeFilter("all")} className="hover:text-bc-text ml-0.5" aria-label="Remove type filter">&times;</button>
+              </span>
+            )}
+            {searchFilter && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-full bg-bc-accent/10 text-bc-accent border border-bc-accent/30">
+                &ldquo;{searchFilter.length > 16 ? searchFilter.slice(0, 14) + "..." : searchFilter}&rdquo;
+                <button type="button" onClick={() => setSearchFilter("")} className="hover:text-bc-text ml-0.5" aria-label="Remove search filter">&times;</button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => { setAgentFilter(""); setTypeFilter("all"); setSearchFilter(""); }}
+              className="text-[11px] text-bc-muted hover:text-bc-text px-2 py-1 rounded-md border border-bc-border hover:border-bc-accent transition-colors"
+            >
+              Clear all
+            </button>
+          </div>
         )}
       </div>
 
