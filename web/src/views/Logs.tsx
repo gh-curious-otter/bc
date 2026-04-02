@@ -1354,7 +1354,7 @@ export function Logs() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [focusedCardIdx, setFocusedCardIdx] = useState(-1);
   const [tasks, setTasks] = useState<Map<string, TaskItem>>(new Map());
-  const [historyLoaded, setHistoryLoaded] = useState(false);
+  // historyLoaded state removed — history persistence disabled
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const eventBuffer = useRef<HookEvent[]>([]);
@@ -1400,167 +1400,9 @@ export function Logs() {
     }).catch(() => {});
   }, []);
 
-  // Load history on mount: fetch historical events and bootstrap tasks + agent activities
-  useEffect(() => {
-    fetch("/api/events/history?limit=200")
-      .then((res) => res.json())
-      .then((data: { events?: Array<{ type: string; data: unknown; ts: string }> }) => {
-        const evts = data.events;
-        if (!evts || evts.length === 0) {
-          setHistoryLoaded(true);
-          return;
-        }
-
-        // Process historical events for tasks
-        const historicalTasks = new Map<string, TaskItem>();
-        for (const sseEvt of evts) {
-          if (sseEvt.type !== "agent.hook") continue;
-          const evt = sseEvt.data as HookEvent;
-          if (!evt || !evt.agent) continue;
-          const toolName = evt.tool_name ?? "";
-
-          if (evt.event === "PostToolUse" && toolName.includes("TaskCreate")) {
-            const task = parseTaskCreate(evt.tool_input, evt.tool_response, evt.agent);
-            if (task) historicalTasks.set(task.id, task);
-            const resp = evt.tool_response;
-            if (typeof resp === "string") {
-              const match = resp.match(/Task\s+#(\d+)/);
-              if (match) {
-                const numId = match[1]!;
-                for (const [key, t] of historicalTasks) {
-                  if (key.startsWith("task-") && t.owner === evt.agent) {
-                    historicalTasks.delete(key);
-                    historicalTasks.set(numId, { ...t, id: numId });
-                    break;
-                  }
-                }
-                if (!historicalTasks.has(numId)) {
-                  const subjectMatch = resp.match(/Task\s+#\d+\s+created\s+successfully:\s*(.+)/);
-                  const subject = subjectMatch ? subjectMatch[1]!.trim() : "Task #" + numId;
-                  historicalTasks.set(numId, { id: numId, subject, status: "pending", owner: evt.agent });
-                }
-              }
-            }
-          }
-
-          if ((evt.event === "PreToolUse" || evt.event === "PostToolUse") && toolName.includes("TaskUpdate")) {
-            const update = parseTaskUpdate(evt.tool_input);
-            if (update) {
-              const existing = historicalTasks.get(update.taskId);
-              if (existing) {
-                const merged = { ...existing, status: update.status };
-                if (update.blockedBy) merged.blockedBy = [...(existing.blockedBy ?? []), ...update.blockedBy];
-                historicalTasks.set(update.taskId, merged);
-              }
-            }
-          }
-
-          if (evt.event === "PostToolUse" && toolName.includes("TaskList")) {
-            const resp = evt.tool_response;
-            if (typeof resp === "string" && resp.trim().length > 0) {
-              const parsed = parseTaskListResponse(resp);
-              if (parsed.length > 0) {
-                historicalTasks.clear();
-                for (const task of parsed) {
-                  historicalTasks.set(task.id, task);
-                }
-              }
-            }
-          }
-        }
-
-        if (historicalTasks.size > 0) {
-          setTasks((prev) => {
-            const next = new Map(historicalTasks);
-            for (const [k, v] of prev) {
-              if (!next.has(k)) next.set(k, v);
-            }
-            return next;
-          });
-        }
-
-        // Process historical events for agent activities
-        const histActivities = new Map<string, AgentActivity>();
-        for (const sseEvt of evts) {
-          if (sseEvt.type !== "agent.hook") continue;
-          const evt = sseEvt.data as HookEvent;
-          if (!evt || !evt.agent) continue;
-          const ts = new Date(sseEvt.ts).getTime() || Date.now();
-
-          let activity = histActivities.get(evt.agent) ?? {
-            name: evt.agent, state: "idle", task: "", tool: "", role: "", tokens: 0,
-            inputTokens: 0, outputTokens: 0, costUsd: 0, lastEventTime: 0, nodes: [], collapsed: false,
-          };
-          activity = { ...activity, nodes: [...activity.nodes] };
-          if (ts > activity.lastEventTime) activity.lastEventTime = ts;
-          if (evt.task) activity.task = evt.task;
-          if (evt.input_tokens) { activity.tokens += evt.input_tokens; activity.inputTokens += evt.input_tokens; }
-          if (evt.output_tokens) { activity.tokens += evt.output_tokens; activity.outputTokens += evt.output_tokens; }
-
-          if (evt.event === "PreToolUse" && evt.tool_name) {
-            activity.nodes.push({
-              id: nextId(), toolName: evt.tool_name, args: summarizeArgs(evt),
-              fullInput: evt.tool_input, fullOutput: null, status: "running",
-              startTime: ts, children: [],
-            });
-          } else if (evt.event === "PostToolUse" && evt.tool_name) {
-            const idx = findLastIdx(activity.nodes,
-              (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
-            );
-            if (idx >= 0) {
-              const node = activity.nodes[idx]!;
-              activity.nodes[idx] = { ...node, status: "completed", endTime: ts, fullOutput: evt.tool_response ?? evt.tool_input };
-            }
-            activity.state = "working";
-          } else if (evt.event === "PostToolUseFailure" && evt.tool_name) {
-            const idx = findLastIdx(activity.nodes,
-              (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
-            );
-            if (idx >= 0) {
-              const node = activity.nodes[idx]!;
-              activity.nodes[idx] = { ...node, status: "failed", endTime: ts, error: evt.error ?? "Failed" };
-            }
-          } else if (evt.event === "Stop" || evt.event === "SessionEnd" || evt.event === "TaskCompleted") {
-            activity.state = "idle";
-          }
-
-          if (activity.nodes.length > MAX_NODES) {
-            activity.nodes = activity.nodes.slice(-MAX_NODES);
-          }
-          histActivities.set(evt.agent, activity);
-        }
-
-        if (histActivities.size > 0) {
-          setActivities((prev) => {
-            const next = new Map(prev);
-            for (const [name, hist] of histActivities) {
-              const existing = next.get(name);
-              if (existing) {
-                const mergedNodes = [...hist.nodes, ...existing.nodes].slice(-MAX_NODES);
-                next.set(name, {
-                  ...existing,
-                  nodes: mergedNodes,
-                  tokens: Math.max(existing.tokens, hist.tokens),
-                  inputTokens: Math.max(existing.inputTokens, hist.inputTokens),
-                  outputTokens: Math.max(existing.outputTokens, hist.outputTokens),
-                  task: existing.task || hist.task,
-                  lastEventTime: Math.max(existing.lastEventTime, hist.lastEventTime),
-                });
-              } else {
-                next.set(name, hist);
-              }
-            }
-            return next;
-          });
-          setEventCount((c) => c + evts.filter((e) => e.type === "agent.hook").length);
-        }
-
-        setHistoryLoaded(true);
-      })
-      .catch(() => {
-        setHistoryLoaded(true);
-      });
-  }, []);
+  // History loading disabled — stale tasks from previous sessions (e.g. old COMMIT
+  // tasks stuck at pending) pollute the todo panel. Tasks are now tracked only from
+  // the current live SSE session.
 
   // Process buffered hook events
   const flushEvents = useCallback(() => {
@@ -2188,14 +2030,7 @@ export function Logs() {
       {/* Tasks Panel (pinned below filter bar, above agent cards) */}
       <TasksPanel tasks={tasks} />
 
-      {/* Historical divider */}
-      {historyLoaded && (
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex-1 h-px bg-bc-border/60" />
-          <span className="text-[10px] text-bc-muted font-mono uppercase tracking-widest">Historical</span>
-          <div className="flex-1 h-px bg-bc-border/60" />
-        </div>
-      )}
+      {/* Historical divider removed — history persistence disabled */}
 
       {/* Agent Activity Cards */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 space-y-3 relative">

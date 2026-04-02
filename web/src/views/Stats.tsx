@@ -264,7 +264,7 @@ export function Stats() {
               <thead>
                 <tr className="text-bc-muted text-left">
                   {colHeaders.map(h => (
-                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-bc-text select-none" onClick={() => handleSort(h.key)}>
+                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-bc-text select-none" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
                       <div className="flex items-center">
                         {h.label}
                         {sortKey === h.key && <span className="ml-1">{sortAsc ? "\u25B2" : "\u25BC"}</span>}
