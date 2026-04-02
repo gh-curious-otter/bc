@@ -228,8 +228,17 @@ export function UnifiedTools() {
 
   const handleCheck = async () => {
     setChecking(true);
-    try { setCheckedTools(await api.checkUnifiedTools()); }
-    catch { /* fall back to polled data */ }
+    try {
+      const checked = await api.checkUnifiedTools();
+      // Merge health status into existing tools instead of replacing the list.
+      // This prevents losing tools when health check can't reach URLs (e.g. host.docker.internal from browser).
+      const statusMap = new Map(checked.map((t) => [t.name, t.status]));
+      setCheckedTools((tools ?? []).map((t) => ({
+        ...t,
+        status: statusMap.get(t.name) ?? t.status,
+        health_status: statusMap.has(t.name) ? "checked" : undefined,
+      })));
+    } catch { /* fall back to polled data */ }
     finally { setChecking(false); }
   };
 
