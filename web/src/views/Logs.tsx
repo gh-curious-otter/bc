@@ -30,11 +30,23 @@ let eventCounter = 0;
 function parseToolName(name: string): { display: string; type: "mcp" | "bash" | "internal" } {
   if (!name) return { display: "unknown", type: "internal" };
   if (name === "Bash" || name === "bash") return { display: "Bash", type: "bash" };
+  // Full MCP name: mcp__plugin_playwright_playwright__browser_click
   if (name.startsWith("mcp__")) {
     const parts = name.split("__");
     const provider = parts[2] ?? parts[1] ?? "mcp";
     const action = parts[parts.length - 1] ?? "call";
-    return { display: `${provider}:${action}`, type: "mcp" };
+    // Avoid "x:x" when provider == action
+    return { display: provider === action ? action : `${provider}:${action}`, type: "mcp" };
+  }
+  // Partial MCP name: playwright__browser_click (hook system may strip mcp__ prefix)
+  if (name.includes("__")) {
+    const parts = name.split("__");
+    const action = parts[parts.length - 1] ?? name;
+    return { display: action, type: "mcp" };
+  }
+  // Common tool names
+  if (["Read", "Write", "Edit", "Glob", "Grep", "Agent", "WebFetch", "WebSearch"].includes(name)) {
+    return { display: name, type: "internal" };
   }
   return { display: name, type: "internal" };
 }
@@ -79,6 +91,22 @@ export function Logs() {
 
   useEffect(() => {
     api.listAgents().then(setAgents).catch(() => {});
+    // Load initial events from API so the page isn't empty until WebSocket fires
+    api.getLogs(50).then((logs) => {
+      const initial: FeedEvent[] = logs.map((l) => {
+        const parsed = parseToolName(l.message || "");
+        return {
+          id: `init-${l.id}`,
+          type: "hook" as const,
+          agent: l.agent,
+          timestamp: l.created_at,
+          tool: parsed.display,
+          toolType: parsed.type,
+          message: l.message,
+        };
+      });
+      setEvents((prev) => prev.length === 0 ? initial : prev);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
