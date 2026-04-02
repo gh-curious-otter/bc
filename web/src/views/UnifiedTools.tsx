@@ -41,7 +41,11 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
         {/* Chevron + Name */}
         <td className="px-3 py-2 text-sm">
           <div className="flex items-center gap-2">
-            <span className={`text-[10px] text-bc-muted transition-transform ${expanded ? "rotate-90" : ""}`}>&#9654;</span>
+            <span
+              className={`text-[10px] text-bc-muted inline-block transition-transform ${expanded ? "rotate-90" : ""}`}
+            >
+              &#9654;
+            </span>
             <span className="font-medium">{tool.name}</span>
           </div>
         </td>
@@ -202,12 +206,13 @@ export function UnifiedTools() {
     setChecking(true);
     try {
       const checked = await api.checkUnifiedTools();
-      const statusMap = new Map(checked.map((t) => [t.name, t.status]));
-      setCheckedTools((tools ?? []).map((t) => ({
-        ...t,
-        status: statusMap.get(t.name) ?? t.status,
-        health_status: statusMap.has(t.name) ? "checked" : undefined,
-      })));
+      const checkMap = new Map(checked.map((t) => [t.name, t]));
+      setCheckedTools((tools ?? []).map((t) => {
+        const c = checkMap.get(t.name);
+        return c
+          ? { ...t, status: c.status, version: c.version || t.version, health_status: "checked" as const }
+          : t;
+      }));
       addToast("success", "Health check complete");
     } catch {
       addToast("error", "Health check failed");
