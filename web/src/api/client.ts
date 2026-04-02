@@ -37,6 +37,7 @@ export interface Agent {
   parent_id?: string;
   children?: string[];
   total_tokens?: number;
+  runtime_backend?: string;
   mcp_servers?: string[];
 }
 

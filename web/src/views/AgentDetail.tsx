@@ -123,6 +123,7 @@ function OverviewTab({ agent }: { agent: Agent }) {
             value={<StatusBadge status={agent.state} />}
           />
           <MetadataRow label="Tool" value={agent.tool || "\u2014"} />
+          <MetadataRow label="Runtime" value={agent.runtime_backend || "\u2014"} />
         </div>
       </div>
 
