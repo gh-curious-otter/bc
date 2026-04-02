@@ -72,6 +72,14 @@ interface HookEvent {
   output_tokens?: number;
 }
 
+interface TaskItem {
+  id: string;
+  subject: string;
+  status: "pending" | "in_progress" | "completed" | "deleted";
+  owner?: string;
+  description?: string;
+}
+
 type FilterType = "all" | "tools" | "state";
 
 /* ── Constants ─────────────────────────────────────────────────────── */
@@ -100,10 +108,8 @@ function parseToolName(name: string): ParsedTool {
   if (name === "Bash" || name === "bash") return { display: "Bash", type: "bash" };
   if (name.startsWith("mcp__")) {
     const parts = name.split("__");
-    // mcp__<server>__<function> or mcp__plugin_<server>_<provider>__<function>
     let server = parts[1] ?? "mcp";
     const func = parts[parts.length - 1] ?? "call";
-    // Normalize plugin_ prefix: mcp__plugin_github_github__search_code -> github
     if (server.startsWith("plugin_")) {
       const pluginParts = server.replace("plugin_", "").split("_");
       server = pluginParts[0] ?? server;
@@ -118,7 +124,6 @@ function parseToolName(name: string): ParsedTool {
   return { display: name, type: "internal" };
 }
 
-/** Emoji icon for non-MCP tools */
 function toolIcon(name: string): string {
   if (name === "Bash" || name === "BashOutput") return "\u2328\uFE0F";
   if (name === "Read") return "\uD83D\uDCD6";
@@ -126,7 +131,7 @@ function toolIcon(name: string): string {
   if (name === "Glob" || name === "Grep") return "\uD83D\uDD0D";
   if (name === "Agent") return "\uD83E\uDD16";
   if (name === "WebFetch" || name === "WebSearch") return "\uD83C\uDF10";
-  if (name.startsWith("Task") || name === "TaskCreate" || name === "TaskUpdate" || name === "TaskList" || name === "TaskGet") return "\u2705";
+  if (name.startsWith("Task")) return "\u2705";
   if (name === "NotebookEdit") return "\uD83D\uDCD3";
   if (name === "LSP" || name === "ToolSearch") return "\u2699\uFE0F";
   if (name === "AskUserQuestion") return "\u2753";
@@ -134,7 +139,6 @@ function toolIcon(name: string): string {
   return "\u2699\uFE0F";
 }
 
-/** MCP server icon */
 function mcpServerIcon(server: string): string {
   if (server === "playwright" || server === "playwright2") return "\uD83C\uDFAD";
   if (server === "github") return "\uD83D\uDC19";
@@ -142,7 +146,6 @@ function mcpServerIcon(server: string): string {
   return "\uD83D\uDD0C";
 }
 
-/** MCP server badge colors (Tailwind classes) */
 function mcpBadgeColors(server: string): string {
   if (server === "playwright" || server === "playwright2") return "bg-purple-900/50 text-purple-300";
   if (server === "github") return "bg-gray-700 text-gray-300";
@@ -179,7 +182,6 @@ function redactValue(value: unknown): unknown {
   return value;
 }
 
-/** Extract rich metadata from tool_input based on tool type */
 function extractToolMetadata(toolName: string, input: unknown): string {
   if (!input || typeof input !== "object") return "";
   const obj = input as Record<string, unknown>;
@@ -221,7 +223,6 @@ function extractToolMetadata(toolName: string, input: unknown): string {
   if (toolName === "WebSearch") {
     if (typeof obj.query === "string") return trunc(obj.query);
   }
-  // MCP tools: show first 2-3 key param values
   if (toolName.startsWith("mcp__")) {
     const vals = Object.entries(obj).slice(0, 3).map(([, v]) => {
       if (typeof v === "string") return trunc(v, 30);
@@ -230,7 +231,6 @@ function extractToolMetadata(toolName: string, input: unknown): string {
     }).filter(Boolean);
     return redactSecrets(vals.join(" "));
   }
-  // Fallback: JSON summary
   const s = JSON.stringify(obj);
   return redactSecrets(trunc(s));
 }
@@ -264,7 +264,6 @@ function elapsed(start: number, end?: number): string {
   return `${(ms / 60_000).toFixed(1)}m`;
 }
 
-/** Duration color class based on elapsed milliseconds */
 function durationColorClass(start: number, end?: number): string {
   const ms = (end ?? Date.now()) - start;
   if (ms < 1000) return "text-emerald-400";
@@ -273,7 +272,6 @@ function durationColorClass(start: number, end?: number): string {
   return "text-red-400";
 }
 
-/** Format a relative time like "2s ago", "3m ago", "1h ago" */
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
   if (diff < 1000) return "just now";
@@ -283,21 +281,17 @@ function relativeTime(ts: number): string {
   return `${Math.floor(diff / 86_400_000)}d ago`;
 }
 
-/** Estimate cost from token counts using approximate Claude pricing */
-const INPUT_COST_PER_TOKEN = 3 / 1_000_000;   // ~$3 per 1M input tokens
-const OUTPUT_COST_PER_TOKEN = 15 / 1_000_000;  // ~$15 per 1M output tokens
+const INPUT_COST_PER_TOKEN = 3 / 1_000_000;
+const OUTPUT_COST_PER_TOKEN = 15 / 1_000_000;
 
 function estimateCost(activity: AgentActivity): number {
-  // If API returned a real cost, use that
   if (activity.costUsd > 0) return activity.costUsd;
-  // Otherwise estimate from token counts
   if (activity.inputTokens > 0 || activity.outputTokens > 0) {
     return activity.inputTokens * INPUT_COST_PER_TOKEN + activity.outputTokens * OUTPUT_COST_PER_TOKEN;
   }
   return 0;
 }
 
-/** Format idle duration like "Idle 5m" or "Idle 2h" */
 function idleDuration(lastEventTime: number): string {
   const diff = Date.now() - lastEventTime;
   if (diff < 60_000) return `Idle ${Math.floor(diff / 1000)}s`;
@@ -315,7 +309,6 @@ function nodeMatchesSearch(node: ToolNode, query: string): boolean {
 
 /* ── Aggregation ──────────────────────────────────────────────────── */
 
-/** Events that should never be aggregated */
 const NEVER_AGGREGATE_EVENTS = new Set([
   "SubagentStart", "SubagentStop", "Agent",
   "PermissionRequest", "Elicitation",
@@ -326,25 +319,16 @@ const NEVER_AGGREGATE_EVENTS = new Set([
 function shouldNeverAggregate(node: ToolNode): boolean {
   if (node.status === "failed") return true;
   if (NEVER_AGGREGATE_EVENTS.has(node.toolName)) return true;
-  // State change events (toolName starts with known prefixes)
   if (node.toolName.startsWith("Agent:")) return true;
   return false;
 }
 
-/**
- * Scan a list of ToolNodes and aggregate consecutive same-tool nodes
- * that fall within the AGGREGATION_WINDOW_MS time window.
- * When collapseOlderThan is provided (ms), events older than that threshold
- * are also aggregated by tool type (even non-consecutive).
- * Returns a mixed list of ToolNode and AggregatedNode.
- */
 function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number): DisplayNode[] {
   if (nodes.length === 0) return [];
 
   const now = Date.now();
   const threshold = collapseOlderThan ?? 0;
 
-  // If collapseOlderThan is set, split into recent and old nodes
   if (threshold > 0) {
     const recentNodes: ToolNode[] = [];
     const oldByTool = new Map<string, ToolNode[]>();
@@ -360,7 +344,6 @@ function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number): DisplayN
       }
     }
 
-    // Build aggregated groups for old nodes
     const oldAggregated: DisplayNode[] = [];
     for (const [toolName, group] of oldByTool) {
       if (group.length >= 2) {
@@ -398,14 +381,12 @@ function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number): DisplayN
       }
     }
 
-    // Sort old aggregated by startTime descending
     oldAggregated.sort((a, b) => {
       const aTime = isAggregatedNode(a) ? a.startTime : (a as ToolNode).startTime;
       const bTime = isAggregatedNode(b) ? b.startTime : (b as ToolNode).startTime;
       return bTime - aTime;
     });
 
-    // Apply standard consecutive aggregation to recent nodes
     const recentAggregated = aggregateConsecutive(recentNodes);
     return [...recentAggregated, ...oldAggregated];
   }
@@ -413,7 +394,6 @@ function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number): DisplayN
   return aggregateConsecutive(nodes);
 }
 
-/** Standard consecutive same-tool aggregation within AGGREGATION_WINDOW_MS */
 function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
   if (nodes.length === 0) return [];
 
@@ -424,14 +404,12 @@ function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
     const current = nodes[i];
     if (!current) { i++; continue; }
 
-    // If this node should never be aggregated, emit it directly
     if (shouldNeverAggregate(current) || current.status === "running") {
       result.push(current);
       i++;
       continue;
     }
 
-    // Look ahead for consecutive same-tool nodes within the time window
     const group: ToolNode[] = [current];
     let j = i + 1;
     while (j < nodes.length) {
@@ -439,7 +417,6 @@ function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
       if (!next) break;
       if (next.toolName !== current.toolName) break;
       if (shouldNeverAggregate(next) || next.status === "running") break;
-      // Check time window: next node's start must be within 5s of previous node's start
       const prev = group[group.length - 1];
       if (!prev) break;
       if (Math.abs(next.startTime - prev.startTime) > AGGREGATION_WINDOW_MS) break;
@@ -448,7 +425,6 @@ function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
     }
 
     if (group.length >= 2) {
-      // Create an aggregated node
       let totalDuration = 0;
       const totalTokens = 0;
       let successCount = 0;
@@ -486,6 +462,75 @@ function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
   }
 
   return result;
+}
+
+/* ── Task parsing helpers ──────────────────────────────────────────── */
+
+function parseTaskCreate(
+  toolInput: unknown,
+  toolResponse: unknown,
+  agentName: string,
+): TaskItem | null {
+  const inp = toolInput as Record<string, unknown> | null;
+  const resp = toolResponse as Record<string, unknown> | null;
+  if (!inp) return null;
+
+  let id = "task-" + Date.now();
+  if (resp) {
+    if (typeof resp.id === "string") id = resp.id;
+    else if (typeof resp.task_id === "string") id = resp.task_id;
+    else if (typeof resp === "string") {
+      try {
+        const parsed = JSON.parse(resp as unknown as string) as Record<string, unknown>;
+        if (typeof parsed.id === "string") id = parsed.id;
+      } catch { /* ignore */ }
+    }
+  }
+
+  const subject = typeof inp.subject === "string"
+    ? inp.subject
+    : typeof inp.description === "string"
+      ? inp.description
+      : typeof inp.title === "string"
+        ? (inp.title as string)
+        : "Untitled task";
+
+  const description = typeof inp.description === "string" ? inp.description : undefined;
+
+  return { id, subject, status: "pending", owner: agentName, description };
+}
+
+function parseTaskUpdate(toolInput: unknown): { taskId: string; status: TaskItem["status"] } | null {
+  const inp = toolInput as Record<string, unknown> | null;
+  if (!inp) return null;
+
+  const taskId = typeof inp.taskId === "string"
+    ? inp.taskId
+    : typeof inp.task_id === "string"
+      ? inp.task_id
+      : typeof inp.id === "string"
+        ? inp.id
+        : null;
+
+  if (!taskId) return null;
+
+  const rawStatus = typeof inp.status === "string" ? inp.status : null;
+  if (!rawStatus) return null;
+
+  const statusMap: Record<string, TaskItem["status"]> = {
+    pending: "pending",
+    in_progress: "in_progress",
+    "in-progress": "in_progress",
+    inProgress: "in_progress",
+    completed: "completed",
+    done: "completed",
+    deleted: "deleted",
+    cancelled: "deleted",
+    canceled: "deleted",
+  };
+
+  const status = statusMap[rawStatus] ?? "pending";
+  return { taskId, status };
 }
 
 /* ── State Dots ────────────────────────────────────────────────────── */
@@ -599,7 +644,6 @@ function ToolNameDisplay({ toolName }: { toolName: string }) {
   if (parsed.type === "mcp" && parsed.mcpServer && parsed.mcpFunction) {
     return <McpBadge server={parsed.mcpServer} func={parsed.mcpFunction} />;
   }
-  // Non-MCP: emoji icon + name
   return (
     <span className="inline-flex items-center gap-1">
       <span className="text-[12px]" aria-hidden="true">{toolIcon(toolName)}</span>
@@ -616,9 +660,9 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false }: { node: ToolN
   const hasDetails = !!(node.fullInput || node.fullOutput || node.children.length > 0);
   const isSubagentSpawn = node.toolName === "Agent" || node.toolName.startsWith("Agent:");
 
-  // Subagent tree: special rendering
+  // Subagent tree: use AgentTreeNode for nested rendering
   if (isSubagentSpawn) {
-    return <SubagentRow node={node} depth={depth} />;
+    return <AgentTreeNode node={node} depth={depth} />;
   }
 
   const inputJson = node.fullInput ? JSON.stringify(redactValue(node.fullInput), null, 2) : "";
@@ -636,7 +680,6 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false }: { node: ToolN
         <span className="text-bc-muted text-xs select-none mt-[3px] shrink-0">
           {depth > 0 ? "\u251C\u2500" : ""}
         </span>
-        {/* Expand/collapse chevron indicator */}
         <span className="text-bc-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-bc-muted">
           {hasDetails ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
         </span>
@@ -705,56 +748,95 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false }: { node: ToolN
   );
 }
 
-/* ── Subagent Tree Row ─────────────────────────────────────────────── */
+/* ── Agent Tree Node (recursive subagent nesting) ──────────────────── */
 
-function SubagentRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
+function AgentTreeNode({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
   const [expanded, setExpanded] = useState(true);
-  const indent = depth * 20;
+  const indent = depth * 16;
   const duration = node.endTime ? elapsed(node.startTime, node.endTime) : undefined;
+  const childCount = node.children.length;
+
+  const subagentChildren = node.children.filter(
+    (c) => c.toolName === "Agent" || c.toolName.startsWith("Agent:"),
+  );
+  const toolChildren = node.children.filter(
+    (c) => c.toolName !== "Agent" && !c.toolName.startsWith("Agent:"),
+  );
 
   return (
-    <>
+    <div style={{ marginLeft: `${indent}px` }}>
+      {/* Subagent header */}
       <button
         type="button"
-        className="group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent bg-blue-950/20"
-        style={{ paddingLeft: `${indent + 12}px` }}
+        className="group flex items-start gap-2 py-1.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent bg-blue-950/20 rounded-md my-0.5"
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} subagent ${node.toolName}`}
       >
         <span className="text-bc-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-bc-muted">
-          {expanded ? "\u25BC" : "\u25B6"}
+          {childCount > 0 ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
         </span>
         <ToolDot status={node.status} />
         <span className="text-[13px]" aria-hidden="true">{"\uD83E\uDD16"}</span>
         <span className="font-mono text-[13px] text-bc-text font-semibold">{node.toolName}</span>
         {node.args && (
           <span className="text-[12px] text-bc-muted truncate max-w-[300px] font-mono italic">
-            {node.args}
+            &ldquo;{node.args}&rdquo;
           </span>
         )}
         <span className="ml-auto flex items-center gap-2 shrink-0">
           <RelativeTimestamp ts={node.startTime} />
           {node.status === "running" ? (
             <span className="text-[11px] text-blue-400 font-mono tabular-nums">
-              <ElapsedTimer start={node.startTime} />
+              {"\u23F1"} <ElapsedTimer start={node.startTime} />
             </span>
           ) : duration ? (
-            <span className="text-[11px] text-bc-muted font-mono tabular-nums">{duration}</span>
+            <span className={`text-[11px] font-mono tabular-nums ${durationColorClass(node.startTime, node.endTime)}`}>
+              {"\u23F1"} {duration}
+            </span>
           ) : null}
           {node.status === "completed" && (
-            <span className="text-[10px] text-bc-success font-mono">done</span>
+            <span className="text-[10px] text-bc-success font-mono">{"\u2713"}</span>
+          )}
+          {node.status === "failed" && (
+            <span className="text-[10px] text-bc-error font-mono">{"\u2717"}</span>
           )}
         </span>
       </button>
 
-      {expanded && node.children.length > 0 && (
-        <div className="border-l-2 border-blue-500 pl-3 ml-6">
-          {node.children.map((child) => (
-            <ToolNodeRow key={child.id} node={child} depth={depth + 1} isSubagentChild />
-          ))}
+      {/* Tree children with connector lines */}
+      {expanded && childCount > 0 && (
+        <div className="border-l-2 border-bc-muted/30 ml-4 pl-3">
+          {toolChildren.map((child, idx) => {
+            const isLast = idx === toolChildren.length - 1 && subagentChildren.length === 0;
+            return (
+              <div key={child.id} className="flex items-start gap-0">
+                <span className="text-bc-muted/30 text-xs select-none mt-[3px] shrink-0 w-4">
+                  {isLast ? "\u2514\u2500" : "\u251C\u2500"}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <ToolNodeRow node={child} depth={0} isSubagentChild />
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Nested subagent children (recursive) */}
+          {subagentChildren.map((child, idx) => {
+            const isLast = idx === subagentChildren.length - 1;
+            return (
+              <div key={child.id} className="flex items-start gap-0">
+                <span className="text-bc-muted/30 text-xs select-none mt-[3px] shrink-0 w-4">
+                  {isLast ? "\u2514\u2500" : "\u251C\u2500"}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <AgentTreeNode node={child} depth={0} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -812,13 +894,87 @@ function AggregatedNodeRow({ node }: { node: AggregatedNode }) {
   );
 }
 
-/* ── Display Node Row (dispatches to ToolNodeRow or AggregatedNodeRow) */
+/* ── Display Node Row ──────────────────────────────────────────────── */
 
 function DisplayNodeRow({ node }: { node: DisplayNode }) {
   if (isAggregatedNode(node)) {
     return <AggregatedNodeRow node={node} />;
   }
   return <ToolNodeRow node={node} />;
+}
+
+/* ── Tasks Panel ───────────────────────────────────────────────────── */
+
+function TasksPanel({ tasks }: { tasks: Map<string, TaskItem> }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  const visible = Array.from(tasks.values()).filter((t) => t.status !== "deleted");
+  if (visible.length === 0) return null;
+
+  const completedCount = visible.filter((t) => t.status === "completed").length;
+  const total = visible.length;
+  const progressPct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+
+  return (
+    <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden mb-3">
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex items-center gap-2 w-full px-4 py-2.5 text-left hover:bg-bc-surface-hover transition-colors"
+      >
+        <span className="text-[13px]">{"\u2705"}</span>
+        <span className="text-sm font-semibold text-bc-text">Tasks</span>
+        <span className="text-xs text-bc-muted font-mono tabular-nums">
+          ({completedCount}/{total} complete)
+        </span>
+        {/* Progress bar */}
+        <span className="flex-1 mx-2 h-1.5 bg-bc-bg rounded-full overflow-hidden max-w-[200px]">
+          <span
+            className="h-full bg-bc-success rounded-full transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
+        </span>
+        <span className="text-bc-muted text-[10px] select-none shrink-0">
+          {collapsed ? "\u25B6" : "\u25BC"}
+        </span>
+      </button>
+
+      {!collapsed && (
+        <div className="border-t border-bc-border/60 px-4 py-2 space-y-1">
+          {visible.map((task) => (
+            <div key={task.id} className="flex items-center gap-2 py-0.5">
+              {task.status === "completed" ? (
+                <span className="text-bc-success text-xs shrink-0">{"\u2713"}</span>
+              ) : task.status === "in_progress" ? (
+                <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+              ) : (
+                <span className="inline-flex h-2 w-2 rounded-full border border-bc-muted/50 shrink-0" />
+              )}
+              <span
+                className={`text-sm font-mono ${
+                  task.status === "completed"
+                    ? "line-through text-bc-muted/60"
+                    : task.status === "in_progress"
+                      ? "text-blue-400 font-semibold"
+                      : "text-bc-text"
+                }`}
+              >
+                {task.subject}
+              </span>
+              {task.owner && (
+                <span className="text-[10px] text-bc-muted font-mono shrink-0">
+                  {task.owner}
+                </span>
+              )}
+              <span className="text-[10px] text-bc-muted font-mono ml-auto shrink-0 capitalize">
+                {task.status.replace("_", " ")}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ── Agent Activity Card ───────────────────────────────────────────── */
@@ -842,7 +998,6 @@ const AgentCard = memo(function AgentCard({
 }) {
   const [collapseOld, setCollapseOld] = useState(true);
 
-  // Filter nodes based on search term (individual node filtering)
   const visibleNodes = searchTerm
     ? activity.nodes.filter((n) => nodeMatchesSearch(n, searchTerm.toLowerCase()))
     : activity.nodes;
@@ -853,13 +1008,11 @@ const AgentCard = memo(function AgentCard({
   const matchCount = searchTerm ? visibleNodes.length : 0;
   const showToolNodes = typeFilter !== "state";
 
-  // Skip animations when paused or when bulk-flushing (>5 events arrive at once)
   const skipAnimation = isPaused || visibleNodes.length > 5;
 
   return (
     <div className={`rounded-lg border bg-bc-surface overflow-hidden transition-colors ${isFilterActive ? "border-bc-accent ring-1 ring-bc-accent/30" : "border-bc-border"}`}>
       <div className="flex items-center">
-        {/* Collapse toggle */}
         <button
           type="button"
           onClick={onToggle}
@@ -875,7 +1028,6 @@ const AgentCard = memo(function AgentCard({
           </svg>
         </button>
 
-        {/* Click-to-filter agent header */}
         <button
           type="button"
           onClick={onClickFilter}
@@ -937,7 +1089,6 @@ const AgentCard = memo(function AgentCard({
 
       {!activity.collapsed && showToolNodes && displayNodes.length > 0 && (
         <div className="border-t border-bc-border/60 py-1">
-          {/* Show all / Collapse old toggle */}
           {visibleNodes.length > 3 && (
             <div className="flex justify-end px-3 py-1">
               <button
@@ -989,7 +1140,7 @@ const AgentCard = memo(function AgentCard({
       {!activity.collapsed && typeFilter === "state" && (
         <div className="border-t border-bc-border/60 py-3 px-4 text-[12px] text-bc-muted">
           <span className="capitalize font-medium text-bc-text">{activity.state}</span>
-          {activity.task && <span className="ml-2">— {activity.task}</span>}
+          {activity.task && <span className="ml-2">--- {activity.task}</span>}
           {activity.tokens > 0 && (
             <span className="ml-2 font-mono tabular-nums">{activity.tokens.toLocaleString()} tokens</span>
           )}
@@ -1015,6 +1166,7 @@ export function Logs() {
   const [newEventsSinceScroll, setNewEventsSinceScroll] = useState(0);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [focusedCardIdx, setFocusedCardIdx] = useState(-1);
+  const [tasks, setTasks] = useState<Map<string, TaskItem>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const eventBuffer = useRef<HookEvent[]>([]);
@@ -1054,12 +1206,11 @@ export function Logs() {
     }).catch(() => {});
   }, []);
 
-  // Process buffered hook events (same pattern as Dashboard)
+  // Process buffered hook events
   const flushEvents = useCallback(() => {
     const events = eventBuffer.current.splice(0);
     if (events.length === 0) return;
 
-    // When paused, buffer events instead of processing them
     if (paused) {
       pausedBuffer.current.push(...events);
       setPausedCount(pausedBuffer.current.length);
@@ -1067,6 +1218,40 @@ export function Logs() {
     }
 
     setEventCount((c) => c + events.length);
+
+    // Process task-related events
+    setTasks((prevTasks) => {
+      let nextTasks = prevTasks;
+      let changed = false;
+
+      for (const evt of events) {
+        const toolName = evt.tool_name ?? "";
+
+        // TaskCreate: on PostToolUse, parse the created task
+        if (evt.event === "PostToolUse" && toolName.includes("TaskCreate")) {
+          const task = parseTaskCreate(evt.tool_input, evt.tool_response, evt.agent);
+          if (task) {
+            if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
+            nextTasks.set(task.id, task);
+          }
+        }
+
+        // TaskUpdate: update status
+        if ((evt.event === "PreToolUse" || evt.event === "PostToolUse") && toolName.includes("TaskUpdate")) {
+          const update = parseTaskUpdate(evt.tool_input);
+          if (update) {
+            if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
+            const existing = nextTasks.get(update.taskId);
+            if (existing) {
+              nextTasks.set(update.taskId, { ...existing, status: update.status });
+            }
+          }
+        }
+      }
+
+      return nextTasks;
+    });
+
     setActivities((prev) => {
       const next = new Map(prev);
 
@@ -1094,52 +1279,162 @@ export function Logs() {
             });
             break;
 
-          case "PreToolUse":
+          case "PreToolUse": {
             activity.state = "working";
-            activity.nodes.push({
+            const newNode: ToolNode = {
               id: nextId(), toolName: evt.tool_name ?? "unknown", args: summarizeArgs(evt),
               fullInput: evt.tool_input, fullOutput: null, status: "running",
               startTime: Date.now(), children: [],
-            });
+            };
+
+            // If tool_name is "Agent", this spawns a subagent -- add as top-level
+            // and track as active subagent for nesting child events
+            if (evt.tool_name === "Agent") {
+              activity.nodes.push(newNode);
+              activity.activeSubagentIdx = activity.nodes.length - 1;
+            } else if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
+              // Nest inside the active subagent node
+              const parentNode = activity.nodes[activity.activeSubagentIdx];
+              if (parentNode && parentNode.status === "running") {
+                const updatedParent = { ...parentNode, children: [...parentNode.children, newNode] };
+                activity.nodes[activity.activeSubagentIdx] = updatedParent;
+              } else {
+                activity.nodes.push(newNode);
+                activity.activeSubagentIdx = undefined;
+              }
+            } else {
+              activity.nodes.push(newNode);
+            }
             break;
+          }
 
           case "PostToolUse": {
-            const idx = findLastIdx(activity.nodes,
-              (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
-            );
-            if (idx >= 0) {
-              const node = activity.nodes[idx];
-              activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input } as ToolNode;
+            let found = false;
+
+            // First check inside active subagent's children
+            if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
+              const parentNode = activity.nodes[activity.activeSubagentIdx];
+              if (parentNode) {
+                const childIdx = findLastIdx(parentNode.children,
+                  (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
+                );
+                if (childIdx >= 0) {
+                  const updatedChildren = [...parentNode.children];
+                  const child = updatedChildren[childIdx]!;
+                  updatedChildren[childIdx] = { ...child, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input };
+                  activity.nodes[activity.activeSubagentIdx] = { ...parentNode, children: updatedChildren };
+                  found = true;
+                }
+              }
+            }
+
+            // If completing an Agent tool call, clear active subagent
+            if (evt.tool_name === "Agent") {
+              const idx = findLastIdx(activity.nodes,
+                (n: ToolNode) => n.toolName === "Agent" && n.status === "running",
+              );
+              if (idx >= 0) {
+                const node = activity.nodes[idx]!;
+                activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input };
+                found = true;
+              }
+              activity.activeSubagentIdx = undefined;
+            }
+
+            if (!found) {
+              const idx = findLastIdx(activity.nodes,
+                (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
+              );
+              if (idx >= 0) {
+                const node = activity.nodes[idx]!;
+                activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input };
+              }
             }
             break;
           }
 
           case "PostToolUseFailure": {
-            const idx = findLastIdx(activity.nodes,
-              (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
-            );
-            if (idx >= 0) {
-              const node = activity.nodes[idx];
-              activity.nodes[idx] = { ...node, status: "failed" as const, endTime: Date.now(), error: evt.error ?? "Tool execution failed", fullOutput: evt.tool_response ?? evt.tool_input } as ToolNode;
+            let found = false;
+
+            if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
+              const parentNode = activity.nodes[activity.activeSubagentIdx];
+              if (parentNode) {
+                const childIdx = findLastIdx(parentNode.children,
+                  (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
+                );
+                if (childIdx >= 0) {
+                  const updatedChildren = [...parentNode.children];
+                  const child = updatedChildren[childIdx]!;
+                  updatedChildren[childIdx] = { ...child, status: "failed" as const, endTime: Date.now(), error: evt.error ?? "Tool execution failed", fullOutput: evt.tool_response ?? evt.tool_input };
+                  activity.nodes[activity.activeSubagentIdx] = { ...parentNode, children: updatedChildren };
+                  found = true;
+                }
+              }
+            }
+
+            if (!found) {
+              const idx = findLastIdx(activity.nodes,
+                (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
+              );
+              if (idx >= 0) {
+                const node = activity.nodes[idx]!;
+                activity.nodes[idx] = { ...node, status: "failed" as const, endTime: Date.now(), error: evt.error ?? "Tool execution failed", fullOutput: evt.tool_response ?? evt.tool_input };
+              }
             }
             break;
           }
 
-          case "SubagentStart":
-            activity.nodes.push({
+          case "SubagentStart": {
+            const subNode: ToolNode = {
               id: nextId(), toolName: `Agent: ${evt.subagent_id ?? "sub"}`,
               args: evt.subagent_type ?? "", fullInput: evt.tool_input, fullOutput: null,
               status: "running", startTime: Date.now(), children: [],
-            });
+            };
+
+            // If there's an active subagent, nest inside it (recursive nesting)
+            if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
+              const parentNode = activity.nodes[activity.activeSubagentIdx];
+              if (parentNode && parentNode.status === "running") {
+                const updatedParent = { ...parentNode, children: [...parentNode.children, subNode] };
+                activity.nodes[activity.activeSubagentIdx] = updatedParent;
+                break;
+              }
+            }
+
+            activity.nodes.push(subNode);
+            activity.activeSubagentIdx = activity.nodes.length - 1;
             break;
+          }
 
           case "SubagentStop": {
-            const idx = findLastIdx(activity.nodes,
-              (n: ToolNode) => n.toolName.startsWith("Agent:") && n.status === "running",
-            );
-            if (idx >= 0) {
-              const node = activity.nodes[idx];
-              activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now() } as ToolNode;
+            let found = false;
+            if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
+              const parentNode = activity.nodes[activity.activeSubagentIdx];
+              if (parentNode) {
+                const childIdx = findLastIdx(parentNode.children,
+                  (n: ToolNode) => n.toolName.startsWith("Agent:") && n.status === "running",
+                );
+                if (childIdx >= 0) {
+                  const updatedChildren = [...parentNode.children];
+                  const child = updatedChildren[childIdx]!;
+                  updatedChildren[childIdx] = { ...child, status: "completed" as const, endTime: Date.now() };
+                  activity.nodes[activity.activeSubagentIdx] = { ...parentNode, children: updatedChildren };
+                  found = true;
+                }
+              }
+            }
+
+            if (!found) {
+              const idx = findLastIdx(activity.nodes,
+                (n: ToolNode) => n.toolName.startsWith("Agent:") && n.status === "running",
+              );
+              if (idx >= 0) {
+                const node = activity.nodes[idx]!;
+                activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now() };
+                if (activity.activeSubagentIdx === idx) {
+                  activity.activeSubagentIdx = undefined;
+                }
+              }
             }
             break;
           }
@@ -1176,7 +1471,6 @@ export function Logs() {
     });
   }, [paused]);
 
-  // Resume: flush paused buffer back into event buffer
   const handleResume = useCallback(() => {
     setPaused(false);
     if (pausedBuffer.current.length > 0) {
@@ -1186,13 +1480,11 @@ export function Logs() {
     }
   }, []);
 
-  // Flush timer
   useEffect(() => {
     const id = setInterval(flushEvents, FLUSH_INTERVAL);
     return () => clearInterval(id);
   }, [flushEvents]);
 
-  // Subscribe to hook events
   useEffect(() => {
     const unsub = subscribe("agent.hook", (wsEvent) => {
       const d = wsEvent.data as unknown as HookEvent;
@@ -1201,7 +1493,6 @@ export function Logs() {
     return unsub;
   }, [subscribe]);
 
-  // Subscribe to state changes
   useEffect(() => {
     const unsub = subscribe("agent.state_changed", (wsEvent) => {
       const d = wsEvent.data as Record<string, unknown>;
@@ -1225,7 +1516,6 @@ export function Logs() {
     return unsub;
   }, [subscribe]);
 
-  // Filter and sort activities
   const sorted = useMemo(() => {
     const filtered = Array.from(activities.values()).filter((a) => {
       if (agentFilter && a.name !== agentFilter) return false;
@@ -1248,7 +1538,6 @@ export function Logs() {
     });
   }, [activities, agentFilter, typeFilter, searchFilter]);
 
-  // Scroll tracking for jump-to-latest
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -1261,7 +1550,6 @@ export function Logs() {
     return () => container.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Track new events when scrolled away
   useEffect(() => {
     if (showJumpToLatest) {
       setNewEventsSinceScroll((c) => c + 1);
@@ -1273,7 +1561,6 @@ export function Logs() {
     setNewEventsSinceScroll(0);
   }, []);
 
-  // Toggle collapse
   const toggleAgent = useCallback((name: string) => {
     setActivities((prev) => {
       const next = new Map(prev);
@@ -1283,18 +1570,15 @@ export function Logs() {
     });
   }, []);
 
-  // Click-to-filter on agent card header
   const toggleCardFilter = useCallback((name: string) => {
     setAgentFilter((prev) => (prev === name ? "" : name));
   }, []);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
-      // Escape always works: clear search and blur
       if (e.key === "Escape") {
         setSearchFilter("");
         setShowShortcuts(false);
@@ -1302,14 +1586,12 @@ export function Logs() {
         return;
       }
 
-      // / to focus search (works even from non-input)
       if (e.key === "/" && !isInput) {
         e.preventDefault();
         searchInputRef.current?.focus();
         return;
       }
 
-      // Don't handle other shortcuts when in input
       if (isInput) return;
 
       if (e.key === "?") {
@@ -1344,7 +1626,6 @@ export function Logs() {
 
   const hasFilters = agentFilter || typeFilter !== "all" || searchFilter;
 
-  // SSE connection indicator state
   const sseStatus = connected ? "connected" : reconnecting ? "reconnecting" : "disconnected";
   const sseDotColor = connected ? "bg-emerald-500" : reconnecting ? "bg-yellow-500" : "bg-red-500";
   const sseTooltip = connected ? "SSE connected" : reconnecting ? "Reconnecting..." : "Disconnected";
@@ -1362,14 +1643,11 @@ export function Logs() {
         </h1>
         <span className="text-sm text-bc-muted hidden sm:inline">Real-time agent activity</span>
         <span className="ml-auto flex items-center gap-3">
-          {/* SSE Connection Indicator */}
           <span className="flex items-center gap-1.5" title={sseTooltip}>
             <span className={`inline-flex h-2 w-2 rounded-full ${sseDotColor}`} />
             <span className="text-[10px] text-bc-muted font-mono hidden sm:inline">{sseStatus}</span>
           </span>
-          {/* Event count */}
           <span className="text-xs text-bc-muted font-mono tabular-nums">{eventCount} events</span>
-          {/* Pause/Resume Toggle */}
           <button
             type="button"
             onClick={() => paused ? handleResume() : setPaused(true)}
@@ -1383,7 +1661,6 @@ export function Logs() {
               </span>
             )}
           </button>
-          {/* Shortcut help */}
           <button
             type="button"
             onClick={() => setShowShortcuts((prev) => !prev)}
@@ -1467,6 +1744,9 @@ export function Logs() {
           </button>
         )}
       </div>
+
+      {/* Tasks Panel (pinned below filter bar, above agent cards) */}
+      <TasksPanel tasks={tasks} />
 
       {/* Agent Activity Cards */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 space-y-3 relative">
