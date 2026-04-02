@@ -168,6 +168,13 @@ function elapsed(start: number, end?: number): string {
   return `${(ms / 60_000).toFixed(1)}m`;
 }
 
+/* ── Node search helper ────────────────────────────────────────────── */
+
+function nodeMatchesSearch(node: ToolNode, query: string): boolean {
+  const hay = `${node.toolName} ${node.args}`.toLowerCase();
+  return hay.includes(query);
+}
+
 /* ── Aggregation ──────────────────────────────────────────────────── */
 
 /** Events that should never be aggregated */
@@ -452,12 +459,23 @@ function DisplayNodeRow({ node }: { node: DisplayNode }) {
 const AgentCard = memo(function AgentCard({
   activity,
   onToggle,
+  searchTerm,
+  typeFilter,
 }: {
   activity: AgentActivity;
   onToggle: () => void;
+  searchTerm: string;
+  typeFilter: FilterType;
 }) {
-  const runningCount = activity.nodes.filter((n) => n.status === "running").length;
-  const displayNodes = aggregateNodes(activity.nodes);
+  // Filter nodes based on search term (individual node filtering)
+  const visibleNodes = searchTerm
+    ? activity.nodes.filter((n) => nodeMatchesSearch(n, searchTerm.toLowerCase()))
+    : activity.nodes;
+
+  const runningCount = visibleNodes.filter((n) => n.status === "running").length;
+  const displayNodes = aggregateNodes(visibleNodes);
+  const matchCount = searchTerm ? visibleNodes.length : 0;
+  const showToolNodes = typeFilter !== "state";
 
   return (
     <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden">
@@ -480,6 +498,12 @@ const AgentCard = memo(function AgentCard({
           {activity.name}
         </span>
 
+        {searchTerm && matchCount > 0 && (
+          <span className="text-[11px] text-bc-accent font-mono">
+            {matchCount} {matchCount === 1 ? "match" : "matches"}
+          </span>
+        )}
+
         <span className="text-[11px] text-bc-muted font-mono">
           {activity.role}
         </span>
@@ -491,6 +515,11 @@ const AgentCard = memo(function AgentCard({
         )}
 
         <span className="ml-auto flex items-center gap-3">
+          {typeFilter === "state" && (
+            <span className="text-[11px] text-bc-muted font-mono capitalize">
+              {activity.state}
+            </span>
+          )}
           {runningCount > 0 && (
             <span className="text-[11px] text-blue-400 font-mono">
               {runningCount} running
@@ -504,7 +533,7 @@ const AgentCard = memo(function AgentCard({
         </span>
       </button>
 
-      {!activity.collapsed && displayNodes.length > 0 && (
+      {!activity.collapsed && showToolNodes && displayNodes.length > 0 && (
         <div className="border-t border-bc-border/60 py-1">
           {displayNodes.map((node) => (
             <DisplayNodeRow key={isAggregatedNode(node) ? node.id : node.id} node={node} />
@@ -512,9 +541,19 @@ const AgentCard = memo(function AgentCard({
         </div>
       )}
 
-      {!activity.collapsed && activity.nodes.length === 0 && (
+      {!activity.collapsed && showToolNodes && visibleNodes.length === 0 && !searchTerm && (
         <div className="border-t border-bc-border/60 py-3 px-4 text-[12px] text-bc-muted italic">
           Waiting for activity...
+        </div>
+      )}
+
+      {!activity.collapsed && typeFilter === "state" && (
+        <div className="border-t border-bc-border/60 py-3 px-4 text-[12px] text-bc-muted">
+          <span className="capitalize font-medium text-bc-text">{activity.state}</span>
+          {activity.task && <span className="ml-2">— {activity.task}</span>}
+          {activity.tokens > 0 && (
+            <span className="ml-2 font-mono tabular-nums">{activity.tokens.toLocaleString()} tokens</span>
+          )}
         </div>
       )}
     </div>
@@ -728,12 +767,16 @@ export function Logs() {
   // Filter and sort activities
   const filtered = Array.from(activities.values()).filter((a) => {
     if (agentFilter && a.name !== agentFilter) return false;
+    // "Tool Calls" type: hide cards with no tool nodes at all
     if (typeFilter === "tools" && a.nodes.length === 0) return false;
-    if (typeFilter === "state" && a.state === "idle" && a.nodes.length === 0) return false;
     if (searchFilter) {
       const q = searchFilter.toLowerCase();
-      const haystack = `${a.name} ${a.role} ${a.task} ${a.tool} ${a.nodes.map((n) => n.toolName + " " + n.args).join(" ")}`.toLowerCase();
-      if (!haystack.includes(q)) return false;
+      // Check card-level fields (name, role, task)
+      const cardHay = `${a.name} ${a.role} ${a.task} ${a.tool}`.toLowerCase();
+      if (cardHay.includes(q)) return true;
+      // Check if any individual node matches — hide card if zero nodes match
+      const hasMatchingNode = a.nodes.some((n) => nodeMatchesSearch(n, q));
+      if (!hasMatchingNode) return false;
     }
     return true;
   });
@@ -816,6 +859,8 @@ export function Logs() {
               key={activity.name}
               activity={activity}
               onToggle={() => toggleAgent(activity.name)}
+              searchTerm={searchFilter}
+              typeFilter={typeFilter}
             />
           ))
         )}
