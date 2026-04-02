@@ -782,9 +782,26 @@ function McpBadge({ server, func }: { server: string; func: string }) {
   );
 }
 
+/* ── Search Highlight ──────────────────────────────────────────────── */
+
+function SearchHighlight({ text, query }: { text: string; query: string }) {
+  if (!query || !text) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase();
+  const idx = lower.indexOf(q);
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-yellow-500/20 text-inherit rounded px-0.5">{text.slice(idx, idx + q.length)}</mark>
+      {text.slice(idx + q.length)}
+    </>
+  );
+}
+
 /* ── Tool Name Display ─────────────────────────────────────────────── */
 
-function ToolNameDisplay({ toolName }: { toolName: string }) {
+function ToolNameDisplay({ toolName, searchQuery }: { toolName: string; searchQuery?: string }) {
   const parsed = parseToolName(toolName);
   if (parsed.type === "mcp" && parsed.mcpServer && parsed.mcpFunction) {
     return <McpBadge server={parsed.mcpServer} func={parsed.mcpFunction} />;
@@ -792,14 +809,16 @@ function ToolNameDisplay({ toolName }: { toolName: string }) {
   return (
     <span className="inline-flex items-center gap-1">
       <span className="text-[12px]" aria-hidden="true">{toolIcon(toolName)}</span>
-      <span className="font-mono text-[13px] text-bc-text font-medium">{parsed.display}</span>
+      <span className="font-mono text-[13px] text-bc-text font-medium">
+        {searchQuery ? <SearchHighlight text={parsed.display} query={searchQuery} /> : parsed.display}
+      </span>
     </span>
   );
 }
 
 /* ── Tool Node Row ─────────────────────────────────────────────────── */
 
-function ToolNodeRow({ node, depth = 0, isSubagentChild = false }: { node: ToolNode; depth?: number; isSubagentChild?: boolean }) {
+function ToolNodeRow({ node, depth = 0, isSubagentChild = false, searchQuery = "" }: { node: ToolNode; depth?: number; isSubagentChild?: boolean; searchQuery?: string }) {
   const [expanded, setExpanded] = useState(false);
   const indent = depth * 20;
   const hasDetails = !!(node.fullInput || node.fullOutput || node.children.length > 0);
@@ -829,10 +848,10 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false }: { node: ToolN
           {hasDetails ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
         </span>
         <ToolDot status={node.status} />
-        <ToolNameDisplay toolName={node.toolName} />
+        <ToolNameDisplay toolName={node.toolName} searchQuery={searchQuery} />
         {node.args && (
           <span className="text-[12px] text-bc-muted truncate max-w-[400px] font-mono">
-            {redactSecrets(node.args)}
+            {searchQuery ? <SearchHighlight text={redactSecrets(node.args)} query={searchQuery} /> : redactSecrets(node.args)}
           </span>
         )}
         <span className="ml-auto flex items-center gap-2 shrink-0">
@@ -887,7 +906,7 @@ function ToolNodeRow({ node, depth = 0, isSubagentChild = false }: { node: ToolN
       )}
 
       {node.children.map((child) => (
-        <ToolNodeRow key={child.id} node={child} depth={depth + 1} isSubagentChild={isSubagentChild} />
+        <ToolNodeRow key={child.id} node={child} depth={depth + 1} isSubagentChild={isSubagentChild} searchQuery={searchQuery} />
       ))}
     </>
   );
@@ -987,7 +1006,7 @@ function AgentTreeNode({ node, depth = 0 }: { node: ToolNode; depth?: number }) 
 
 /* ── Aggregated Node Row ───────────────────────────────────────────── */
 
-function AggregatedNodeRow({ node }: { node: AggregatedNode }) {
+function AggregatedNodeRow({ node, searchQuery = "" }: { node: AggregatedNode; searchQuery?: string }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -1023,7 +1042,7 @@ function AggregatedNodeRow({ node }: { node: AggregatedNode }) {
       {expanded && (
         <div className="border-l-2 border-bc-border/40 ml-6">
           {node.children.map((child) => (
-            <ToolNodeRow key={child.id} node={child} depth={1} />
+            <ToolNodeRow key={child.id} node={child} depth={1} searchQuery={searchQuery} />
           ))}
         </div>
       )}
@@ -1033,11 +1052,11 @@ function AggregatedNodeRow({ node }: { node: AggregatedNode }) {
 
 /* ── Display Node Row ──────────────────────────────────────────────── */
 
-function DisplayNodeRow({ node }: { node: DisplayNode }) {
+function DisplayNodeRow({ node, searchQuery = "" }: { node: DisplayNode; searchQuery?: string }) {
   if (isAggregatedNode(node)) {
-    return <AggregatedNodeRow node={node} />;
+    return <AggregatedNodeRow node={node} searchQuery={searchQuery} />;
   }
-  return <ToolNodeRow node={node} />;
+  return <ToolNodeRow node={node} searchQuery={searchQuery} />;
 }
 
 /* ── Tasks Panel ───────────────────────────────────────────────────── */
@@ -1046,7 +1065,6 @@ function TasksPanel({ tasks }: { tasks: Map<string, TaskItem> }) {
   const [collapsed, setCollapsed] = useState(false);
 
   const visible = Array.from(tasks.values()).filter((t) => t.status !== "deleted");
-  if (visible.length === 0) return null;
 
   const completedCount = visible.filter((t) => t.status === "completed").length;
   const total = visible.length;
@@ -1062,21 +1080,28 @@ function TasksPanel({ tasks }: { tasks: Map<string, TaskItem> }) {
         <span className="text-[13px]">{"\u2705"}</span>
         <span className="text-sm font-semibold text-bc-text">Tasks</span>
         <span className="text-xs text-bc-muted font-mono tabular-nums">
-          ({completedCount}/{total} complete)
+          ({total === 0 ? "0" : `${completedCount}/${total} complete`})
         </span>
-        {/* Progress bar */}
-        <span className="flex-1 mx-2 h-1.5 bg-bc-bg rounded-full overflow-hidden max-w-[200px]">
-          <span
-            className="h-full bg-bc-success rounded-full transition-all duration-300"
-            style={{ width: `${progressPct}%` }}
-          />
-        </span>
+        {total > 0 && (
+          <span className="flex-1 mx-2 h-1.5 bg-bc-bg rounded-full overflow-hidden max-w-[200px]">
+            <span
+              className="h-full bg-bc-success rounded-full transition-all duration-300"
+              style={{ width: `${progressPct}%` }}
+            />
+          </span>
+        )}
         <span className="text-bc-muted text-[10px] select-none shrink-0">
           {collapsed ? "\u25B6" : "\u25BC"}
         </span>
       </button>
 
-      {!collapsed && (
+      {!collapsed && total === 0 && (
+        <div className="border-t border-bc-border/60 px-4 py-3 text-[12px] text-bc-muted italic">
+          No active tasks — tasks appear when agents create them.
+        </div>
+      )}
+
+      {!collapsed && total > 0 && (
         <div className="border-t border-bc-border/60 px-4 py-2 space-y-1">
           {visible.map((task) => (
             <div key={task.id} className="flex items-center gap-2 py-0.5">
@@ -1245,7 +1270,7 @@ const AgentCard = memo(function AgentCard({
               if (skipAnimation) {
                 return (
                   <div key={nodeKey}>
-                    <DisplayNodeRow node={node} />
+                    <DisplayNodeRow node={node} searchQuery={searchTerm} />
                   </div>
                 );
               }
@@ -1258,7 +1283,7 @@ const AgentCard = memo(function AgentCard({
                   transition={{ duration: 0.2, ease: "easeOut" }}
                   layout
                 >
-                  <DisplayNodeRow node={node} />
+                  <DisplayNodeRow node={node} searchQuery={searchTerm} />
                 </motion.div>
               );
             })}
@@ -1327,6 +1352,7 @@ export function Logs() {
         for (const a of agentList) {
           if (!next.has(a.name)) {
             const updatedAt = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+            const agentCost = a.cost_usd ?? (a as unknown as Record<string, unknown>).total_cost_usd as number ?? 0;
             next.set(a.name, {
               name: a.name,
               state: a.state,
@@ -1336,7 +1362,7 @@ export function Logs() {
               tokens: a.total_tokens ?? 0,
               inputTokens: 0,
               outputTokens: 0,
-              costUsd: a.cost_usd ?? 0,
+              costUsd: agentCost,
               lastEventTime: updatedAt > 0 && !isNaN(updatedAt) ? updatedAt : 0,
               nodes: [],
               collapsed: a.state === "stopped",
@@ -1897,7 +1923,7 @@ export function Logs() {
     const container = scrollContainerRef.current;
     if (!container) return;
     const onScroll = () => {
-      const isAtTop = container.scrollTop < 100;
+      const isAtTop = container.scrollTop < 50;
       setShowJumpToLatest(!isAtTop);
       if (isAtTop) setNewEventsSinceScroll(0);
     };
@@ -1999,8 +2025,8 @@ export function Logs() {
         <span className="text-sm text-bc-muted hidden sm:inline">Real-time agent activity</span>
         <span className="ml-auto flex items-center gap-3">
           <span className="flex items-center gap-1.5" title={sseTooltip}>
-            <span className={`inline-flex h-2 w-2 rounded-full ${sseDotColor}`} />
-            <span className="text-[10px] text-bc-muted font-mono hidden sm:inline">{sseStatus}</span>
+            <span className={`inline-flex h-2 w-2 rounded-full ${sseDotColor}${reconnecting ? " animate-pulse" : ""}`} />
+            <span className={`text-[10px] font-mono hidden sm:inline ${reconnecting ? "text-yellow-400" : "text-bc-muted"}`}>{sseStatus}</span>
           </span>
           <span className="text-xs text-bc-muted font-mono tabular-nums">{eventCount} events</span>
           <button
@@ -2015,6 +2041,39 @@ export function Logs() {
                 {pausedCount}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const exportData = {
+                exportedAt: new Date().toISOString(),
+                eventCount,
+                activities: Object.fromEntries(
+                  Array.from(activities.entries()).map(([name, a]) => [name, {
+                    name: a.name, state: a.state, role: a.role, task: a.task,
+                    tokens: a.tokens, inputTokens: a.inputTokens, outputTokens: a.outputTokens,
+                    costUsd: a.costUsd, lastEventTime: a.lastEventTime,
+                    nodes: a.nodes.map((n) => ({
+                      id: n.id, toolName: n.toolName, args: n.args,
+                      status: n.status, startTime: n.startTime, endTime: n.endTime,
+                      error: n.error,
+                    })),
+                  }]),
+                ),
+                tasks: Object.fromEntries(Array.from(tasks.entries())),
+              };
+              const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `bc-events-${Date.now()}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="text-xs px-2 py-1 rounded border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-muted hover:text-bc-text transition-colors"
+            title="Export event feed as JSON"
+          >
+            Export
           </button>
           <button
             type="button"
