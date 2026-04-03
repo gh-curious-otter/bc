@@ -36,13 +36,29 @@ pkg/                        # Reusable packages
     agent.go                #     Core: create, start, stop, delete, rename
     service.go              #     AgentService wrapping Manager
     role_setup.go           #     Role resolution and CLAUDE.md generation
+  attachment/               #   File attachment handling
   channel/                  #   SQLite-backed channels with reactions
-  cost/                     #   Cost tracking, budgets, import from Claude
-  events/                   #   Event log (SQLite)
-  workspace/                #   Workspace config, roles, state
-  container/                #   Docker runtime backend
-  runtime/                  #   Backend interface (tmux, docker)
   client/                   #   HTTP client for bcd API
+  container/                #   Docker runtime backend
+  cost/                     #   Cost tracking, budgets, import from Claude
+  cron/                     #   Scheduled task execution
+  db/                       #   Database utilities and connection management
+  doctor/                   #   Workspace health diagnostics
+  events/                   #   Event log (SQLite)
+  gateway/                  #   API gateway routing
+  log/                      #   Structured logging
+  mcp/                      #   Model Context Protocol client/server
+  names/                    #   Agent name generation
+  provider/                 #   AI provider registry (claude, gemini, cursor, etc.)
+  runtime/                  #   Backend interface (tmux, docker)
+  secret/                   #   Secret management
+  stats/                    #   Usage statistics and metrics
+  tmux/                     #   Tmux session management
+  token/                    #   Token counting and management
+  tool/                     #   Tool registry and execution
+  ui/                       #   Terminal UI utilities
+  workspace/                #   Workspace config, roles, state
+  worktree/                 #   Git worktree management
 
 server/                     # bcd HTTP server
   server.go                 #   Server setup, middleware chain, SSE hub

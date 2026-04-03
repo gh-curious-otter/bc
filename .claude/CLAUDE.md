@@ -6,32 +6,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Prerequisites**: Go 1.25.4+, tmux, golangci-lint, make. For TUI: Bun.
 
-**Naming convention**: `make <verb>-<component>[-<runtime>]`
+**Naming convention**: `make <verb>-<runtime>-<component>`
+- **verb** = `build` | `test` | `run` | `release` | `install` | `clean`
+- **runtime** = `local` (host machine) | `docker` (container)
 - **component** = `bc` | `bcd` | `tui` | `web` | `landing`
-- **runtime** = `-local` (host machine) | `-docker` (container)
 - `go` | `ts` = language aggregates for CI/CD convenience
 
 **Build**
 ```bash
-make build                         # Build everything locally (go + ts)
-make build-go-local                # Build all Go binaries (bc + bcd)
-make build-bc-local                # Build bc CLI binary
-make build-bcd-local               # Build bcd server (embeds web UI)
-make build-ts-local                # Build all TS packages (tui + web + landing)
-make build-bcd-docker              # Build bcd server Docker image
-make build-agent-gemini-docker     # Build Gemini agent Docker image
-make build-agents-docker           # Build all agent Docker images
-make release                       # Optimized release binaries (stripped)
+make build                         # Build everything (local + docker)
+make build-local                   # Build local binaries (go + ts)
+make build-local-go                # Build all Go binaries (bc + bcd)
+make build-local-bc                # Build bc CLI
+make build-local-bcd               # Build bcd server (embeds web UI)
+make build-local-ts                # Build all TS packages (tui + web + landing)
+make build-local-tui               # Build TUI
+make build-local-web               # Build web UI → server/web/dist/
+make build-local-landing           # Build landing page
+make build-docker                  # Build Docker images (db, bcd, playwright)
+make build-docker-daemon           # Build bcd Docker image
+make build-docker-db               # Build bc-db (unified TimescaleDB) Docker image
+make build-docker-agent            # Build default agent image (claude)
+make build-docker-agents           # Build all agent images
+make build-docker-agent-base       # Build agent base image
+make build-docker-playwright       # Build Playwright MCP Docker image
+make release                       # Build release binaries (stripped)
 ```
 
 **Test**
 ```bash
 make test                                       # Run all tests (go + ts)
 make test-go                                    # Run Go tests with race detector
+make test-go-fast                               # Run Go tests excluding slow packages
 go test -race -run TestAgentStart ./pkg/agent/  # Run a specific Go test
 make test-ts                                    # Run all TS tests (tui + web + landing)
 make test-tui                                   # Run TUI tests
 make test-web                                   # Run web UI tests (vitest)
+make test-landing                               # Run landing tests
 make coverage-go                                # Go coverage report (60% threshold)
 make bench-go                                   # Run Go benchmarks
 ```
@@ -46,16 +57,16 @@ make vet-go                # Run go vet
 make check                 # Full quality gate (go + ts)
 make check-go              # Go quality gate: gen + fmt + vet + lint + test
 make check-ts              # TS quality gate: lint + test
-make integrate             # Full CI equivalent: check + build
+make ci-local              # Full CI pipeline locally
+make ci-docker             # Build all Docker images
 ```
 
-**Run & Deploy**
+**Run**
 ```bash
-make run-bc-local                  # Run bc CLI from source (go run)
-make run-web-local                 # Run web UI dev server (hot reload)
-make run-landing-local             # Run landing dev server (hot reload)
-make deploy-bcd-local              # Deploy bcd server locally
-make deploy-bcd-local ENV=dogfood  # Deploy to dogfood environment
+make run-bc                        # Run bc CLI from source
+make run-web                       # Run web UI dev server (hot reload)
+make run-landing                   # Run landing dev server (hot reload)
+make run-tui                       # Run TUI dev mode
 ```
 
 **Utilities**
@@ -63,9 +74,9 @@ make deploy-bcd-local ENV=dogfood  # Deploy to dogfood environment
 make deps-go               # Download and tidy Go dependencies
 make deps-ts               # Install all TS dependencies (bun install)
 make scan-go               # Run govulncheck
-make gen-go                # Generate Go code (currently no-op)
-make install-bc-local      # Install bc to $GOPATH/bin
+make install-local-bc      # Install bc to $GOPATH/bin
 make clean                 # Remove all build artifacts
+make clean-local           # Remove build artifacts
 make clean-deps            # Remove artifacts + node_modules
 ```
 
@@ -76,10 +87,38 @@ make clean-deps            # Remove artifacts + node_modules
 ### Package Layout
 
 - **cmd/bc/main.go** → entry point, injects version via ldflags, delegates to internal/cmd
+- **cmd/bcd/main.go** → daemon entry point
 - **internal/cmd/** → all Cobra CLI commands in a single package. Commands are `*Cmd` variables registered via `init()`. Access workspace via `getWorkspace(cmd)` helper.
-- **pkg/** → reusable packages (agent, workspace, channel, cost, events, memory, tmux, git, etc.)
+- **pkg/** → reusable packages:
+  - **agent/** → agent lifecycle, Manager, SpawnOptions, role setup
+  - **attachment/** → file attachment handling
+  - **channel/** → SQLite-backed inter-agent communication with reactions
+  - **client/** → HTTP client for bcd API
+  - **container/** → Docker runtime backend
+  - **cost/** → cost tracking, budgets, import from Claude
+  - **cron/** → scheduled task execution
+  - **db/** → database utilities and connection management
+  - **doctor/** → workspace health diagnostics
+  - **events/** → event log (SQLite)
+  - **gateway/** → API gateway routing
+  - **log/** → structured logging
+  - **mcp/** → Model Context Protocol client/server
+  - **names/** → agent name generation
+  - **provider/** → AI provider registry (claude, gemini, cursor, etc.)
+  - **runtime/** → backend interface (tmux, docker)
+  - **secret/** → secret management
+  - **stats/** → usage statistics and metrics
+  - **tmux/** → tmux session management
+  - **token/** → token counting and management
+  - **tool/** → tool registry and execution
+  - **ui/** → terminal UI utilities
+  - **workspace/** → workspace config, roles, state
+  - **worktree/** → git worktree management
 - **config/** → configuration constants
-- **tui/src/** → React/Ink terminal UI with 14 views, compiled to CommonJS in tui/dist/
+- **server/** → bcd HTTP server, handlers, MCP, WebSocket/SSE hub
+- **tui/src/** → React/Ink terminal UI, compiled to CommonJS in tui/dist/
+- **web/** → web UI (React/Vite)
+- **landing/** → landing page
 - **prompts/** → default role prompt templates
 - **docker/** → per-provider Dockerfiles (claude, gemini, codex, aider, opencode, openclaw, cursor)
 
@@ -148,9 +187,9 @@ Exclusions: deprecated queue/beads migration, test file magic numbers, main.go g
 ## Docker Agent Images
 
 ```bash
-make build-agent-docker                # Build default agent Docker image (claude)
-make build-agent-gemini-docker         # Build specific provider Docker image
-make build-agents-docker               # Build all agent Docker images
+make build-docker-agent            # Build default agent Docker image (claude)
+make build-docker-agents           # Build all agent Docker images
+make build-docker-agent-base       # Build agent base image
 ```
 
 ## Architecture Patterns
