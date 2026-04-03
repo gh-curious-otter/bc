@@ -287,41 +287,54 @@ bc down
 
 Configuration is stored in `.bc/settings.json`. Key settings:
 
-```toml
-[workspace]
-name = "my-project"
-
-[user]
-nickname = "@yourname"  # Shown in channel messages instead of 'cli'
-
-[tools]
-default = "claude"
-
-[tools.claude]
-command = "claude --dangerously-skip-permissions"
-enabled = true
-
-[tools.gemini]
-command = "gemini --yolo"
-enabled = true
-
-[tools.cursor]
-command = "cursor-agent --force --print"
-enabled = false
-
-[tools.aider]
-command = "aider --yes"
-enabled = false
-
-[roster]
-engineers = 4
-tech_leads = 2
-
-[performance]
-# TUI polling intervals in milliseconds (min: 500ms)
-poll_interval_agents = 2000    # Agent status updates
-poll_interval_channels = 3000  # Channel message polling
-poll_interval_costs = 5000     # Cost data refresh
+```json
+{
+  "user": {
+    "name": "@yourname"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 9374,
+    "cors_origin": "*"
+  },
+  "providers": {
+    "default": "claude",
+    "providers": {
+      "claude": {
+        "command": "claude --dangerously-skip-permissions"
+      },
+      "gemini": {
+        "command": "gemini --yolo"
+      },
+      "cursor": {
+        "command": "cursor-agent --force --print"
+      }
+    }
+  },
+  "runtime": {
+    "default": "docker",
+    "docker": {
+      "image": "bc-agent:latest",
+      "cpus": 2,
+      "memory_mb": 4096
+    },
+    "tmux": {
+      "session_prefix": "bc",
+      "history_limit": 10000,
+      "default_shell": "/bin/bash"
+    }
+  },
+  "storage": {
+    "default": "sqlite",
+    "sqlite": {
+      "path": ".bc"
+    }
+  },
+  "cron": {
+    "poll_interval_seconds": 30,
+    "job_timeout_seconds": 300
+  }
+}
 ```
 
 ### User Nickname

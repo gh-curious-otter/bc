@@ -28,36 +28,40 @@ make build
 # Run tests
 make test
 
-# Install locally (copies bin/bc to $GOPATH/bin)
-cp bin/bc $(go env GOPATH)/bin/
+# Install locally
+make install
 ```
 
 ## Build Commands
 
-Naming convention: `make <verb>-<component>[-<runtime>]` where `component` = `bc` | `bcd` | `tui` | `web` | `landing`, `runtime` = `-local` (host) | `-docker` (container). `go` and `ts` are language aggregates for CI/CD convenience.
+Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `local` (host) | `docker` (container), `component` = `bc` | `bcd` | `tui` | `web` | `landing`. `go` and `ts` are language aggregates for CI/CD convenience.
 
 ### Build (local)
 
 | Command | Description |
 |---------|-------------|
-| `make build` | Build all components locally (bc, bcd, tui, web, landing) |
-| `make build-bc-local` | Build bc CLI binary to `bin/bc` |
-| `make build-bcd-local` | Build bcd server binary (embeds web UI) |
-| `make build-tui-local` | Build TUI package |
-| `make build-web-local` | Build React web UI → `server/web/dist/` |
-| `make build-landing-local` | Build Next.js landing page |
+| `make build` | Build everything (local + docker) |
+| `make build-local` | Build all local binaries (go + ts) |
+| `make build-local-go` | Build all Go binaries (bc + bcd) |
+| `make build-local-bc` | Build bc CLI binary to `bin/bc` |
+| `make build-local-bcd` | Build bcd server binary (embeds web UI) |
+| `make build-local-ts` | Build all TS packages (tui + web + landing) |
+| `make build-local-tui` | Build TUI package |
+| `make build-local-web` | Build React web UI → `server/web/dist/` |
+| `make build-local-landing` | Build Next.js landing page |
 | `make release` | Build optimized release binaries (stripped symbols) |
-| `make install-bc-local` | Install bc to `$GOPATH/bin` |
+| `make install-local-bc` | Install bc to `$GOPATH/bin` |
 
 ### Build (Docker)
 
 | Command | Description |
 |---------|-------------|
-| `make build-bcd-docker` | Build bcd server Docker image |
-| `make build-bcdb-docker` | Build bcdb Postgres Docker image |
-| `make build-agent-docker` | Build default agent Docker image (claude) |
-| `make build-agent-NAME-docker` | Build agent Docker image for provider (claude, gemini, codex, etc.) |
-| `make build-agents-docker` | Build all agent Docker images |
+| `make build-docker` | Build all Docker images (db, bcd, playwright) |
+| `make build-docker-daemon` | Build bcd server Docker image |
+| `make build-docker-db` | Build bc-db (unified TimescaleDB) Docker image |
+| `make build-docker-bcdb` | Build bcdb Postgres Docker image (alias) |
+| `make build-docker-agent` | Build default agent Docker image (claude) |
+| `make build-docker-agents` | Build all agent Docker images |
 
 ### Test
 
@@ -68,7 +72,7 @@ Naming convention: `make <verb>-<component>[-<runtime>]` where `component` = `bc
 | `make test-ts` | Run all TS tests (tui + web + landing) |
 | `make test-tui` | Run TUI tests |
 | `make test-web` | Run web UI tests (vitest) |
-| `make test-landing` | Run landing page tests (Playwright) |
+| `make test-landing` | Run landing page tests |
 | `make coverage-go` | Run Go tests with coverage report (60% threshold) |
 | `make bench-go` | Run Go benchmarks |
 
@@ -79,35 +83,34 @@ Naming convention: `make <verb>-<component>[-<runtime>]` where `component` = `bc
 | `make lint` | Run all linters (go + ts) |
 | `make lint-go` | Run golangci-lint on Go code |
 | `make lint-ts` | Run all TS linters (tui + web + landing) |
-| `make lint-tui` | Lint TUI code |
-| `make lint-web` | Lint web UI code |
-| `make lint-landing` | Lint landing page code |
 | `make fmt-go` | Format Go code with gofmt |
+| `make fmt-ts` | Format all TS code |
 | `make vet-go` | Run go vet |
+| `make vet-ts` | Typecheck all TS |
 | `make check` | Full quality gate (go + ts) |
 | `make check-go` | Go quality gate (gen + fmt + vet + lint + test) |
 | `make check-ts` | TS quality gate (lint + test) |
-| `make integrate` | Full CI equivalent: check + build |
+| `make ci-local` | Full CI pipeline locally |
 
 ### Run & Deploy
 
 | Command | Description |
 |---------|-------------|
-| `make run-bc-local` | Run bc CLI from source (`go run`) |
-| `make run-web-local` | Run web UI dev server (hot reload) |
-| `make run-landing-local` | Run landing dev server (hot reload) |
-| `make deploy-bcd-local` | Deploy bcd server locally (ENV=local\|dogfood\|production) |
-| `make deploy-landing-local` | Deploy landing page locally (placeholder) |
+| `make run-bc` | Run bc CLI from source (`go run`) |
+| `make run-web` | Run web UI dev server (hot reload) |
+| `make run-landing` | Run landing dev server (hot reload) |
+| `make run-tui` | Run TUI in dev mode |
 
 ### Utilities
 
 | Command | Description |
 |---------|-------------|
-| `make gen-go` | Generate Go code from settings.json |
+| `make deps` | Install all dependencies (go + ts) |
 | `make deps-go` | Download and tidy Go dependencies |
 | `make deps-ts` | Install all TS dependencies (bun install) |
 | `make scan-go` | Run govulncheck for Go vulnerabilities |
-| `make install-bc-local` | Install bc to `$GOPATH/bin` |
+| `make scan-ts` | Run TS dependency audit |
+| `make install-local-bc` | Install bc to `$GOPATH/bin` |
 | `make clean` | Remove all build artifacts |
 | `make clean-deps` | Remove build artifacts + node_modules |
 
@@ -201,19 +204,35 @@ bc/
 │   └── cmd/             # Cobra command implementations
 ├── pkg/                 # Reusable packages
 │   ├── agent/           # Agent lifecycle, roles, tmux sessions
+│   ├── attachment/      # File attachment handling
 │   ├── channel/         # SQLite-backed communication
+│   ├── client/          # API client
+│   ├── container/       # Docker container management
 │   ├── cost/            # Cost tracking and budgets
-│   ├── demon/           # Scheduled task management
+│   ├── cron/            # Scheduled task management
+│   ├── db/              # Database abstraction
+│   ├── doctor/          # System health diagnostics
 │   ├── events/          # Event logging
-│   ├── git/             # Git worktree operations
-│   ├── memory/          # Agent memory system
-│   ├── process/         # Background process management
-│   ├── routing/         # Agent routing patterns
-│   ├── team/            # Team management
+│   ├── gateway/         # External gateway integrations
+│   ├── log/             # Structured logging
+│   ├── mcp/             # MCP protocol support
+│   ├── names/           # Agent name generation
+│   ├── provider/        # AI provider registry
+│   ├── runtime/         # Runtime backends (tmux, docker)
+│   ├── secret/          # Secret management
+│   ├── stats/           # Workspace statistics
 │   ├── tmux/            # tmux session control
+│   ├── token/           # Token management
+│   ├── tool/            # Tool management
 │   ├── ui/              # CLI output formatting (colors, tables)
-│   └── workspace/       # Workspace config (v1 JSON, v2 TOML)
+│   ├── workspace/       # Workspace config (settings.json v2)
+│   └── worktree/        # Git worktree operations
+├── server/              # bcd server (API, web UI, MCP)
+│   └── web/             # Embedded web UI (React)
+│       └── dist/        # Built web assets
 ├── prompts/             # Default role prompt templates
+├── web/                 # Web UI source (React/Vite)
+├── landing/             # Landing page (Next.js)
 └── tui/                 # TypeScript/React TUI (Ink)
     ├── src/
     │   ├── __tests__/   # Component and integration tests
