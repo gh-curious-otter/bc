@@ -124,9 +124,9 @@ binary using Go's `embed.FS`, served as static files with SPA fallback.
 - **SPA routing**: the server tries to serve the exact file path first; if
   the file does not exist, it falls back to `index.html` for client-side
   routing.
-- **Development mode**: during development, `make run-web-local` runs a Vite
+- **Development mode**: during development, `make run-web` runs a Vite
   dev server with hot reload, proxying API calls to bcd.
-- **Build pipeline**: `make build-bcd-local` runs `make build-web-local`
+- **Build pipeline**: `make build-local-bcd` runs `make build-local-web`
   first to produce `web/dist/`, then embeds it into the Go binary.
 
 **Tradeoffs:**

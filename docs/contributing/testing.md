@@ -227,7 +227,7 @@ Web E2E tests live in `web/e2e/` and require a running bcd server:
 
 ```bash
 # Start bcd first
-make deploy-bcd-local
+make run-bc
 
 # Run e2e tests
 make test-web-e2e
