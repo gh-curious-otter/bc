@@ -2,9 +2,9 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| Version | Supported |
+| ------- | --------- |
+| 0.1.x   | Yes       |
 
 ## Reporting a Vulnerability
 
@@ -44,10 +44,15 @@ We take security seriously. If you discover a security vulnerability in bc, plea
 ### Scope
 
 This policy applies to:
-- The bc CLI tool
-- The TUI interface
-- Agent communication protocols
-- Configuration handling
+
+- The **bc CLI** tool (`cmd/bc`, `internal/cmd`, `pkg/`)
+- The **bcd server** (`server/`) including the REST API, WebSocket, and MCP SSE endpoints
+- The **TUI** interface (`tui/`)
+- The **web dashboard** (`web/`) embedded in bcd
+- **Docker agent images** (`docker/`, `Dockerfile.agent`)
+- Agent communication protocols (channels, MCP)
+- Secret storage and injection (`pkg/secret`)
+- Configuration and credential handling (`.bc/`, `settings.json`)
 
 ### Out of Scope
 
@@ -55,12 +60,46 @@ This policy applies to:
 - Social engineering attacks
 - Physical security issues
 
+## Security Architecture
+
+### Secret Management
+
+bc stores secrets in an encrypted, per-workspace store under `.bc/secrets/`. Secrets are injected into agent sessions at startup via environment variables and are never written to disk in plaintext. Use `bc secret set` to manage secrets instead of placing them in `.env`.
+
+Sensitive patterns (API keys, tokens, DSNs) are redacted from WebSocket streams by the bcd server before reaching the web dashboard.
+
+### Agent Isolation
+
+Each agent runs in its own tmux session (local) or Docker container (production) with a dedicated git worktree. Agents communicate only through the bcd API and SQLite-backed channels -- never via shared filesystem state.
+
+### Docker Hardening
+
+- All agent images run as a non-root user
+- Base images are pinned to specific versions (never `:latest`)
+- Containers use bridge networking (not `--net=host`)
+- `HEALTHCHECK` directives are included in production images
+
+### Network & API
+
+- The bcd server binds to `localhost:9374` by default
+- CORS, request body size limits, and rate limiting are enforced
+- MCP SSE endpoints identify the calling agent via query parameter (`?agent=<name>`)
+
+### CI/CD
+
+- `golangci-lint` with strict security linters (`gosec`, `errcheck`, `noctx`)
+- `govulncheck` runs on every push to main
+- Dependabot monitors Go and npm dependencies
+
 ## Security Best Practices
 
 When using bc:
 
 - Keep bc updated to the latest version
-- Review agent prompts before execution
+- Store API keys and tokens via `bc secret set`, not in `.env` or shell history
+- Review agent prompts and role definitions before execution
 - Use environment variables for sensitive data (never hardcode)
-- Restrict agent capabilities to minimum required
+- Restrict agent capabilities to the minimum required via role definitions
 - Monitor agent costs and set appropriate budgets
+- Run agents in Docker runtime for production workloads (stronger isolation)
+- Audit `.bc/agents/` directory periodically for stale worktrees
