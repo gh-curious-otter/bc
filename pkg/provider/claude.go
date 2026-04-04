@@ -63,8 +63,6 @@ func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	switch {
 	case opts.SessionID != "":
 		cmd += " --resume " + opts.SessionID
-	case opts.Resume:
-		cmd += " --continue"
 	}
 	return cmd
 }
