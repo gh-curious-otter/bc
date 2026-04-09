@@ -175,6 +175,9 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 				channelsTotal = len(chSet)
 			}
 		}
+		if count, err := h.notifySvc.Store().TotalMessageCount(ctx); err == nil {
+			messagesTotal = count
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

@@ -153,10 +153,12 @@ export function GatewayFeed({
   };
 
   const handleToggleMention = async (agentName: string, current: boolean) => {
+    setAgentLoading(true);
     try {
       await api.setMentionOnly(channelName, agentName, !current);
       await fetchAgents();
     } catch { /* */ }
+    setAgentLoading(false);
   };
 
   useEffect(() => {
@@ -370,13 +372,15 @@ export function GatewayFeed({
                                 <button
                                   type="button"
                                   onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)}
+                                  disabled={agentLoading}
                                   className={`text-[9px] px-2 py-0.5 rounded-md border transition-all duration-150 ${
+                                    agentLoading ? "opacity-50 cursor-wait" :
                                     sub?.mention_only
                                       ? "border-bc-accent/30 bg-bc-accent/8 text-bc-accent"
                                       : "border-bc-border/30 text-bc-muted/50 hover:border-bc-border/50 hover:text-bc-muted"
                                   }`}
                                 >
-                                  {sub?.mention_only ? "@ mentions" : "all msgs"}
+                                  {agentLoading ? "..." : sub?.mention_only ? "@ mentions" : "all msgs"}
                                 </button>
                                 <button
                                   type="button"

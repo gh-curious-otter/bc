@@ -294,6 +294,13 @@ func (s *Store) PruneActivity(ctx context.Context, channel string, keepLast int)
 	return err
 }
 
+// TotalMessageCount returns the total number of stored messages across all channels.
+func (s *Store) TotalMessageCount(ctx context.Context) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notify_messages`).Scan(&count)
+	return count, err
+}
+
 // MessageRecord is a stored inbound gateway message for the activity feed.
 type MessageRecord struct {
 	CreatedAt time.Time `json:"created_at"`
