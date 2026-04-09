@@ -8,53 +8,53 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* ── Solar Flare (default) ──────────────────────────────────────────── */
-/* Warm dark theme with tangerine accent — the signature bc look        */
+/* Neon tangerine on deep charcoal — electric but restrained            */
 :root {
-  --bc-bg: #0c0a08;
-  --bc-surface: #1a1614;
-  --bc-surface-hover: #242018;
-  --bc-border: #2e2822;
-  --bc-text: #f5f0eb;
-  --bc-muted: #8c7e72;
-  --bc-accent: #ea580c;
-  --bc-accent-hover: #f97316;
-  --bc-success: #22c55e;
-  --bc-warning: #fb923c;
-  --bc-error: #ef4444;
-  --bc-info: #06b6d4;
+  --bc-bg: #0b0908;
+  --bc-surface: #171311;
+  --bc-surface-hover: #211c18;
+  --bc-border: #2a2420;
+  --bc-text: #f2ede8;
+  --bc-muted: #8a7c70;
+  --bc-accent: #f97316;
+  --bc-accent-hover: #fb923c;
+  --bc-success: #34d399;
+  --bc-warning: #fbbf24;
+  --bc-error: #f87171;
+  --bc-info: #22d3ee;
 
   font-family: Inter, "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   color-scheme: dark;
 }
 
 /* ── Dark ────────────────────────────────────────────────────────────── */
-/* Cool neutral dark — no warm tones, blue-grey palette                 */
+/* Cool slate with emerald accent — minimal, no blue                    */
 html.dark {
-  --bc-bg: #09090b;
-  --bc-surface: #18181b;
-  --bc-surface-hover: #1f1f23;
-  --bc-border: #27272a;
-  --bc-text: #fafafa;
-  --bc-muted: #71717a;
-  --bc-accent: #3b82f6;
-  --bc-accent-hover: #60a5fa;
-  --bc-success: #22c55e;
-  --bc-warning: #f59e0b;
-  --bc-error: #ef4444;
-  --bc-info: #38bdf8;
+  --bc-bg: #0a0a0c;
+  --bc-surface: #141416;
+  --bc-surface-hover: #1c1c20;
+  --bc-border: #26262a;
+  --bc-text: #e8e8ec;
+  --bc-muted: #6b6b76;
+  --bc-accent: #10b981;
+  --bc-accent-hover: #34d399;
+  --bc-success: #34d399;
+  --bc-warning: #fbbf24;
+  --bc-error: #f87171;
+  --bc-info: #67e8f9;
 
   color-scheme: dark;
 }
 
 /* ── Light ───────────────────────────────────────────────────────────── */
-/* Clean light theme — warm white with tangerine accent                 */
+/* Warm cream with tangerine accent — clean, readable                   */
 html.light {
-  --bc-bg: #fafaf9;
+  --bc-bg: #faf8f6;
   --bc-surface: #ffffff;
-  --bc-surface-hover: #f5f5f4;
-  --bc-border: #e7e5e4;
-  --bc-text: #1c1917;
-  --bc-muted: #78716c;
+  --bc-surface-hover: #f5f3f1;
+  --bc-border: #e5e0db;
+  --bc-text: #1a1613;
+  --bc-muted: #7a716a;
   --bc-accent: #ea580c;
   --bc-accent-hover: #c2410c;
   --bc-success: #16a34a;
