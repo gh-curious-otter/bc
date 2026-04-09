@@ -81,6 +81,14 @@ export interface GatewayStatus {
   config?: Record<string, unknown>;
 }
 
+export interface GatewayHealth {
+  platform: string;
+  connected: boolean;
+  status: string;
+  error?: string;
+  last_message_at?: string;
+}
+
 export interface CostSummary {
   input_tokens: number;
   output_tokens: number;
@@ -584,6 +592,8 @@ export const api = {
   },
   listGateways: () =>
     request<GatewayStatus[]>("/gateways"),
+  getGatewayHealth: (platform: string) =>
+    request<GatewayHealth>(`/gateways/${encodeURIComponent(platform)}/health`),
 
   sendToChannel: (name: string, message: string, sender = "web") =>
     request<ChannelMessage>(`/channels/${encodeURIComponent(name)}/messages`, {

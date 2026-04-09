@@ -4,7 +4,7 @@ import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
 import { api } from "../api/client";
-import type { Channel, GatewayStatus, NotifySubscription } from "../api/client";
+import type { Channel, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
 import { channelPlatform } from "./channels/messageUtils";
 import { SetupWizard } from "./channels/SetupWizard";
 
@@ -62,6 +62,7 @@ function ChannelNavTree() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [subs, setSubs] = useState<NotifySubscription[]>([]);
+  const [health, setHealth] = useState<Map<string, GatewayHealth>>(new Map());
   const [expandedGw, setExpandedGw] = useState<Set<string>>(new Set(["slack", "telegram", "discord"]));
   const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
 
@@ -75,6 +76,21 @@ function ChannelNavTree() {
       setChannels(chs ?? []);
       setGateways(gws ?? []);
       setSubs(subList ?? []);
+
+      // Fetch health for each enabled gateway
+      const enabledGws = (gws ?? []).filter((g) => g.enabled);
+      if (enabledGws.length > 0) {
+        const healthResults = await Promise.all(
+          enabledGws.map((g) =>
+            api.getGatewayHealth(g.platform).catch(() => null),
+          ),
+        );
+        const hmap = new Map<string, GatewayHealth>();
+        for (const h of healthResults) {
+          if (h) hmap.set(h.platform, h);
+        }
+        setHealth(hmap);
+      }
     } catch { /* */ }
   }, []);
 
@@ -112,6 +128,26 @@ function ChannelNavTree() {
 
   const [showConnectMenu, setShowConnectMenu] = useState(false);
 
+  const healthTooltip = (platform: string): string | undefined => {
+    const h = health.get(platform);
+    if (!h) return undefined;
+    if (h.connected) {
+      let tip = "Connected";
+      if (h.last_message_at) {
+        const ago = Date.now() - new Date(h.last_message_at).getTime();
+        const mins = Math.floor(ago / 60000);
+        if (mins < 1) tip += " · last message: just now";
+        else if (mins < 60) tip += ` · last message: ${mins}m ago`;
+        else {
+          const hrs = Math.floor(mins / 60);
+          tip += ` · last message: ${hrs}h ago`;
+        }
+      }
+      return tip;
+    }
+    return `Disconnected${h.error ? ": " + h.error : ""}`;
+  };
+
   const botDisplayName = (platform: string, gw?: GatewayStatus): string => {
     if (gw?.bot_name) return gw.bot_name;
     return platform;
@@ -139,6 +175,7 @@ function ChannelNavTree() {
                 <path d="M1.5 2L4 5L6.5 2" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
               </svg>
               <span className="w-[5px] h-[5px] rounded-full shrink-0"
+                title={healthTooltip(platform)}
                 style={{ backgroundColor: isConnected ? "#22c55e" : gwStatus?.enabled ? "#fb923c" : "rgba(140,126,114,0.12)" }}
               />
               <span className="font-medium text-bc-text/60 group-hover:text-bc-text/80 truncate">
