@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
 import type { Channel, ChannelMessage, DeliveryEntry, NotifySubscription } from "../../api/client";
 import { useWebSocket } from "../../hooks/useWebSocket";
@@ -16,6 +17,12 @@ function activityIcon(content: string): { icon: string; color: string } {
   return { icon: "\u203A", color: "text-bc-muted/50" };
 }
 
+const messageVariants = {
+  initial: { opacity: 0, y: -8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -4 },
+};
+
 export function GatewayFeed({
   channelName,
   channel,
@@ -28,12 +35,13 @@ export function GatewayFeed({
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryEntry[]>([]);
   const [subscriptions, setSubscriptions] = useState<NotifySubscription[]>([]);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
 
   const platform = gatewayPlatform(channelName);
-  const channelLabel = channelName.includes(":") ? channelName.split(":").slice(1).join(":") : channelName;
+  const channelLabel = channelName.includes(":")
+    ? channelName.split(":").slice(1).join(":")
+    : channelName;
 
   // Fetch history + delivery log + subscriptions
   const fetchAll = useCallback(async () => {
@@ -58,9 +66,15 @@ export function GatewayFeed({
   // Live updates via WebSocket
   useEffect(() => {
     const unsub1 = subscribe("channel.message", (event) => {
-      const data = event.data as { channel?: string; message?: ChannelMessage };
+      const data = event.data as {
+        channel?: string;
+        message?: ChannelMessage;
+      };
       if (data.channel === channelName && data.message) {
-        const msg = { ...data.message, created_at: data.message.created_at || new Date().toISOString() };
+        const msg = {
+          ...data.message,
+          created_at: data.message.created_at || new Date().toISOString(),
+        };
         setMessages((prev) => {
           if (prev.some((m) => m.id === msg.id)) return prev;
           return [...prev, msg];
@@ -70,20 +84,19 @@ export function GatewayFeed({
     const unsub2 = subscribe("gateway.message", (event) => {
       const data = event.data as { channel?: string };
       if (data.channel === channelName) {
-        // Refresh delivery log on gateway activity
-        void api.getChannelActivity(channelName, 100).then(d => setDeliveries(d ?? [])).catch(() => {});
+        void api
+          .getChannelActivity(channelName, 100)
+          .then((d) => setDeliveries(d ?? []))
+          .catch(() => {});
       }
     });
-    return () => { unsub1(); unsub2(); };
+    return () => {
+      unsub1();
+      unsub2();
+    };
   }, [subscribe, channelName]);
 
-  // Auto-scroll
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // Build delivery map: messageId-ish -> agents delivered to
-  // Since delivery log uses preview text, we match by approximate time
+  // Build delivery map by preview text
   const deliveryByPreview = new Map<string, DeliveryEntry[]>();
   for (const d of deliveries) {
     const key = d.preview ?? "";
@@ -92,16 +105,21 @@ export function GatewayFeed({
     deliveryByPreview.set(key, list);
   }
 
-  const subAgents = new Set(subscriptions.map(s => s.agent));
-  const groups = groupMessages(messages);
+  const subAgents = new Set(subscriptions.map((s) => s.agent));
+
+  // Reverse messages: newest first (stream style)
+  const reversed = [...messages].reverse();
+  const groups = groupMessages(reversed);
 
   return (
     <>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-bc-border bg-bc-surface/30">
+      <div className="px-5 py-3 border-b border-bc-border bg-bc-surface/30">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-[15px] font-medium text-bc-text">#{channelLabel}</span>
+            <span className="text-[15px] font-semibold text-bc-text">
+              #{channelLabel}
+            </span>
             {platform && (
               <span className="text-[9px] px-2 py-0.5 rounded-full bg-bc-border/40 text-bc-muted font-medium uppercase tracking-wider">
                 {platform}
@@ -109,24 +127,29 @@ export function GatewayFeed({
             )}
           </div>
           <div className="flex items-center gap-3 text-[11px] text-bc-muted">
-            <span>{messages.length} message{messages.length !== 1 ? "s" : ""}</span>
+            <span>
+              {messages.length} message{messages.length !== 1 ? "s" : ""}
+            </span>
             {subscriptions.length > 0 && (
               <span className="text-bc-success">
-                {subscriptions.length} agent{subscriptions.length !== 1 ? "s" : ""}
+                {subscriptions.length} agent
+                {subscriptions.length !== 1 ? "s" : ""}
               </span>
             )}
           </div>
         </div>
         {channel?.description && (
-          <p className="text-[11px] text-bc-muted/60 mt-1">{channel.description}</p>
+          <p className="text-[11px] text-bc-muted/60 mt-1">
+            {channel.description}
+          </p>
         )}
       </div>
 
-      {/* Messages */}
+      {/* Stream — newest first */}
       <div className="relative flex-1">
-        <div ref={scrollRef} className="absolute inset-0 overflow-auto px-4 py-2">
+        <div ref={scrollRef} className="absolute inset-0 overflow-auto px-5 py-3">
           {messages.length === 0 && (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-16">
               <EmptyState
                 icon="\u21C4"
                 title="No activity yet"
@@ -135,72 +158,92 @@ export function GatewayFeed({
             </div>
           )}
 
-          {groups.map((group, gi) => (
-            <div key={group.messages[0]?.id ?? gi} className="mb-3">
-              {/* Sender header */}
-              <div className="flex items-baseline gap-2 mb-0.5">
-                <button
-                  type="button"
-                  onClick={() => onPeekAgent(group.sender)}
-                  className="text-[12px] font-semibold text-bc-accent hover:underline cursor-pointer"
-                >
-                  {group.sender}
-                </button>
-                <span className="text-[10px] text-bc-muted/50">
-                  {formatTimestamp(group.timestamp)}
-                </span>
-              </div>
+          <AnimatePresence initial={false}>
+            {groups.map((group, gi) => (
+              <motion.div
+                key={group.messages[0]?.id ?? gi}
+                variants={messageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                className="mb-4"
+              >
+                {/* Sender header */}
+                <div className="flex items-baseline gap-2 mb-1">
+                  <button
+                    type="button"
+                    onClick={() => onPeekAgent(group.sender)}
+                    className="text-[13px] font-semibold text-bc-accent hover:underline cursor-pointer"
+                  >
+                    {group.sender}
+                  </button>
+                  <span className="text-[10px] text-bc-muted/40">
+                    {formatTimestamp(group.timestamp)}
+                  </span>
+                </div>
 
-              {/* Messages in group */}
-              {group.messages.map((msg) => {
-                const icon = activityIcon(msg.content);
-                // Find delivery entries matching this message's content preview
-                const preview = msg.content.slice(0, 120);
-                const msgDeliveries = deliveryByPreview.get(preview) ?? [];
-                const delivered = msgDeliveries.filter(d => d.status === "delivered");
-                const failed = msgDeliveries.filter(d => d.status === "failed");
+                {/* Messages in group */}
+                {group.messages.map((msg) => {
+                  const icon = activityIcon(msg.content);
+                  const preview = msg.content.slice(0, 120);
+                  const msgDeliveries = deliveryByPreview.get(preview) ?? [];
+                  const delivered = msgDeliveries.filter(
+                    (d) => d.status === "delivered",
+                  );
+                  const failed = msgDeliveries.filter(
+                    (d) => d.status === "failed",
+                  );
 
-                return (
-                  <div key={msg.id} className="group">
-                    <div className="flex items-start gap-2 py-0.5 rounded hover:bg-bc-surface/30 transition-colors px-1 -mx-1">
-                      <span className={`text-[10px] mt-0.5 w-4 text-center shrink-0 ${icon.color}`}>
-                        {icon.icon}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12px] text-bc-text/80 whitespace-pre-wrap break-words leading-relaxed">
-                          <MessageContent content={msg.content} />
-                        </p>
+                  return (
+                    <div key={msg.id} className="group">
+                      <div className="flex items-start gap-2 py-0.5 rounded-md hover:bg-bc-surface/30 transition-colors px-2 -mx-2">
+                        <span
+                          className={`text-[10px] mt-1 w-4 text-center shrink-0 ${icon.color}`}
+                        >
+                          {icon.icon}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12.5px] text-bc-text/85 whitespace-pre-wrap break-words leading-[1.6]">
+                            <MessageContent content={msg.content} />
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Delivery badges */}
+                      {(delivered.length > 0 || failed.length > 0) && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          transition={{ duration: 0.2 }}
+                          className="flex items-center gap-2 ml-8 mt-0.5 mb-1"
+                        >
+                          {delivered.length > 0 && (
+                            <span className="text-[9px] text-bc-success/60 flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-bc-success/60" />
+                              delivered to{" "}
+                              {delivered.map((d) => d.agent).join(", ")}
+                            </span>
+                          )}
+                          {failed.length > 0 && (
+                            <span className="text-[9px] text-bc-error/60 flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-bc-error/60" />
+                              failed: {failed.map((d) => d.agent).join(", ")}
+                            </span>
+                          )}
+                        </motion.div>
+                      )}
                     </div>
-
-                    {/* Delivery badges */}
-                    {(delivered.length > 0 || failed.length > 0) && (
-                      <div className="flex items-center gap-1.5 ml-6 mt-0.5 mb-1">
-                        {delivered.length > 0 && (
-                          <span className="text-[9px] text-bc-success/70 flex items-center gap-1">
-                            <span className="opacity-50">&rarr;</span>
-                            delivered to {delivered.map(d => d.agent).join(", ")}
-                          </span>
-                        )}
-                        {failed.length > 0 && (
-                          <span className="text-[9px] text-bc-error/70 flex items-center gap-1">
-                            <span className="opacity-50">&times;</span>
-                            failed: {failed.map(d => d.agent).join(", ")}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-          <div ref={bottomRef} />
+                  );
+                })}
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2 border-t border-bc-border bg-bc-surface/20">
+      <div className="px-5 py-2 border-t border-bc-border bg-bc-surface/20">
         <p className="text-[10px] text-bc-muted/40 text-center">
           {platform ? (
             <>Activity from {platform}. Agents respond via MCP.</>
@@ -208,7 +251,11 @@ export function GatewayFeed({
             <>Agents communicate via MCP tools.</>
           )}
           {subAgents.size > 0 && (
-            <> · {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""} subscribed</>
+            <>
+              {" "}
+              · {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""}{" "}
+              subscribed
+            </>
           )}
         </p>
       </div>
