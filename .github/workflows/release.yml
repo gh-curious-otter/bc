@@ -28,41 +28,41 @@ jobs:
     name: CI
     uses: ./.github/workflows/ci.yml
 
-  # ── Create tag (workflow_dispatch only) ──────────────────────────────
-  create-tag:
-    name: Create Tag
+  # ── Prepare: validate + tag (always runs) ─────────────────────────────
+  prepare:
+    name: Prepare
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-      - name: Validate version format
+      - name: Resolve tag
+        id: resolve
         env:
-          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.tag }}
         run: |
-          if [[ ! "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "Invalid version format: $RELEASE_VERSION (expected vX.Y.Z)"
-            exit 1
+          echo "tag=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [[ ! "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+              echo "Invalid version format: $RELEASE_VERSION (expected vX.Y.Z)"
+              exit 1
+            fi
+            git tag "$RELEASE_VERSION"
+            git push origin "$RELEASE_VERSION"
           fi
-      - name: Create and push tag
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
-        run: |
-          git tag "$RELEASE_VERSION"
-          git push origin "$RELEASE_VERSION"
 
   # ── Linux release (GoReleaser) ──────────────────────────────────────
   release-linux:
     name: Release Linux
     runs-on: ubuntu-latest
-    needs: [ci, create-tag]
-    if: always() && needs.ci.result == 'success' && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped')
+    needs: [ci, prepare]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-          ref: ${{ inputs.version || github.ref }}
+          ref: ${{ needs.prepare.outputs.tag }}
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -88,13 +88,12 @@ jobs:
   release-macos:
     name: Release macOS
     runs-on: macos-latest
-    needs: [ci, create-tag]
-    if: always() && needs.ci.result == 'success' && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped')
+    needs: [ci, prepare]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-          ref: ${{ inputs.version || github.ref }}
+          ref: ${{ needs.prepare.outputs.tag }}
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -108,7 +107,7 @@ jobs:
 
       - name: Build macOS binaries
         env:
-          RELEASE_TAG: ${{ inputs.version || github.ref_name }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           VERSION=${RELEASE_TAG#v}
           COMMIT=$(git rev-parse --short HEAD)
@@ -130,7 +129,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
         with:
-          tag_name: ${{ inputs.version || github.ref_name }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
           files: |
             dist/bc_*.tar.gz
             dist/checksums-macos.txt
@@ -140,12 +139,12 @@ jobs:
   sbom:
     name: Generate SBOM
     runs-on: ubuntu-latest
-    needs: [release-linux, release-macos]
+    needs: [release-linux, release-macos, prepare]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-          ref: ${{ inputs.version || github.ref }}
+          ref: ${{ needs.prepare.outputs.tag }}
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
@@ -156,5 +155,5 @@ jobs:
       - name: Upload SBOM to release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
         with:
-          tag_name: ${{ inputs.version || github.ref_name }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
           files: sbom.spdx.json
