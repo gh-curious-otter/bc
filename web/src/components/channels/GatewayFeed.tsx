@@ -10,7 +10,6 @@ import type {
 } from "../../api/client";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageContent } from "../MessageContent";
-import { EmptyState } from "../EmptyState";
 import {
   gatewayPlatform,
   formatTimestamp,
@@ -459,7 +458,7 @@ export function GatewayFeed({
             </div>
           </div>
         </div>
-        {channel?.description && (
+        {channel?.description && channel.description !== "Gateway channel" && (
           <p className="text-[11px] text-bc-muted/40 mt-1 ml-3">
             {channel.description}
           </p>
@@ -478,12 +477,15 @@ export function GatewayFeed({
         >
           <div className="px-5 py-3">
             {messages.length === 0 && (
-              <div className="flex items-center justify-center py-20">
-                <EmptyState
-                  icon="\u21C4"
-                  title="Waiting for messages"
-                  description={`Activity from ${platform ?? "this channel"} will stream here in real-time.`}
-                />
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-bc-muted/20 mb-4">
+                  <path d="M4 16h6m12 0h6M16 4v6m0 12v6" strokeLinecap="round" />
+                  <circle cx="16" cy="16" r="3" />
+                </svg>
+                <h3 className="text-[14px] font-medium text-bc-muted/50 mb-1">Waiting for messages</h3>
+                <p className="text-[12px] text-bc-muted/30">
+                  Activity from {platform ?? "this channel"} will stream here in real-time.
+                </p>
               </div>
             )}
 
@@ -626,8 +628,12 @@ export function GatewayFeed({
               </div>
             )}
             {!hasMore && messages.length > 0 && (
-              <div className="py-4 text-center text-[10px] text-bc-muted/15">
-                Beginning of channel history
+              <div className="flex items-center gap-3 py-6">
+                <div className="flex-1 h-px bg-bc-border/15" />
+                <span className="text-[9px] text-bc-muted/25 uppercase tracking-widest font-medium">
+                  Beginning of history
+                </span>
+                <div className="flex-1 h-px bg-bc-border/15" />
               </div>
             )}
           </div>
@@ -635,16 +641,20 @@ export function GatewayFeed({
       </div>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
-      <div className="shrink-0 px-5 py-2 border-t border-bc-border/30">
-        <div className="flex items-center justify-between text-[10px] text-bc-muted/30">
-          <span>
-            {platform
-              ? `${platform} gateway`
-              : "bc channel"}{" "}
-            · agents respond via MCP
+      <div className="shrink-0 px-5 py-2.5 border-t border-bc-border/20 bg-bc-surface/5">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-bc-muted/40">
+            {platform && (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-1 h-1 rounded-full" style={{ backgroundColor: platformColor }} />
+                {platform} gateway
+              </span>
+            )}
+            {!platform && "bc channel"}
+            <span className="text-bc-muted/20"> · agents respond via MCP</span>
           </span>
           {subAgents.size > 0 && (
-            <span>
+            <span className="text-bc-muted/35">
               {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""} subscribed
             </span>
           )}
