@@ -42,7 +42,7 @@ func TestParseStats_CPUPercent_FallbackPercpuUsage(t *testing.T) {
 	raw.PrecpuStats.CPUUsage.TotalUsage = 100_000_000
 	raw.CPUStats.SystemCPUUsage = 2_000_000_000
 	raw.PrecpuStats.SystemCPUUsage = 1_000_000_000
-	raw.CPUStats.OnlineCPUs = 0 // force fallback
+	raw.CPUStats.OnlineCPUs = 0                           // force fallback
 	raw.CPUStats.CPUUsage.PercpuUsage = []int64{100, 200} // 2 CPUs
 
 	cs := parseStats("test-container", raw)

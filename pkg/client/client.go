@@ -36,7 +36,7 @@ type Client struct {
 	Agents     *AgentsClient
 	Channels   *ChannelsClient
 	Notify     *NotifyClient
-	Events *EventsClient
+	Events     *EventsClient
 	Costs      *CostsClient
 	Cron       *CronClient
 	MCP        *MCPClient

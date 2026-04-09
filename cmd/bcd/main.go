@@ -27,10 +27,10 @@ import (
 	"time"
 
 	bcagent "github.com/gh-curious-otter/bc/pkg/agent"
-	bcdb "github.com/gh-curious-otter/bc/pkg/db"
 	bccontainer "github.com/gh-curious-otter/bc/pkg/container"
 	bccost "github.com/gh-curious-otter/bc/pkg/cost"
 	bccron "github.com/gh-curious-otter/bc/pkg/cron"
+	bcdb "github.com/gh-curious-otter/bc/pkg/db"
 	bcevents "github.com/gh-curious-otter/bc/pkg/events"
 	bcgateway "github.com/gh-curious-otter/bc/pkg/gateway"
 	bcdiscord "github.com/gh-curious-otter/bc/pkg/gateway/discord"
@@ -315,20 +315,20 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 	}
 
 	svc := server.Services{
-		Agents:       agentSvc,
-		Costs:        costStore,
-		CostImporter: costImporter,
+		Agents:        agentSvc,
+		Costs:         costStore,
+		CostImporter:  costImporter,
 		Cron:          cronStore,
 		CronScheduler: cronScheduler,
-		Secrets:      secretStore,
-		MCP:          mcpStore,
-		Tools:        toolStore,
-		Stats:        statsStore,
-		EventLog:     eventLog,
-		EventWriter:  eventWriter,
-		WS:           ws,
-		Gateway:      gwManager,
-		Notify:       notifyService,
+		Secrets:       secretStore,
+		MCP:           mcpStore,
+		Tools:         toolStore,
+		Stats:         statsStore,
+		EventLog:      eventLog,
+		EventWriter:   eventWriter,
+		WS:            ws,
+		Gateway:       gwManager,
+		Notify:        notifyService,
 	}
 
 	cfg := server.DefaultConfig()

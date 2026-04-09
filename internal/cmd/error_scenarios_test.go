@@ -247,7 +247,6 @@ func TestNonExistentChannel(t *testing.T) {
 
 // --- State Violation Tests ---
 
-
 // --- Empty List Tests ---
 
 // TestEmptyLists tests listing resources when none exist
@@ -330,7 +329,6 @@ func TestMissingRequiredArgs(t *testing.T) {
 }
 
 // --- Unicode and Special Data Tests ---
-
 
 // --- No Workspace Tests ---
 

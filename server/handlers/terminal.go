@@ -75,7 +75,7 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		log.Warn("terminal: pty start failed", "agent", agentName, "error", err)
 		writeWSError(conn, "failed to attach to session")
-		conn.Close()
+		_ = conn.Close() //nolint:errcheck // best-effort cleanup on error path
 		return
 	}
 

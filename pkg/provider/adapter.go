@@ -58,11 +58,11 @@ func NewGenericAdapter(name string) *GenericAdapter {
 	return &GenericAdapter{providerName: name}
 }
 
-func (a *GenericAdapter) PromptFile() string    { return toUpperFirst(a.providerName) + ".md" }
-func (a *GenericAdapter) ConfigDir() string     { return "" }
-func (a *GenericAdapter) SupportsRules() bool   { return false }
+func (a *GenericAdapter) PromptFile() string     { return toUpperFirst(a.providerName) + ".md" }
+func (a *GenericAdapter) ConfigDir() string      { return "" }
+func (a *GenericAdapter) SupportsRules() bool    { return false }
 func (a *GenericAdapter) SupportsCommands() bool { return false }
-func (a *GenericAdapter) SupportsSkills() bool  { return false }
+func (a *GenericAdapter) SupportsSkills() bool   { return false }
 
 func (a *GenericAdapter) SetupMCP(_, _ string, _ map[string]MCPEntry) error { return nil }
 func (a *GenericAdapter) SetupPlugins(_ string, _ []string) error           { return nil }
