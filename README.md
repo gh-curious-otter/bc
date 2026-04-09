@@ -1,389 +1,203 @@
-# bc - AI Agent Orchestration for Software Development
+# bc
 
-[![Build Status](https://github.com/rpuneet/bc/actions/workflows/ci.yml/badge.svg)](https://github.com/rpuneet/bc/actions)
-[![Go Version](https://img.shields.io/badge/go-1.25+-blue.svg)](https://go.dev/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/rpuneet/bc/actions/workflows/ci.yml/badge.svg)](https://github.com/rpuneet/bc/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/rpuneet/bc?include_prereleases)](https://github.com/rpuneet/bc/releases)
+[![Go](https://img.shields.io/github/go-mod/go-version/rpuneet/bc)](https://go.dev/)
+[![License](https://img.shields.io/github/license/rpuneet/bc)](LICENSE)
 
-> **Orchestration for AI agents.** Coordinate teams of AI agents working together on your codebase.
+AI agents are powerful alone — chaotic when they work together. bc fixes that.
 
-`bc` is a CLI-first orchestration system for coordinating teams of AI agents to work on software development projects. It provides a structured, observable, and persistent environment for AI-driven engineering.
+Coordinate teams of Claude, Gemini, Cursor, and other AI agents with isolated worktrees, shared channels, and cost controls. One binary. No login. MIT licensed.
 
-<p align="center">
-  <img src="docs/demo.gif" alt="bc demo showing workspace initialization, agent creation, TUI dashboard, channel communication, and cost tracking" width="720" />
-</p>
-
-*Multi-agent orchestration: initialize workspace, spawn engineers, coordinate via channels, track costs*
-
-## Core Philosophy
-
-- **CLI-First**: Every feature is accessible and scriptable through the `bc` command line.
-- **Agent Agnostic**: Works with any AI agent that can run in a terminal (Claude Code, Cursor, Codex, Gemini).
-- **Organic Growth**: Start with a single `root` agent and grow your team conversationally.
-- **Isolated Workspaces**: Each agent operates in its own `git worktree` for conflict-free development.
-
-## Why bc?
-
-| Feature | bc | Single-Agent Tools |
-|---------|:--:|:------------------:|
-| Multiple parallel agents | ✅ | ❌ |
-| Role-based hierarchy | ✅ | ❌ |
-| Inter-agent communication | ✅ | ❌ |
-| Git worktree isolation | ✅ | ❌ |
-| Cost tracking per agent | ✅ | Limited |
-| TUI dashboard | ✅ | Varies |
-
-## Supported AI Agents
-
-bc works with any AI agent that runs in a terminal. Use `--tool` to specify:
+## Install
 
 ```bash
-bc agent create worker-01 --tool claude    # default
-bc agent create worker-01 --tool gemini
-bc agent create worker-01 --tool cursor
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
+
+# Homebrew
+brew install rpuneet/bc/bc
+
+# Go
+go install github.com/rpuneet/bc/cmd/bc@latest
+
+# From source
+git clone https://github.com/rpuneet/bc && cd bc && make install-local-bc
 ```
 
-| Agent | Tool Flag | Status | Notes |
-|-------|-----------|--------|-------|
-| [Claude Code](https://claude.ai/code) | `--tool claude` | ✅ Default | Full support, tested extensively |
-| [Gemini](https://ai.google.dev/) | `--tool gemini` | ✅ Supported | Google AI models |
-| [Cursor](https://cursor.sh) | `--tool cursor` | ✅ Supported | Via terminal mode |
-| [Aider](https://aider.chat) | `--tool aider` | ✅ Supported | Any model backend |
-| [Codex CLI](https://github.com/openai/codex) | `--tool codex` | ✅ Supported | OpenAI models |
-| [OpenCode](https://github.com/opencode-ai/opencode) | `--tool opencode` | ✅ Supported | Terminal agent |
-| [OpenClaw](https://github.com/openclaw/openclaw) | `--tool openclaw` | ✅ Supported | Autonomous agent |
-| Custom agents | Configure in settings.json | ✅ Supported | Any CLI tool |
-
-## Installation
-
-### Quick Install (coming soon)
-
-```bash
-# Homebrew (macOS/Linux) - coming soon
-brew install rpuneet/tap/bc
-
-# Or build from source
-git clone https://github.com/rpuneet/bc && cd bc && make install
-```
-
-### Prerequisites
-
-- Go 1.25+
-- `tmux`
-- A configured AI agent tool (e.g., Claude Code, Cursor)
-
-### Build from Source
-
-```bash
-git clone https://github.com/rpuneet/bc
-cd bc
-make build
-make install
-```
-
-### Shell Completions
-
-Enable tab completion for bc commands, agent names, and channel names:
-
-```bash
-# Bash
-bc completion bash > /etc/bash_completion.d/bc
-# or on macOS with Homebrew:
-bc completion bash > $(brew --prefix)/etc/bash_completion.d/bc
-
-# Zsh (add to fpath)
-bc completion zsh > "${fpath[1]}/_bc"
-# or for Oh My Zsh:
-bc completion zsh > ~/.oh-my-zsh/completions/_bc
-
-# Fish
-bc completion fish > ~/.config/fish/completions/bc.fish
-```
+**Prerequisites:** Go 1.25+, tmux, git. For TUI: Bun.
 
 ## Quick Start
 
 ```bash
-# 1. Run bc - prompts to initialize if no workspace exists
-bc
-
-# 2. Or explicitly initialize
-bc init
-
-# 3. Start the root agent
-bc up
-
-# 4. Open the TUI dashboard
-bc home
-
-# 5. Check status
-bc status
-
-# 6. Create an engineer agent
-bc agent create --role engineer
-
-# 7. Send work to the agent
-bc agent send swift-falcon "Implement the login feature"
-
-# 8. Stop all agents
-bc down
+bc init                    # Initialize workspace
+bc up                      # Start server + web UI on localhost:9374
+bc agent create eng-01 \
+  --role engineer \
+  --tool claude            # Spawn an agent
+bc status                  # See what's running
+bc agent peek eng-01       # Watch agent output
+bc cost show               # Check spending
 ```
 
-**Smart Default**: Running `bc` with no arguments opens the TUI dashboard if a workspace exists, or prompts you to initialize one if not.
+Open **http://localhost:9374** for the web dashboard.
+
+## What bc Does
+
+**Without bc:** One agent at a time. Context lost between sessions. Merge conflicts from parallel edits. No visibility. Surprise bills.
+
+**With bc:** Multiple agents in parallel. Each gets its own git worktree — zero conflicts. Persistent channels for structured communication. Per-agent budgets with hard stops. Everything observable in real time.
+
+### How It Works
+
+1. **Isolated by design** — Each agent runs in its own tmux session (or Docker container) with a dedicated git worktree. They can't step on each other's work.
+
+2. **Structured communication** — Agents talk through persistent channels with mentions, reviews, and handoffs. Not through you.
+
+3. **Full visibility** — Costs, activity, resource usage — all in real time through CLI, TUI, or web dashboard.
+
+## Supported Agents
+
+| Agent | Status |
+|-------|--------|
+| [Claude Code](https://claude.ai/code) | Fully supported |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Fully supported |
+| [Cursor](https://cursor.com) | Supported |
+| [Codex](https://github.com/openai/codex) | Supported |
+| Custom | Any CLI tool via provider config |
 
 ## Commands
 
-### Workspace Lifecycle
+### Core
 
 | Command | Description |
 |---------|-------------|
-| `bc` | Open TUI dashboard (or prompt to init) |
-| `bc init` | Initialize a new workspace |
-| `bc up` | Start agents |
-| `bc down` | Stop all agents |
-| `bc home` | Open TUI dashboard |
+| `bc` | Open TUI dashboard |
+| `bc init` | Initialize workspace |
+| `bc up` | Start server (foreground) |
+| `bc up -d` | Start server (daemon) |
+| `bc down` | Stop server |
 | `bc status` | Show agent status |
-| `bc workspace stats` | Show workspace statistics |
+| `bc doctor` | Diagnose workspace issues |
 
-### Agent Management
+### Agents
 
 | Command | Description |
 |---------|-------------|
-| `bc agent create` | Create a new agent |
+| `bc agent create [name]` | Create agent with role and tool |
 | `bc agent list` | List all agents |
-| `bc agent show <name>` | Show agent details |
-| `bc agent send <name> <msg>` | Send message to agent |
-| `bc agent broadcast <msg>` | Send message to all agents |
-| `bc agent send-to-role <role> <msg>` | Send to all agents of a role |
-| `bc agent send-pattern <pat> <msg>` | Send to agents matching pattern |
-| `bc agent attach <name>` | Attach to agent session |
-| `bc agent peek <name>` | Show recent output |
-| `bc agent health` | Show agent health status |
-| `bc agent stop <name>` | Stop an agent |
-| `bc agent delete <name>` | Delete an agent |
-| `bc agent rename <old> <new>` | Rename an agent |
+| `bc agent attach <agent>` | Attach to agent's tmux session |
+| `bc agent peek <agent>` | Watch agent output |
+| `bc agent send <agent> <msg>` | Send message to agent |
+| `bc agent stop <agent>` | Stop agent |
+| `bc agent delete <agent>` | Delete agent |
 
-### Agent Reporting
+### Channels
 
 | Command | Description |
 |---------|-------------|
-| `bc agent report <state> [msg]` | Report agent state (idle, working, done, stuck, error) |
-
-### Communication
-
-| Command | Description |
-|---------|-------------|
-| `bc channel create <name>` | Create a channel |
 | `bc channel list` | List channels |
-| `bc channel show <name>` | Show channel details |
-| `bc channel send <ch> <msg>` | Send to channel |
-| `bc channel add <ch> <agent>` | Add member to channel |
-| `bc channel remove <ch> <agent>` | Remove member from channel |
-| `bc channel join <ch>` | Join channel (current agent) |
-| `bc channel leave <ch>` | Leave channel (current agent) |
-| `bc channel history <ch>` | Show channel message history |
-| `bc channel react <ch> <msg-id>` | React to a channel message |
-| `bc channel delete <name>` | Delete a channel |
+| `bc channel create <name>` | Create channel |
+| `bc channel send <ch> <msg>` | Send message |
+| `bc channel history <ch>` | View history |
 
-### Teams
+### Cost & Scheduling
 
 | Command | Description |
 |---------|-------------|
-| `bc team create <name>` | Create a team |
-| `bc team list` | List teams |
-| `bc team show <name>` | Show team details |
-| `bc team add <team> <agent>` | Add agent to team |
-| `bc team remove <team> <agent>` | Remove agent from team |
-| `bc team rename <old> <new>` | Rename a team |
-| `bc team delete <name>` | Delete a team |
-
-### Roles
-
-| Command | Description |
-|---------|-------------|
-| `bc role create --name <n>` | Create a role |
-| `bc role list` | List roles |
-| `bc role show <name>` | Show role details |
-| `bc role edit <name>` | Edit role in $EDITOR |
-| `bc role delete <name>` | Delete a role |
-| `bc role validate` | Validate all role files |
-
-### Scheduled Tasks (Demons)
-
-| Command | Description |
-|---------|-------------|
-| `bc demon create <name>` | Create scheduled task |
-| `bc demon list` | List demons |
-| `bc demon show <name>` | Show demon details |
-| `bc demon run <name>` | Manually trigger demon |
-| `bc demon edit <name>` | Edit demon config |
-| `bc demon enable <name>` | Enable a demon |
-| `bc demon disable <name>` | Disable a demon |
-| `bc demon logs <name>` | Show execution history |
-
-### Background Processes
-
-| Command | Description |
-|---------|-------------|
-| `bc process start <cmd>` | Start a process |
-| `bc process list` | List processes |
-| `bc process show <name>` | Show process details |
-| `bc process stop <name>` | Stop a process |
-| `bc process restart <name>` | Restart a process |
-| `bc process logs <name>` | Show process logs |
-| `bc process attach <name>` | Attach to process |
-
-| `bc memory clear [agent]` | Clear agent memory |
-| `bc memory export [agent]` | Export memory to JSON |
-| `bc memory import <file>` | Import memories from file |
+| `bc cost show` | Show cost records |
+| `bc cost budget show` | Budget status |
+| `bc cron add <name>` | Schedule recurring task |
+| `bc cron list` | List scheduled tasks |
 
 ### Configuration
 
 | Command | Description |
 |---------|-------------|
 | `bc config show` | Show configuration |
-| `bc config get <key>` | Get config value |
 | `bc config set <key> <val>` | Set config value |
-| `bc config list` | List all config keys |
-| `bc config edit` | Edit config in $EDITOR |
-| `bc config validate` | Validate config file |
-| `bc config reset` | Reset to defaults |
+| `bc secret set <name>` | Store encrypted secret |
+| `bc tool list` | List available tools |
+| `bc mcp list` | List MCP servers |
+| `bc role list` | List agent roles |
 
-### Cost Tracking
+Full reference: `bc --help` or `bc <command> --help`
 
-| Command | Description |
-|---------|-------------|
-| `bc cost [agent]` | Show cost records (default) |
-| `bc cost show [agent]` | Show cost records |
-| `bc cost usage` | Claude Code token usage via ccusage |
-| `bc cost usage --monthly` | Monthly usage summary |
-| `bc cost budget show` | Show budget status |
-| `bc cost budget set <amount>` | Set a cost budget |
-| `bc cost budget delete` | Delete a budget |
+## Architecture
 
-### Worktrees
+```
+┌─────────────────────────────────────────────────┐
+│                    bc binary                     │
+│                                                  │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │   CLI    │  │   TUI    │  │  HTTP Server  │  │
+│  │ (Cobra)  │  │ (Ink/    │  │  + Web UI     │  │
+│  │          │  │  React)  │  │  + MCP + SSE  │  │
+│  └────┬─────┘  └────┬─────┘  └───────┬───────┘  │
+│       │              │                │          │
+│  ┌────┴──────────────┴────────────────┴───────┐  │
+│  │              pkg/ (Go packages)            │  │
+│  │  agent · channel · cost · cron · mcp       │  │
+│  │  provider · runtime · secret · workspace   │  │
+│  └────────────────────┬───────────────────────┘  │
+│                       │                          │
+│  ┌────────────────────┴───────────────────────┐  │
+│  │           Agent Runtimes                   │  │
+│  │     tmux sessions │ Docker containers      │  │
+│  │     git worktrees │ isolated .bc/ state    │  │
+│  └────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────┘
+                        │
+            ┌───────────┼───────────┐
+            │           │           │
+         Claude      Gemini     Cursor ...
+```
 
-| Command | Description |
-|---------|-------------|
-| `bc worktree list` | List agent worktrees |
-| `bc worktree check` | Verify agent's worktree |
-| `bc worktree prune` | Remove orphaned worktrees |
-
-### Event Log
-
-| Command | Description |
-|---------|-------------|
-| `bc logs` | View event log |
-| `bc logs --agent <name>` | Filter by agent |
-| `bc logs --type <type>` | Filter by event type |
-| `bc logs --since <dur>` | Events since duration |
-
-### Other
-
-| Command | Description |
-|---------|-------------|
-| `bc version` | Show version |
-| `bc help` | Show help |
+- **Single binary** — CLI, server, web UI, MCP all in one
+- **SQLite storage** — zero external dependencies
+- **Agent isolation** — each agent gets its own git worktree and tmux/Docker session
+- **Gateway integrations** — Slack, Telegram, Discord for notifications
 
 ## Configuration
 
-Configuration is stored in `.bc/settings.json`. Key settings:
+Workspace config lives in `.bc/settings.json`:
 
 ```json
 {
-  "user": {
-    "name": "@yourname"
-  },
+  "version": "2",
   "server": {
     "host": "127.0.0.1",
-    "port": 9374,
-    "cors_origin": "*"
+    "port": 9374
   },
   "providers": {
-    "default": "claude",
-    "providers": {
-      "claude": {
-        "command": "claude --dangerously-skip-permissions"
-      },
-      "gemini": {
-        "command": "gemini --yolo"
-      },
-      "cursor": {
-        "command": "cursor-agent --force --print"
-      }
-    }
+    "default": "claude"
   },
   "runtime": {
-    "default": "docker",
-    "docker": {
-      "image": "bc-agent:latest",
-      "cpus": 2,
-      "memory_mb": 4096
-    },
-    "tmux": {
-      "session_prefix": "bc",
-      "history_limit": 10000,
-      "default_shell": "/bin/bash"
-    }
+    "default": "tmux"
   },
   "storage": {
-    "default": "sqlite",
-    "sqlite": {
-      "path": ".bc"
-    }
-  },
-  "cron": {
-    "poll_interval_seconds": 30,
-    "job_timeout_seconds": 300
+    "default": "sqlite"
   }
 }
 ```
 
-### User Nickname
-
-Your nickname is displayed in channel messages when sending from the CLI:
+## Development
 
 ```bash
-# Set your nickname (must start with @, max 15 chars)
-bc config set user.nickname @alice
-
-# Messages now show your nickname
-bc channel send eng "Hello team!"
-# Output: [@alice] Hello team!
+make build            # Build everything
+make test             # Run all tests
+make lint             # Run linters
+make check            # Full quality gate
+make run-bc           # Run from source
+make run-web          # Web UI dev server (hot reload)
 ```
 
-## TUI Features
-
-The `bc home` dashboard provides a full terminal UI with:
-
-- **Responsive Layout**: Works at minimum 80x24 terminal size
-- **14 Views**: Dashboard, Agents, Channels, Costs, Commands, Roles, Logs, Worktrees, Workspaces, Demons, Processes, Memory, Routing, Help
-- **Command Palette**: Quick access to all actions via `Ctrl+K`
-- **Keyboard Navigation**: Number keys for views, Tab to cycle, j/k in drawer/lists
-- **Channel Features**:
-  - `@mention` autocomplete with Tab completion
-  - Role-based name colors and emoji prefixes
-  - Arrow key scrolling in message history
-- **Activity Timeline**: Real-time agent activity on dashboard
-
-### Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `1-9`, `0`, `-` | Jump to view (Dashboard=1, Agents=2, ..., Processes=-) |
-| `M` | Memory view |
-| `R` | Routing view |
-| `?` | Open Help view |
-| `Ctrl+K` | Open command palette |
-| `Tab` / `Shift+Tab` | Next/previous view |
-| `j/k` or `↑/↓` | Navigate drawer/lists |
-| `g` / `G` | Jump to first/last item in drawer |
-| `m` | Compose message (in Channels view) |
-| `i` | Toggle detail pane |
-| `@` | Start mention autocomplete |
-| `Enter` | Send message / Select item |
-| `Esc` | Go back / Cancel |
-| `Ctrl+R` | Refresh all data |
-| `q` | Quit |
+See `make help` for all targets.
 
 ## Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+Contributions welcome. Please run `make check` before submitting PRs.
+
+## License
+
+[MIT](LICENSE)
