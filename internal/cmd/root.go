@@ -42,7 +42,7 @@ Getting Started:
   bc up                                   # Start root agent
   bc agent create eng-01 --role engineer  # Create engineer agent
   bc status                               # View agent status
-  bc home                                 # Open TUI dashboard
+  bc up                                   # Start server
 
 Common Workflows:
   Start working:    bc up && bc status

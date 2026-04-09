@@ -25,8 +25,8 @@
 # Top-level
 .PHONY: build build-local build-docker test lint fmt vet check clean deps release install
 # Go
-.PHONY: build-local-bc build-local-bcd test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
-.PHONY: release-local-bc release-local-bcd install-local-bc
+.PHONY: build-local-bc test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
+.PHONY: release-local-bc install-local-bc
 # Docker
 .PHONY: build-docker-daemon build-docker-db build-docker-bcdb
 .PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-agent-infra build-docker-playwright stop-docker-playwright run-docker-playwright
@@ -95,7 +95,7 @@ fmt: fmt-go fmt-ts ## Format all code
 vet: vet-go vet-ts ## Vet all code
 check: check-go check-ts ## Full quality gate
 deps: deps-go deps-ts ## Install all dependencies
-release: release-local-bc release-local-bcd ## Build release binaries (stripped)
+release: release-local-bc ## Build release binaries (stripped)
 install: install-local-bc ## Install bc to $GOPATH/bin
 clean: clean-local ## Remove all build artifacts
 
@@ -103,16 +103,12 @@ clean: clean-local ## Remove all build artifacts
 # Build — Local Go
 # =============================================================================
 
-build-local-go: build-local-bc build-local-bcd ## Build all Go binaries
+build-local-go: build-local-bc ## Build all Go binaries
 
-build-local-bc: ## Build bc CLI
+build-local-bc: ## Build bc (embeds web UI + server)
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
-
-build-local-bcd: build-local-web ## Build bcd server (embeds web UI)
-	@mkdir -p $(BUILD_DIR)
-	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bcd ./cmd/bcd
 
 # =============================================================================
 # Build — Local TypeScript
@@ -285,10 +281,6 @@ release-local-bc: ## Build optimized bc binary
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
-
-release-local-bcd: build-local-web ## Build optimized bcd binary
-	@mkdir -p $(BUILD_DIR)
-	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bcd ./cmd/bcd
 
 # =============================================================================
 # Run (dev, foreground)

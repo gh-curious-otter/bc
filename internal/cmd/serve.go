@@ -1,21 +1,10 @@
-// Command bcd is the bc coordination daemon.
-// It starts an HTTP server exposing workspace state via a REST API and
-// SSE event stream so that bc CLI thin-client commands can talk to it.
-//
-// Usage:
-//
-//	bcd [--addr ADDR] [--workspace DIR] [--verbose] [--log-format text|json] [--cors-origin ORIGIN]
-//
-// The server binds to 127.0.0.1:9374 by default.
-// A PID file is written to <workspace>/.bc/bcd.pid on startup.
-package main
+package cmd
 
 import (
 	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -49,35 +38,10 @@ import (
 	bcws "github.com/gh-curious-otter/bc/server/ws"
 )
 
-// Build information set by ldflags during build.
-var (
-	commit = "unknown"
-	date   = "unknown"
-)
-
-func main() {
-	addr := flag.String("addr", server.DefaultConfig().Addr, "listen address")
-	wsRoot := flag.String("workspace", ".", "workspace root directory")
-	verbose := flag.Bool("verbose", false, "enable verbose logging")
-	logFormat := flag.String("log-format", "text", "log output format (text|json)")
-	corsOrigin := flag.String("cors-origin", "*", "CORS allowed origin (* for permissive, or specific origin)")
-	apiKey := flag.String("api-key", os.Getenv("BC_API_KEY"), "API key for Bearer token auth (or set BC_API_KEY env var)")
-	flag.Parse()
-
-	if *logFormat == "json" {
-		log.SetFormat("json")
-	}
-	if *verbose {
-		log.SetVerbose(true)
-	}
-
-	if err := run(*addr, *wsRoot, *corsOrigin, *apiKey); err != nil {
-		fmt.Fprintf(os.Stderr, "bcd: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func run(addr, wsRoot, corsOrigin, apiKey string) error {
+// RunServer starts the bc server (formerly bcd) in the foreground.
+// It loads the workspace, wires up all services, and blocks until
+// the context is canceled or a signal is received.
+func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	ws, err := bcworkspace.Load(wsRoot)
 	if err != nil {
 		ws, err = bcworkspace.Init(wsRoot)
@@ -128,7 +92,7 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 	go hub.Run()
 	defer hub.Stop()
 
-	agentMgr, containerBackend, agentErr := newAgentManager(ws)
+	agentMgr, containerBackend, agentErr := newServerAgentManager(ws)
 	if agentErr != nil {
 		return fmt.Errorf("agent manager: %w", agentErr)
 	}
@@ -204,7 +168,7 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 	var secretStore *bcsecret.Store
 	passphrase, passphraseErr := bcsecret.Passphrase()
 	if passphraseErr != nil {
-		log.Warn("secret passphrase unavailable \u2014 secret store disabled", "error", passphraseErr)
+		log.Warn("secret passphrase unavailable — secret store disabled", "error", passphraseErr)
 	}
 	if passphraseErr == nil {
 		if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
@@ -255,7 +219,6 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 	}
 
-	// Notify service for channel subscriptions and delivery dispatch
 	var notifyService *bcnotify.Service
 	if ns, err := bcnotify.OpenStore(ws.RootDir); err != nil {
 		log.Warn("notify store unavailable", "error", err)
@@ -303,8 +266,7 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 			log.Info("gateway: slack adapter registered")
 		}
 
-		// Wire inbound handler and start — gateway messages are now dispatched
-		// via notify subscriptions (set up in server.go).
+		// Wire inbound handler and start
 		if gwManager != nil && hasAdapters {
 			go func() {
 				if err := gwManager.Start(ctx); err != nil && ctx.Err() == nil {
@@ -316,6 +278,7 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 
 	svc := server.Services{
 		Agents:        agentSvc,
+		Notify:        notifyService,
 		Costs:         costStore,
 		CostImporter:  costImporter,
 		Cron:          cronStore,
@@ -328,7 +291,6 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 		EventWriter:   eventWriter,
 		WS:            ws,
 		Gateway:       gwManager,
-		Notify:        notifyService,
 	}
 
 	cfg := server.DefaultConfig()
@@ -349,7 +311,7 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 	return srv.Start(ctx)
 }
 
-func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, error) {
+func newServerAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, error) {
 	var wsCfg bcworkspace.DockerRuntimeConfig
 	if ws.Config != nil {
 		wsCfg = ws.Config.Runtime.Docker
@@ -384,8 +346,7 @@ type dockerStatsEntry struct {
 
 // runStatsCollector periodically samples system and agent metrics into TimescaleDB.
 // It shells out to `docker stats --no-stream` every 30s, classifies containers as
-// system (bc-db, *-daemon) or agent (bc-*-agent-*), and records resource
-// usage. Channel metrics come from the channel service.
+// system (bc-db, *-daemon) or agent (bc-*-agent-*), and records resource usage.
 func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService, ws *bcworkspace.Workspace) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -415,7 +376,7 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 		case <-ticker.C:
 			now := time.Now()
 
-			// ── docker stats ────────────────────────────────────────
+			// -- docker stats --
 			entries := collectDockerStats(ctx)
 			agentsByName := agentLookup()
 
@@ -474,7 +435,7 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 				}
 			}
 
-			// ── token metrics from agent JSONL sessions ─────────────
+			// -- token metrics from agent JSONL sessions --
 			if ws != nil {
 				agentsDir := filepath.Join(ws.RootDir, ".bc", "agents")
 				for agentName := range agentsByName {
@@ -557,7 +518,7 @@ func isAgentContainer(name string) bool {
 // extractAgentName extracts the agent name from a container name like bc-<hash>-<name>.
 // The hash is always 6 hex chars, so prefix is "bc-XXXXXX-" (10 chars).
 func extractAgentName(containerName string) string {
-	// bc-a08b6d-agent-01 → agent-01
+	// bc-a08b6d-agent-01 -> agent-01
 	if len(containerName) > 10 && strings.HasPrefix(containerName, "bc-") {
 		return containerName[10:]
 	}
