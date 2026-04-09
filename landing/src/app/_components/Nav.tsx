@@ -131,17 +131,17 @@ function GetStartedDropdown() {
     {
       icon: Apple,
       label: "macOS / Linux",
-      cmd: "go install github.com/rpuneet/bc/cmd/bc@latest",
+      cmd: "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
     },
     {
       icon: Monitor,
-      label: "Windows",
-      cmd: "go install github.com/rpuneet/bc/cmd/bc@latest",
+      label: "Homebrew",
+      cmd: "brew install rpuneet/bc-infra/bc-infra",
     },
     {
       icon: Container,
       label: "Docker",
-      cmd: "docker pull bcinfra/bc:latest",
+      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374",
     },
   ];
 
@@ -319,10 +319,10 @@ export function Nav() {
                   Install
                 </div>
                 <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
-                  go install github.com/rpuneet/bc/cmd/bc@latest
+                  curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
                 </code>
                 <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
-                  docker pull bcinfra/bc:latest
+                  brew install rpuneet/bc-infra/bc-infra
                 </code>
                 <Link
                   href="/docs#installation"

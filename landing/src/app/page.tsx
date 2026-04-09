@@ -212,7 +212,7 @@ export default function Home() {
                   </p>
                   <div className="mt-8 flex flex-wrap items-center gap-4">
                     <Link
-                      href="https://github.com/gh-curious-otter/bc"
+                      href="https://github.com/rpuneet/bc"
                       className="cta-glow group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl active:scale-[0.97]"
                       aria-label="Get started with bc on GitHub"
                     >

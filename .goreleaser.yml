@@ -1,7 +1,8 @@
 # GoReleaser configuration for bc
 # https://goreleaser.com
 #
-# Issue #1472: Release Infrastructure
+# macOS builds are handled separately in CI (release.yml) due to CGO requirements.
+# This config only builds linux/amd64.
 
 version: 2
 
@@ -23,36 +24,9 @@ builds:
       - -X main.commit={{.ShortCommit}}
       - -X main.date={{.Date}}
     goos:
-      - darwin
       - linux
     goarch:
       - amd64
-      - arm64
-    # CGO is required for SQLite, so we need to handle cross-compilation
-    # For now, we'll build natively on each platform via matrix
-    ignore:
-      # Skip cross-compilation due to CGO requirements
-      - goos: linux
-        goarch: arm64
-
-  # Windows build without CGO (limited functionality)
-  # TODO: re-evaluate after redesign — nosqlite build tag is a no-op (no //go:build nosqlite directives exist)
-  - id: bc-windows
-    main: ./cmd/bc
-    binary: bc
-    env:
-      - CGO_ENABLED=0
-    ldflags:
-      - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.ShortCommit}}
-      - -X main.date={{.Date}}
-    goos:
-      - windows
-    goarch:
-      - amd64
-    tags:
-      - nosqlite
 
 archives:
   - id: default
@@ -62,9 +36,6 @@ archives:
       {{- .Version }}_
       {{- .Os }}_
       {{- .Arch }}
-    format_overrides:
-      - goos: windows
-        format: zip
     files:
       - README.md
       - LICENSE*
@@ -106,7 +77,7 @@ changelog:
 
 release:
   github:
-    owner: gh-curious-otter
+    owner: rpuneet
     name: bc
   draft: false
   prerelease: auto
@@ -118,16 +89,16 @@ release:
   footer: |
     ---
 
-    **Full Changelog**: https://github.com/gh-curious-otter/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/rpuneet/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 brews:
-  - name: bc
+  - name: bc-infra
     repository:
-      owner: gh-curious-otter
+      owner: rpuneet
       name: homebrew-bc
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
-    homepage: https://github.com/gh-curious-otter/bc
+    homepage: https://github.com/rpuneet/bc
     description: Orchestration for AI agents
     license: MIT
     skip_upload: auto
@@ -135,8 +106,3 @@ brews:
       bin.install "bc"
     test: |
       system "#{bin}/bc", "version"
-
-# Announce releases (optional, can be configured later)
-# announce:
-#   discord:
-#     enabled: false

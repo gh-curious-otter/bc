@@ -54,7 +54,7 @@ jobs:
       - name: Run fast tests with race detector and coverage
         run: |
           # NOTE: Keep SLOW list in sync with Makefile test-go-fast target
-          SLOW="github.com/gh-curious-otter/bc/pkg/tmux github.com/gh-curious-otter/bc/pkg/secret github.com/gh-curious-otter/bc/pkg/doctor github.com/gh-curious-otter/bc/internal/cmd"
+          SLOW="github.com/rpuneet/bc/pkg/tmux github.com/rpuneet/bc/pkg/secret github.com/rpuneet/bc/pkg/doctor github.com/rpuneet/bc/internal/cmd"
           PACKAGES=$(go list ./... | grep -v -F "$(echo $SLOW | tr ' ' '\n')")
           go test -race -coverprofile=coverage.out $PACKAGES
 
@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5
-        if: github.event_name == 'push' || github.repository == 'gh-curious-otter/bc'
+        if: github.event_name == 'push' || github.repository == 'rpuneet/bc'
         with:
           files: coverage.out
           fail_ci_if_error: ${{ github.event_name == 'push' }}
@@ -137,12 +137,14 @@ jobs:
         run: cd tui && bun run lint
       - name: Test
         # Known: Bun vi.mock causes 1 phantom fail+error even with __mocks__ pattern.
-        # Parse output: pass if real test count matches and only 1 fail/error.
+        # Allow exit code 1 if all real tests pass (2700+ pass, ≤1 fail/error).
         run: |
-          cd tui && bun test 2>&1 | tee /tmp/tui-test.log || true
-          FAILS=$(awk '/ fail$/{print $1}' /tmp/tui-test.log | tail -1)
-          ERRORS=$(awk '/ error$/{print $1}' /tmp/tui-test.log | tail -1)
-          PASS=$(awk '/ pass$/{print $1}' /tmp/tui-test.log | tail -1)
+          cd tui
+          bun test > /tmp/tui-test.log 2>&1 || true
+          cat /tmp/tui-test.log
+          FAILS=$(grep -E '^ [0-9]+ fail$' /tmp/tui-test.log | awk '{print $1}' || echo "0")
+          ERRORS=$(grep -E '^ [0-9]+ error$' /tmp/tui-test.log | awk '{print $1}' || echo "0")
+          PASS=$(grep -E '^ [0-9]+ pass$' /tmp/tui-test.log | awk '{print $1}' || echo "0")
           echo "Results: ${PASS:-0} pass, ${FAILS:-0} fail, ${ERRORS:-0} error"
           if [ "${PASS:-0}" -gt 2000 ] && [ "${FAILS:-0}" -le 1 ] && [ "${ERRORS:-0}" -le 1 ]; then
             echo "TUI tests OK"
