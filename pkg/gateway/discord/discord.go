@@ -21,7 +21,6 @@ type Adapter struct {
 	guildChannels map[string]string
 	token         string
 	lastError     string
-	guildIDs      []string
 	chatMu        sync.RWMutex
 	connected     bool
 }
@@ -142,8 +141,6 @@ func (a *Adapter) handleReady(_ *discordgo.Session, r *discordgo.Ready) {
 	log.Info("discord: ready", "guilds", len(r.Guilds))
 
 	for _, guild := range r.Guilds {
-		a.guildIDs = append(a.guildIDs, guild.ID)
-
 		channels, err := a.session.GuildChannels(guild.ID)
 		if err != nil {
 			log.Warn("discord: failed to list channels", "guild", guild.ID, "error", err)

@@ -106,11 +106,16 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 				continue
 			}
 
+			senderID := ""
+			if update.Message.From != nil {
+				senderID = strconv.FormatInt(update.Message.From.ID, 10)
+			}
+
 			msg := gateway.InboundMessage{
 				ChannelID:   strconv.FormatInt(chatID, 10),
 				ChannelName: chatTitle,
 				Sender:      sender,
-				SenderID:    strconv.FormatInt(update.Message.From.ID, 10),
+				SenderID:    senderID,
 				Content:     content,
 				MessageID:   strconv.Itoa(update.Message.MessageID),
 				Timestamp:   update.Message.Time(),

@@ -351,6 +351,18 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 		}, nil
 	}
 
+	// Security: ensure path is under workspace root or /tmp to prevent path traversal
+	wsRoot := "/"
+	if s.ws != nil {
+		wsRoot = s.ws.RootDir
+	}
+	if !strings.HasPrefix(absPath, wsRoot) && !strings.HasPrefix(absPath, "/tmp/") {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("file path %q is outside workspace root %q", absPath, wsRoot))},
+			IsError: true,
+		}, nil
+	}
+
 	// Check file size before reading into memory
 	info, err := os.Stat(absPath)
 	if err != nil {
