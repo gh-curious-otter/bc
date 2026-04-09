@@ -55,8 +55,12 @@ tmp/
 # Build artifacts
 bc
 bcd
-server/web/dist/*.html
-server/web/dist/assets/
+server/web/dist/
+web/dist/
+tui/dist/
+landing/.next/
+landing/out/
+node_modules/
 
 .mcp.json
 *.tsbuildinfo
