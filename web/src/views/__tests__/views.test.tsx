@@ -150,7 +150,7 @@ describe("Tools", () => {
   it("renders skeleton loading then tool list", async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url.includes("/providers")) return jsonResponse([]);
-      if (url.includes("/tools/check")) return jsonResponse({});
+      if (url.includes("/tools/check")) return jsonResponse([]);
       return jsonResponse([
         {
           name: "my-tool",

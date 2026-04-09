@@ -54,7 +54,7 @@ jobs:
       - name: Run fast tests with race detector and coverage
         run: |
           # NOTE: Keep SLOW list in sync with Makefile test-go-fast target
-          SLOW="github.com/rpuneet/bc/pkg/tmux github.com/rpuneet/bc/pkg/secret github.com/rpuneet/bc/pkg/doctor github.com/rpuneet/bc/internal/cmd"
+          SLOW="github.com/gh-curious-otter/bc/pkg/tmux github.com/gh-curious-otter/bc/pkg/secret github.com/gh-curious-otter/bc/pkg/doctor github.com/gh-curious-otter/bc/internal/cmd"
           PACKAGES=$(go list ./... | grep -v -F "$(echo $SLOW | tr ' ' '\n')")
           go test -race -coverprofile=coverage.out $PACKAGES
 

@@ -254,7 +254,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 				imageTool := strings.TrimSuffix(strings.TrimPrefix(image, "bc-agent-"), ":latest")
 				if bin != imageTool && bin != "bash" && bin != "sh" {
 					// Only warn if the binary name looks like a different tool
-					for _, knownTool := range []string{"claude", "gemini", "cursor", "aider", "codex", "opencode", "openclaw"} {
+					for _, knownTool := range []string{"claude", "gemini", "cursor", "codex"} {
 						if bin == knownTool && bin != imageTool {
 							return fmt.Errorf("tool/image mismatch: command %q will not be found in image %q (expected %q binary)", bin, image, imageTool)
 						}

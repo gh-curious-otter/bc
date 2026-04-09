@@ -47,7 +47,9 @@ func setupWorkspaceWithDB(t *testing.T) string {
 	db.SetShared(d.DB, "sqlite")
 	t.Cleanup(func() {
 		db.SetShared(nil, "")
-		_ = d.Close()
+		if closeErr := d.Close(); closeErr != nil {
+			t.Errorf("close shared db: %v", closeErr)
+		}
 	})
 	return dir
 }
