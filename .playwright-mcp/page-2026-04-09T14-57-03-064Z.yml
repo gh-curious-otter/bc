@@ -1,0 +1,82 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: U
+        - generic [ref=e8]:
+          - paragraph [ref=e9]: User
+          - paragraph [ref=e10]: workspace
+      - button "Collapse navigation" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+    - list [ref=e14]:
+      - listitem [ref=e15]:
+        - link "Live" [ref=e16] [cursor=pointer]:
+          - /url: /live
+          - img [ref=e18]
+          - generic [ref=e21]: Live
+      - listitem [ref=e23]:
+        - link "Agents" [ref=e24] [cursor=pointer]:
+          - /url: /agents
+          - img [ref=e26]
+          - generic [ref=e28]: Agents
+      - listitem [ref=e29]:
+        - link "Channels" [ref=e30] [cursor=pointer]:
+          - /url: /channels
+          - img [ref=e32]
+          - generic [ref=e33]: Channels
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - button "Slack +" [ref=e36] [cursor=pointer]:
+              - generic [ref=e38]: Slack
+              - generic [ref=e39]: +
+            - button "Telegram +" [ref=e40] [cursor=pointer]:
+              - generic [ref=e42]: Telegram
+              - generic [ref=e43]: +
+            - button "Discord +" [ref=e44] [cursor=pointer]:
+              - generic [ref=e46]: Discord
+              - generic [ref=e47]: +
+            - button "GitHub +" [ref=e48] [cursor=pointer]:
+              - generic [ref=e50]: GitHub
+              - generic [ref=e51]: +
+            - button "Gmail +" [ref=e52] [cursor=pointer]:
+              - generic [ref=e54]: Gmail
+              - generic [ref=e55]: +
+          - button "+ Connect app" [ref=e57] [cursor=pointer]
+      - listitem [ref=e58]:
+        - link "Roles" [ref=e59] [cursor=pointer]:
+          - /url: /roles
+          - img [ref=e61]
+          - generic [ref=e63]: Roles
+      - listitem [ref=e64]:
+        - link "Tools" [ref=e65] [cursor=pointer]:
+          - /url: /tools
+          - img [ref=e67]
+          - generic [ref=e69]: Tools
+      - listitem [ref=e70]:
+        - link "Cron" [ref=e71] [cursor=pointer]:
+          - /url: /cron
+          - img [ref=e73]
+          - generic [ref=e76]: Cron
+      - listitem [ref=e77]:
+        - link "Secrets" [ref=e78] [cursor=pointer]:
+          - /url: /secrets
+          - img [ref=e80]
+          - generic [ref=e82]: Secrets
+      - listitem [ref=e83]:
+        - link "Metrics" [ref=e84] [cursor=pointer]:
+          - /url: /stats
+          - img [ref=e86]
+          - generic [ref=e88]: Metrics
+      - listitem [ref=e89]
+      - listitem [ref=e91]:
+        - link "Workspace" [ref=e92] [cursor=pointer]:
+          - /url: /workspace
+          - img [ref=e94]
+          - generic [ref=e96]: Workspace
+      - listitem [ref=e97]:
+        - link "Settings" [ref=e98] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e100]
+          - generic [ref=e103]: Settings
+    - button "Light" [ref=e105] [cursor=pointer]
+  - main [ref=e106]

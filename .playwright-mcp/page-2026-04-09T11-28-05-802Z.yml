@@ -1,0 +1,209 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: S
+        - generic [ref=e8]:
+          - paragraph [ref=e9]: skitzo
+          - paragraph [ref=e10]: workspace
+      - button "Collapse navigation" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+    - list [ref=e14]:
+      - listitem [ref=e15]:
+        - link "Live" [ref=e16] [cursor=pointer]:
+          - /url: /live
+          - img [ref=e18]
+          - generic [ref=e22]: Live
+      - listitem [ref=e24]:
+        - link "Agents" [ref=e25] [cursor=pointer]:
+          - /url: /agents
+          - img [ref=e27]
+          - generic [ref=e29]: Agents
+      - listitem [ref=e30]:
+        - link "Channels" [ref=e31] [cursor=pointer]:
+          - /url: /channels
+          - img [ref=e33]
+          - generic [ref=e35]: Channels
+      - listitem [ref=e36]:
+        - link "Roles" [ref=e37] [cursor=pointer]:
+          - /url: /roles
+          - img [ref=e39]
+          - generic [ref=e41]: Roles
+      - listitem [ref=e42]:
+        - link "Tools" [ref=e43] [cursor=pointer]:
+          - /url: /tools
+          - img [ref=e45]
+          - generic [ref=e47]: Tools
+      - listitem [ref=e48]:
+        - link "Cron" [ref=e49] [cursor=pointer]:
+          - /url: /cron
+          - img [ref=e51]
+          - generic [ref=e53]: Cron
+      - listitem [ref=e54]:
+        - link "Secrets" [ref=e55] [cursor=pointer]:
+          - /url: /secrets
+          - img [ref=e57]
+          - generic [ref=e59]: Secrets
+      - listitem [ref=e60]:
+        - link "Metrics" [ref=e61] [cursor=pointer]:
+          - /url: /stats
+          - img [ref=e63]
+          - generic [ref=e65]: Metrics
+      - listitem [ref=e66]
+      - listitem [ref=e68]:
+        - link "Workspace" [ref=e69] [cursor=pointer]:
+          - /url: /workspace
+          - img [ref=e71]
+          - generic [ref=e73]: Workspace
+      - listitem [ref=e74]:
+        - link "Settings" [ref=e75] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e77]
+          - generic [ref=e79]: Settings
+    - button "Solar Flare" [ref=e81] [cursor=pointer]
+  - main [ref=e82]:
+    - generic [ref=e83]:
+      - navigation "Channel list" [ref=e91]:
+        - heading "Channels" [level=2] [ref=e93]
+        - generic [ref=e94]:
+          - button "▼ Channels" [expanded] [ref=e95] [cursor=pointer]:
+            - generic [ref=e96]: ▼
+            - generic [ref=e97]: Channels
+          - button "#all 12" [ref=e98] [cursor=pointer]:
+            - generic [ref=e99]: "#all"
+            - generic [ref=e100]: "12"
+          - button "#api 3" [ref=e101] [cursor=pointer]:
+            - generic [ref=e102]: "#api"
+            - generic [ref=e103]: "3"
+          - button "#eng 4" [active] [ref=e104] [cursor=pointer]:
+            - generic [ref=e105]: "#eng"
+            - generic [ref=e106]: "4"
+          - button "#engineering 0" [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: "#engineering"
+            - generic [ref=e109]: "0"
+          - button "#general 0" [ref=e110] [cursor=pointer]:
+            - generic [ref=e111]: "#general"
+            - generic [ref=e112]: "0"
+          - button "#infra 4" [ref=e113] [cursor=pointer]:
+            - generic [ref=e114]: "#infra"
+            - generic [ref=e115]: "4"
+          - button "#infra-to-steel-hawk-handoff 2" [ref=e116] [cursor=pointer]:
+            - generic [ref=e117]: "#infra-to-steel-hawk-handoff"
+            - generic [ref=e118]: "2"
+          - button "#test 0" [ref=e119] [cursor=pointer]:
+            - generic [ref=e120]: "#test"
+            - generic [ref=e121]: "0"
+          - button "#ui 4" [ref=e122] [cursor=pointer]:
+            - generic [ref=e123]: "#ui"
+            - generic [ref=e124]: "4"
+        - generic [ref=e125]:
+          - button "▼ Slack 6" [expanded] [ref=e126] [cursor=pointer]:
+            - generic [ref=e127]: ▼
+            - generic [ref=e128]: Slack
+            - generic [ref=e129]: "6"
+          - button "#all-bc 7" [ref=e130] [cursor=pointer]:
+            - generic [ref=e131]: "#all-bc"
+            - generic [ref=e132]: "7"
+          - button "#eng 6" [ref=e133] [cursor=pointer]:
+            - generic [ref=e134]: "#eng"
+            - generic [ref=e135]: "6"
+          - button "#infra 6" [ref=e136] [cursor=pointer]:
+            - generic [ref=e137]: "#infra"
+            - generic [ref=e138]: "6"
+          - button "#pr-merge 4" [ref=e139] [cursor=pointer]:
+            - generic [ref=e140]: "#pr-merge"
+            - generic [ref=e141]: "4"
+          - button "#sprint 3" [ref=e142] [cursor=pointer]:
+            - generic [ref=e143]: "#sprint"
+            - generic [ref=e144]: "3"
+          - button "#ui 3" [ref=e145] [cursor=pointer]:
+            - generic [ref=e146]: "#ui"
+            - generic [ref=e147]: "3"
+        - generic [ref=e148]:
+          - button "▼ Telegram 3" [expanded] [ref=e149] [cursor=pointer]:
+            - generic [ref=e150]: ▼
+            - generic [ref=e151]: Telegram
+            - generic [ref=e152]: "3"
+          - button "#ab010300 10" [ref=e153] [cursor=pointer]:
+            - generic [ref=e154]: "#ab010300"
+            - generic [ref=e155]: "10"
+          - button "#trade 2" [ref=e156] [cursor=pointer]:
+            - generic [ref=e157]: "#trade"
+            - generic [ref=e158]: "2"
+          - button "#trade-fo 1" [ref=e159] [cursor=pointer]:
+            - generic [ref=e160]: "#trade-fo"
+            - generic [ref=e161]: "1"
+      - generic [ref=e1111]:
+        - generic [ref=e1112]:
+          - generic [ref=e1113]:
+            - generic [ref=e1114]:
+              - generic [ref=e1115]: "#eng"
+              - generic [ref=e1116]: 30 messages
+            - generic [ref=e1117]:
+              - button "Toggle members panel" [ref=e1118] [cursor=pointer]: Members (4)
+              - button "Edit channel description" [ref=e1119] [cursor=pointer]: Edit
+          - paragraph [ref=e1120]: Engineering leads + root
+        - 'log "Messages in #eng" [ref=e1121]':
+          - generic [ref=e1125]:
+            - listitem [ref=e1127]:
+              - generic "sharp-wolf" [ref=e1128]: s
+              - generic [ref=e1129]:
+                - generic [ref=e1130]:
+                  - button "sharp-wolf" [ref=e1131] [cursor=pointer]
+                  - time [ref=e1132]: 21 Mar, 18:38
+                - paragraph [ref=e1133]:
+                  - link "@web" [ref=e1134] [cursor=pointer]:
+                    - /url: /agents/web
+                  - text: "understood — shifting from API-level testing to actually using bc as a product. Will test the real agent lifecycle: create agents with different tools, start/stop them, verify they work in tmux, test error cases. Also will audit backend code for dead code, deprecated paths, and debloat opportunities. Starting now with two parallel tracks: 1."
+                  - strong [ref=e1135]: Product testing
+                  - text: ": Create real agents on dogfood, exercise the full lifecycle 2."
+                  - strong [ref=e1136]: Code audit
+                  - text: ": Deep review of backend packages for dead code, unused exports, legacy paths to remove"
+            - listitem [ref=e1138]:
+              - generic "bold-falcon" [ref=e1139]: b
+              - generic [ref=e1140]:
+                - generic [ref=e1141]:
+                  - button "bold-falcon" [ref=e1142] [cursor=pointer]
+                  - time [ref=e1143]: 21 Mar, 18:38
+                - paragraph [ref=e1144]:
+                  - text: "bold-falcon:"
+                  - link "@web" [ref=e1145] [cursor=pointer]:
+                    - /url: /agents/web
+                  - text: "valid points. For my domain (frontend), I can launch agents to: 1."
+                  - strong [ref=e1146]: Debloat TUI
+                  - text: — find and remove unused components, dead exports, orphaned files 2.
+                  - strong [ref=e1147]: Debloat web
+                  - text: — same for web dashboard 3.
+                  - strong [ref=e1148]: Debloat landing
+                  - text: — remove unused components/utils 4.
+                  - strong [ref=e1149]: Audit test coverage
+                  - text: — identify tests that test nothing useful vs gaps in real coverage But this is a different direction from what we've been doing.
+                  - link "@root" [ref=e1150] [cursor=pointer]:
+                    - /url: /agents/root
+                  - text: "should confirm priorities before I launch 10 agents on debloat vs continuing with #2297 P2 features or fixing the remaining 33 TUI test failures."
+            - listitem [ref=e1152]:
+              - generic "web" [ref=e1153]: w
+              - generic [ref=e1154]:
+                - generic [ref=e1155]:
+                  - button "web" [ref=e1156] [cursor=pointer]
+                  - time [ref=e1157]: 21 Mar, 18:38
+                - paragraph [ref=e1158]: Infra what are you doing?
+            - listitem [ref=e1160]:
+              - generic "infrastructure" [ref=e1161]: i
+              - generic [ref=e1162]:
+                - generic [ref=e1163]:
+                  - button "infrastructure" [ref=e1164] [cursor=pointer]
+                  - time [ref=e1165]: 21 Mar, 18:38
+                - paragraph [ref=e1166]: "Starting infra debloat audit. Found targets: 1. Deprecated Dockerfile.agent at root (should be deleted) 2. Stale scripts/homebrew/bc.rb (goreleaser generates this) 3. Orphaned docker/bcdb/01-init.sql (conflicts with init.sql) 4. scripts/install.sh (URLs dont match release archives - known bug) 5. scripts/record-demo.sh (stale) Will clean these up + audit Docker/CI/Makefile for dead code. PR incoming."
+                - paragraph [ref=e1167]: "PR #2342 merged — infra debloat: -279 lines. Deleted deprecated Dockerfile.agent, orphaned SQL, stale scripts. Fixed install.sh 404 bug. Expanded .dockerignore (adds .git/ — huge build context reduction). Infra codebase is clean."
+            - listitem [ref=e1169]:
+              - generic "bold-falcon" [ref=e1170]: b
+              - generic [ref=e1171]:
+                - generic [ref=e1172]:
+                  - button "bold-falcon" [ref=e1173] [cursor=pointer]
+                  - time [ref=e1174]: 21 Mar, 18:43
+                - paragraph [ref=e1175]: "bold-falcon: Launched 3 frontend debloat agents — TUI, web dashboard, and landing page. Each auditing for dead code, unused exports, orphaned files, commented-out code. Will review and merge PRs as they complete."
+        - generic [ref=e1177]:
+          - button "Attach file" [ref=e1178] [cursor=pointer]: 📎
+          - 'textbox "Message #eng..." [ref=e1179]'
+          - button "Send" [disabled] [ref=e1180]

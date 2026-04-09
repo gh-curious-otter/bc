@@ -1,0 +1,64 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: S
+        - generic [ref=e8]:
+          - paragraph [ref=e9]: skitzo
+          - paragraph [ref=e10]: workspace
+      - button "Collapse navigation" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+    - list [ref=e14]:
+      - listitem [ref=e15]:
+        - link "Live" [ref=e16] [cursor=pointer]:
+          - /url: /live
+          - img [ref=e18]
+          - generic [ref=e22]: Live
+      - listitem [ref=e24]:
+        - link "Agents" [ref=e25] [cursor=pointer]:
+          - /url: /agents
+          - img [ref=e27]
+          - generic [ref=e29]: Agents
+      - listitem [ref=e30]:
+        - link "Channels" [ref=e31] [cursor=pointer]:
+          - /url: /channels
+          - img [ref=e33]
+          - generic [ref=e35]: Channels
+      - listitem [ref=e36]:
+        - link "Roles" [ref=e37] [cursor=pointer]:
+          - /url: /roles
+          - img [ref=e39]
+          - generic [ref=e41]: Roles
+      - listitem [ref=e42]:
+        - link "Tools" [ref=e43] [cursor=pointer]:
+          - /url: /tools
+          - img [ref=e45]
+          - generic [ref=e47]: Tools
+      - listitem [ref=e48]:
+        - link "Cron" [ref=e49] [cursor=pointer]:
+          - /url: /cron
+          - img [ref=e51]
+          - generic [ref=e53]: Cron
+      - listitem [ref=e54]:
+        - link "Secrets" [ref=e55] [cursor=pointer]:
+          - /url: /secrets
+          - img [ref=e57]
+          - generic [ref=e59]: Secrets
+      - listitem [ref=e60]:
+        - link "Metrics" [ref=e61] [cursor=pointer]:
+          - /url: /stats
+          - img [ref=e63]
+          - generic [ref=e65]: Metrics
+      - listitem [ref=e66]
+      - listitem [ref=e68]:
+        - link "Workspace" [ref=e69] [cursor=pointer]:
+          - /url: /workspace
+          - img [ref=e71]
+          - generic [ref=e73]: Workspace
+      - listitem [ref=e74]:
+        - link "Settings" [ref=e75] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e77]
+          - generic [ref=e79]: Settings
+    - button "Light" [ref=e81] [cursor=pointer]
+  - main [ref=e82]

@@ -1,0 +1,162 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: S
+        - generic [ref=e8]:
+          - paragraph [ref=e9]: skitzo
+          - paragraph [ref=e10]: workspace
+      - button "Collapse navigation" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+    - list [ref=e14]:
+      - listitem [ref=e15]:
+        - link "Live" [ref=e16] [cursor=pointer]:
+          - /url: /live
+          - img [ref=e18]
+          - generic [ref=e21]: Live
+      - listitem [ref=e23]:
+        - link "Agents" [ref=e24] [cursor=pointer]:
+          - /url: /agents
+          - img [ref=e26]
+          - generic [ref=e28]: Agents
+      - listitem [ref=e29]:
+        - link "Channels" [ref=e30] [cursor=pointer]:
+          - /url: /channels
+          - img [ref=e32]
+          - generic [ref=e33]: Channels
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - button "Slack 6" [ref=e36] [cursor=pointer]:
+              - img [ref=e37]
+              - generic [ref=e40]: Slack
+              - generic [ref=e41]: "6"
+            - link "# all-bc 7" [ref=e42] [cursor=pointer]:
+              - /url: /channels/slack:all-bc
+              - generic [ref=e43]: "#"
+              - generic [ref=e44]: all-bc
+              - generic [ref=e45]: "7"
+            - link "# eng 7" [ref=e46] [cursor=pointer]:
+              - /url: /channels/slack:eng
+              - generic [ref=e47]: "#"
+              - generic [ref=e48]: eng
+              - generic [ref=e49]: "7"
+            - link "# infra 6" [ref=e50] [cursor=pointer]:
+              - /url: /channels/slack:infra
+              - generic [ref=e51]: "#"
+              - generic [ref=e52]: infra
+              - generic [ref=e53]: "6"
+            - link "# pr-merge 3" [ref=e54] [cursor=pointer]:
+              - /url: /channels/slack:pr-merge
+              - generic [ref=e55]: "#"
+              - generic [ref=e56]: pr-merge
+              - generic [ref=e57]: "3"
+            - link "# sprint 2" [ref=e58] [cursor=pointer]:
+              - /url: /channels/slack:sprint
+              - generic [ref=e59]: "#"
+              - generic [ref=e60]: sprint
+              - generic [ref=e61]: "2"
+            - link "# ui 2" [ref=e62] [cursor=pointer]:
+              - /url: /channels/slack:ui
+              - generic [ref=e63]: "#"
+              - generic [ref=e64]: ui
+              - generic [ref=e65]: "2"
+          - generic [ref=e66]:
+            - button "Telegram 3" [ref=e67] [cursor=pointer]:
+              - img [ref=e68]
+              - generic [ref=e71]: Telegram
+              - generic [ref=e72]: "3"
+            - link "# ab010300 10" [ref=e73] [cursor=pointer]:
+              - /url: /channels/telegram:ab010300
+              - generic [ref=e74]: "#"
+              - generic [ref=e75]: ab010300
+              - generic [ref=e76]: "10"
+            - link "# trade 3" [ref=e77] [cursor=pointer]:
+              - /url: /channels/telegram:trade
+              - generic [ref=e78]: "#"
+              - generic [ref=e79]: trade
+              - generic [ref=e80]: "3"
+            - link "# trade-fo 1" [ref=e81] [cursor=pointer]:
+              - /url: /channels/telegram:trade-fo
+              - generic [ref=e82]: "#"
+              - generic [ref=e83]: trade-fo
+              - generic [ref=e84]: "1"
+          - generic [ref=e85]:
+            - button "Discord +" [ref=e86] [cursor=pointer]:
+              - generic [ref=e88]: Discord
+              - generic [ref=e89]: +
+            - button "GitHub +" [ref=e90] [cursor=pointer]:
+              - generic [ref=e92]: GitHub
+              - generic [ref=e93]: +
+            - button "Gmail +" [ref=e94] [cursor=pointer]:
+              - generic [ref=e96]: Gmail
+              - generic [ref=e97]: +
+          - button "+ Connect app" [ref=e99] [cursor=pointer]
+      - listitem [ref=e100]:
+        - link "Roles" [ref=e101] [cursor=pointer]:
+          - /url: /roles
+          - img [ref=e103]
+          - generic [ref=e105]: Roles
+      - listitem [ref=e106]:
+        - link "Tools" [ref=e107] [cursor=pointer]:
+          - /url: /tools
+          - img [ref=e109]
+          - generic [ref=e111]: Tools
+      - listitem [ref=e112]:
+        - link "Cron" [ref=e113] [cursor=pointer]:
+          - /url: /cron
+          - img [ref=e115]
+          - generic [ref=e118]: Cron
+      - listitem [ref=e119]:
+        - link "Secrets" [ref=e120] [cursor=pointer]:
+          - /url: /secrets
+          - img [ref=e122]
+          - generic [ref=e124]: Secrets
+      - listitem [ref=e125]:
+        - link "Metrics" [ref=e126] [cursor=pointer]:
+          - /url: /stats
+          - img [ref=e128]
+          - generic [ref=e130]: Metrics
+      - listitem [ref=e131]
+      - listitem [ref=e133]:
+        - link "Workspace" [ref=e134] [cursor=pointer]:
+          - /url: /workspace
+          - img [ref=e136]
+          - generic [ref=e138]: Workspace
+      - listitem [ref=e139]:
+        - link "Settings" [ref=e140] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e142]
+          - generic [ref=e145]: Settings
+    - button "Light" [ref=e147] [cursor=pointer]
+  - main [ref=e148]:
+    - generic [ref=e151]:
+      - generic [ref=e152]:
+        - generic [ref=e153]:
+          - generic [ref=e154]:
+            - heading "eng" [level=1] [ref=e156]
+            - generic [ref=e157]: slack
+          - generic [ref=e158]:
+            - generic [ref=e159]: "1"
+            - button "7 agents" [ref=e161] [cursor=pointer]: 7 agents
+        - paragraph [ref=e163]: Gateway channel
+      - generic [ref=e166]:
+        - generic [ref=e167]:
+          - generic [ref=e170]: Today
+          - generic [ref=e172]:
+            - generic [ref=e173]:
+              - generic [ref=e174]: "["
+              - button "[slack] Puneet Rai" [ref=e175] [cursor=pointer]
+              - generic [ref=e176]: 20:32
+            - generic [ref=e177]:
+              - generic [ref=e179]: Address all code rabbit review comments on gh
+              - generic [ref=e181]:
+                - generic [ref=e182]:
+                  - img [ref=e183]
+                  - text: jolly-vulture
+                - generic [ref=e185]:
+                  - img [ref=e186]
+                  - text: swift-hawk, steady-badger, smart-osprey, sharp-impala, ideal-lemur, curious-otter
+        - generic [ref=e188]: Beginning of channel history
+      - generic [ref=e190]:
+        - generic [ref=e191]: slack gateway · agents respond via MCP
+        - generic [ref=e192]: 7 agents subscribed

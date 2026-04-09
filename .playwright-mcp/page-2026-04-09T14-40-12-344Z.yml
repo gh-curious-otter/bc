@@ -1,0 +1,137 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: S
+        - generic [ref=e8]:
+          - paragraph [ref=e9]: skitzo
+          - paragraph [ref=e10]: workspace
+      - button "Collapse navigation" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+    - list [ref=e14]:
+      - listitem [ref=e15]:
+        - link "Live" [ref=e16] [cursor=pointer]:
+          - /url: /live
+          - img [ref=e18]
+          - generic [ref=e22]: Live
+      - listitem [ref=e24]:
+        - link "Agents" [ref=e25] [cursor=pointer]:
+          - /url: /agents
+          - img [ref=e27]
+          - generic [ref=e29]: Agents
+      - listitem [ref=e30]:
+        - link "Channels" [ref=e31] [cursor=pointer]:
+          - /url: /channels
+          - img [ref=e33]
+          - generic [ref=e35]: Channels
+      - listitem [ref=e36]:
+        - link "Roles" [ref=e37] [cursor=pointer]:
+          - /url: /roles
+          - img [ref=e39]
+          - generic [ref=e41]: Roles
+      - listitem [ref=e42]:
+        - link "Tools" [ref=e43] [cursor=pointer]:
+          - /url: /tools
+          - img [ref=e45]
+          - generic [ref=e47]: Tools
+      - listitem [ref=e48]:
+        - link "Cron" [ref=e49] [cursor=pointer]:
+          - /url: /cron
+          - img [ref=e51]
+          - generic [ref=e53]: Cron
+      - listitem [ref=e54]:
+        - link "Secrets" [ref=e55] [cursor=pointer]:
+          - /url: /secrets
+          - img [ref=e57]
+          - generic [ref=e59]: Secrets
+      - listitem [ref=e60]:
+        - link "Metrics" [ref=e61] [cursor=pointer]:
+          - /url: /stats
+          - img [ref=e63]
+          - generic [ref=e65]: Metrics
+      - listitem [ref=e66]
+      - listitem [ref=e68]:
+        - link "Workspace" [ref=e69] [cursor=pointer]:
+          - /url: /workspace
+          - img [ref=e71]
+          - generic [ref=e73]: Workspace
+      - listitem [ref=e74]:
+        - link "Settings" [ref=e75] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e77]
+          - generic [ref=e79]: Settings
+    - button "Light" [ref=e81] [cursor=pointer]
+  - main [ref=e82]:
+    - generic [ref=e83]:
+      - navigation [ref=e84]:
+        - generic [ref=e85]:
+          - button "# Channels" [ref=e86] [cursor=pointer]
+          - button "Agents" [ref=e87] [cursor=pointer]
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - button "Slack 6" [ref=e90] [cursor=pointer]:
+              - img [ref=e91]
+              - generic [ref=e94]: Slack
+              - generic [ref=e95]: "6"
+            - generic [ref=e96]:
+              - button "# eng" [ref=e97] [cursor=pointer]:
+                - generic [ref=e98]: "#"
+                - generic [ref=e99]: eng
+              - button "# all-bc" [ref=e100] [cursor=pointer]:
+                - generic [ref=e101]: "#"
+                - generic [ref=e102]: all-bc
+              - button "# infra" [ref=e103] [cursor=pointer]:
+                - generic [ref=e104]: "#"
+                - generic [ref=e105]: infra
+              - button "# pr-merge" [ref=e106] [cursor=pointer]:
+                - generic [ref=e107]: "#"
+                - generic [ref=e108]: pr-merge
+              - button "# sprint" [ref=e109] [cursor=pointer]:
+                - generic [ref=e110]: "#"
+                - generic [ref=e111]: sprint
+              - button "# ui" [ref=e112] [cursor=pointer]:
+                - generic [ref=e113]: "#"
+                - generic [ref=e114]: ui
+          - generic [ref=e115]:
+            - button "Telegram 3" [ref=e116] [cursor=pointer]:
+              - img [ref=e117]
+              - generic [ref=e120]: Telegram
+              - generic [ref=e121]: "3"
+            - generic [ref=e122]:
+              - button "# ab010300" [ref=e123] [cursor=pointer]:
+                - generic [ref=e124]: "#"
+                - generic [ref=e125]: ab010300
+              - button "# trade" [ref=e126] [cursor=pointer]:
+                - generic [ref=e127]: "#"
+                - generic [ref=e128]: trade
+              - button "# trade-fo" [ref=e129] [cursor=pointer]:
+                - generic [ref=e130]: "#"
+                - generic [ref=e131]: trade-fo
+          - generic [ref=e132]:
+            - button "Discord +" [ref=e133] [cursor=pointer]:
+              - generic [ref=e135]: Discord
+              - generic [ref=e136]: +
+            - button "GitHub +" [ref=e137] [cursor=pointer]:
+              - generic [ref=e139]: GitHub
+              - generic [ref=e140]: +
+            - button "Gmail +" [ref=e141] [cursor=pointer]:
+              - generic [ref=e143]: Gmail
+              - generic [ref=e144]: +
+        - button "+ Connect app" [ref=e146] [cursor=pointer]
+      - generic [ref=e148]:
+        - generic [ref=e149]:
+          - generic [ref=e150]:
+            - generic [ref=e151]:
+              - heading "trade" [level=1] [ref=e153]
+              - generic [ref=e154]: telegram
+            - generic [ref=e155]:
+              - generic [ref=e156]: "0"
+              - button "3 agents" [ref=e158] [cursor=pointer]: 3 agents
+          - paragraph [ref=e160]: Gateway channel
+        - generic [ref=e165]:
+          - generic [ref=e166]: \u21C4
+          - heading "Waiting for messages" [level=3] [ref=e167]
+          - paragraph [ref=e168]: Activity from telegram will stream here in real-time.
+        - generic [ref=e170]:
+          - generic [ref=e171]: telegram gateway · agents respond via MCP
+          - generic [ref=e172]: 3 agents subscribed

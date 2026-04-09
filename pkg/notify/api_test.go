@@ -60,7 +60,7 @@ func (m *mockBroadcaster) Publish(_ string, _ map[string]any) {}
 // ---------------------------------------------------------------------------
 
 // setupStore opens an in-memory SQLite database, registers it as shared,
-// initialises the notify store and returns store + cleanup.
+// initializes the notify store and returns store + cleanup.
 func setupStore(t *testing.T) *notify.Store {
 	t.Helper()
 	d, err := db.Open(":memory:")

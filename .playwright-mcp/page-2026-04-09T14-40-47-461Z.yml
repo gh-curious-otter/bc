@@ -1,0 +1,142 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: S
+        - generic [ref=e8]:
+          - paragraph [ref=e9]: skitzo
+          - paragraph [ref=e10]: workspace
+      - button "Collapse navigation" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+    - list [ref=e14]:
+      - listitem [ref=e15]:
+        - link "Live" [ref=e16] [cursor=pointer]:
+          - /url: /live
+          - img [ref=e18]
+          - generic [ref=e22]: Live
+      - listitem [ref=e24]:
+        - link "Agents" [ref=e25] [cursor=pointer]:
+          - /url: /agents
+          - img [ref=e27]
+          - generic [ref=e29]: Agents
+      - listitem [ref=e30]:
+        - link "Channels" [ref=e31] [cursor=pointer]:
+          - /url: /channels
+          - img [ref=e33]
+          - generic [ref=e35]: Channels
+      - listitem [ref=e36]:
+        - link "Roles" [ref=e37] [cursor=pointer]:
+          - /url: /roles
+          - img [ref=e39]
+          - generic [ref=e41]: Roles
+      - listitem [ref=e42]:
+        - link "Tools" [ref=e43] [cursor=pointer]:
+          - /url: /tools
+          - img [ref=e45]
+          - generic [ref=e47]: Tools
+      - listitem [ref=e48]:
+        - link "Cron" [ref=e49] [cursor=pointer]:
+          - /url: /cron
+          - img [ref=e51]
+          - generic [ref=e53]: Cron
+      - listitem [ref=e54]:
+        - link "Secrets" [ref=e55] [cursor=pointer]:
+          - /url: /secrets
+          - img [ref=e57]
+          - generic [ref=e59]: Secrets
+      - listitem [ref=e60]:
+        - link "Metrics" [ref=e61] [cursor=pointer]:
+          - /url: /stats
+          - img [ref=e63]
+          - generic [ref=e65]: Metrics
+      - listitem [ref=e66]
+      - listitem [ref=e68]:
+        - link "Workspace" [ref=e69] [cursor=pointer]:
+          - /url: /workspace
+          - img [ref=e71]
+          - generic [ref=e73]: Workspace
+      - listitem [ref=e74]:
+        - link "Settings" [ref=e75] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e77]
+          - generic [ref=e79]: Settings
+    - button "Light" [ref=e81] [cursor=pointer]
+  - main [ref=e82]:
+    - generic [ref=e83]:
+      - navigation [ref=e84]:
+        - generic [ref=e85]:
+          - button "# Channels" [ref=e86] [cursor=pointer]
+          - button "Agents 3" [active] [ref=e173] [cursor=pointer]
+        - generic [ref=e88]:
+          - generic [ref=e192]:
+            - generic [ref=e194]: Listening (2)
+            - generic [ref=e195]:
+              - generic [ref=e196]: C
+              - generic [ref=e198]: curious-otter
+              - generic [ref=e199]: root
+              - button "×" [ref=e200] [cursor=pointer]
+            - generic [ref=e201]:
+              - generic [ref=e202]: Z
+              - generic [ref=e204]: zen-zebra
+              - generic [ref=e205]: root
+              - button "×" [ref=e206] [cursor=pointer]
+          - generic [ref=e208]:
+            - generic [ref=e209]: Add to channel
+            - generic [ref=e210]:
+              - generic [ref=e211]: F
+              - generic [ref=e213]: fresh-panda
+              - button "+ add" [ref=e214] [cursor=pointer]
+            - generic [ref=e215]:
+              - generic [ref=e216]: F
+              - generic [ref=e218]: frost-condor
+              - button "+ add" [ref=e219] [cursor=pointer]
+            - generic [ref=e220]:
+              - generic [ref=e221]: I
+              - generic [ref=e223]: ideal-lemur
+              - button "+ add" [ref=e224] [cursor=pointer]
+            - generic [ref=e225]:
+              - generic [ref=e226]: J
+              - generic [ref=e228]: jolly-vulture
+              - button "+ add" [ref=e229] [cursor=pointer]
+            - generic [ref=e230]:
+              - generic [ref=e231]: K
+              - generic [ref=e233]: kognivida
+              - button "+ add" [ref=e234] [cursor=pointer]
+            - generic [ref=e235]:
+              - generic [ref=e236]: S
+              - generic [ref=e238]: sharp-impala
+              - button "+ add" [ref=e239] [cursor=pointer]
+            - generic [ref=e240]:
+              - generic [ref=e241]: S
+              - generic [ref=e243]: smart-osprey
+              - button "+ add" [ref=e244] [cursor=pointer]
+            - generic [ref=e245]:
+              - generic [ref=e246]: S
+              - generic [ref=e248]: steady-badger
+              - button "+ add" [ref=e249] [cursor=pointer]
+            - generic [ref=e250]:
+              - generic [ref=e251]: S
+              - generic [ref=e253]: swift-hawk
+              - button "+ add" [ref=e254] [cursor=pointer]
+            - generic [ref=e255]:
+              - generic [ref=e256]: T
+              - generic [ref=e258]: tidy-tapir
+              - button "+ add" [ref=e259] [cursor=pointer]
+        - button "+ Connect app" [ref=e146] [cursor=pointer]
+      - generic [ref=e148]:
+        - generic [ref=e149]:
+          - generic [ref=e150]:
+            - generic [ref=e151]:
+              - heading "trade" [level=1] [ref=e153]
+              - generic [ref=e154]: telegram
+            - generic [ref=e155]:
+              - generic [ref=e156]: "0"
+              - button "3 agents" [ref=e158] [cursor=pointer]: 3 agents
+          - paragraph [ref=e160]: Gateway channel
+        - generic [ref=e165]:
+          - generic [ref=e166]: \u21C4
+          - heading "Waiting for messages" [level=3] [ref=e167]
+          - paragraph [ref=e168]: Activity from telegram will stream here in real-time.
+        - generic [ref=e170]:
+          - generic [ref=e171]: telegram gateway · agents respond via MCP
+          - generic [ref=e172]: 3 agents subscribed

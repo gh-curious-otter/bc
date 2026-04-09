@@ -1,0 +1,326 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: S
+        - generic [ref=e8]:
+          - paragraph [ref=e9]: skitzo
+          - paragraph [ref=e10]: workspace
+      - button "Collapse navigation" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+    - list [ref=e14]:
+      - listitem [ref=e15]:
+        - link "Live" [ref=e16] [cursor=pointer]:
+          - /url: /live
+          - img [ref=e18]
+          - generic [ref=e21]: Live
+      - listitem [ref=e23]:
+        - link "Agents" [ref=e24] [cursor=pointer]:
+          - /url: /agents
+          - img [ref=e26]
+          - generic [ref=e28]: Agents
+      - listitem [ref=e29]:
+        - link "Channels" [ref=e30] [cursor=pointer]:
+          - /url: /channels
+          - img [ref=e32]
+          - generic [ref=e33]: Channels
+        - generic [ref=e34]:
+          - generic [ref=e87]:
+            - button "Telegram live 3" [ref=e88] [cursor=pointer]:
+              - img [ref=e89]
+              - generic [ref=e92]: Telegram
+              - generic [ref=e93]:
+                - generic [ref=e94]: live
+                - generic [ref=e95]: "3"
+            - link "# trade 3" [ref=e96] [cursor=pointer]:
+              - /url: /channels/telegram:trade
+              - generic [ref=e97]: "#"
+              - generic [ref=e98]: trade
+              - generic [ref=e99]: "3"
+            - link "# ab010300 10" [ref=e100] [cursor=pointer]:
+              - /url: /channels/telegram:ab010300
+              - generic [ref=e101]: "#"
+              - generic [ref=e102]: ab010300
+              - generic [ref=e103]: "10"
+            - link "# trade-fo 1" [ref=e104] [cursor=pointer]:
+              - /url: /channels/telegram:trade-fo
+              - generic [ref=e105]: "#"
+              - generic [ref=e106]: trade-fo
+              - generic [ref=e107]: "1"
+          - generic [ref=e108]:
+            - button "Slack live 6" [ref=e109] [cursor=pointer]:
+              - img [ref=e110]
+              - generic [ref=e113]: Slack
+              - generic [ref=e114]:
+                - generic [ref=e115]: live
+                - generic [ref=e116]: "6"
+            - link "# all-bc 7" [ref=e117] [cursor=pointer]:
+              - /url: /channels/slack:all-bc
+              - generic [ref=e118]: "#"
+              - generic [ref=e119]: all-bc
+              - generic [ref=e120]: "7"
+            - link "# eng 7" [ref=e121] [cursor=pointer]:
+              - /url: /channels/slack:eng
+              - generic [ref=e122]: "#"
+              - generic [ref=e123]: eng
+              - generic [ref=e124]: "7"
+            - link "# infra 6" [ref=e125] [cursor=pointer]:
+              - /url: /channels/slack:infra
+              - generic [ref=e126]: "#"
+              - generic [ref=e127]: infra
+              - generic [ref=e128]: "6"
+            - link "# pr-merge 3" [ref=e129] [cursor=pointer]:
+              - /url: /channels/slack:pr-merge
+              - generic [ref=e130]: "#"
+              - generic [ref=e131]: pr-merge
+              - generic [ref=e132]: "3"
+            - link "# sprint 2" [ref=e133] [cursor=pointer]:
+              - /url: /channels/slack:sprint
+              - generic [ref=e134]: "#"
+              - generic [ref=e135]: sprint
+              - generic [ref=e136]: "2"
+            - link "# ui 2" [ref=e137] [cursor=pointer]:
+              - /url: /channels/slack:ui
+              - generic [ref=e138]: "#"
+              - generic [ref=e139]: ui
+              - generic [ref=e140]: "2"
+          - button "+ Connect app" [ref=e36] [cursor=pointer]
+      - listitem [ref=e37]:
+        - link "Roles" [ref=e38] [cursor=pointer]:
+          - /url: /roles
+          - img [ref=e40]
+          - generic [ref=e42]: Roles
+      - listitem [ref=e43]:
+        - link "Tools" [ref=e44] [cursor=pointer]:
+          - /url: /tools
+          - img [ref=e46]
+          - generic [ref=e48]: Tools
+      - listitem [ref=e49]:
+        - link "Cron" [ref=e50] [cursor=pointer]:
+          - /url: /cron
+          - img [ref=e52]
+          - generic [ref=e55]: Cron
+      - listitem [ref=e56]:
+        - link "Secrets" [ref=e57] [cursor=pointer]:
+          - /url: /secrets
+          - img [ref=e59]
+          - generic [ref=e61]: Secrets
+      - listitem [ref=e62]:
+        - link "Metrics" [ref=e63] [cursor=pointer]:
+          - /url: /stats
+          - img [ref=e65]
+          - generic [ref=e67]: Metrics
+      - listitem [ref=e68]
+      - listitem [ref=e70]:
+        - link "Workspace" [ref=e71] [cursor=pointer]:
+          - /url: /workspace
+          - img [ref=e73]
+          - generic [ref=e75]: Workspace
+      - listitem [ref=e76]:
+        - link "Settings" [ref=e77] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e79]
+          - generic [ref=e82]: Settings
+    - button "Dark" [ref=e84] [cursor=pointer]
+  - main [ref=e85]:
+    - generic [ref=e143]:
+      - generic [ref=e144]:
+        - generic [ref=e145]:
+          - generic [ref=e146]:
+            - heading "trade" [level=1] [ref=e148]
+            - generic [ref=e149]: telegram
+          - generic [ref=e150]:
+            - generic [ref=e151]: "9"
+            - generic [ref=e152]:
+              - button "3 agents" [active] [ref=e153] [cursor=pointer]: 3 agents
+              - generic [ref=e291]:
+                - heading "Agents" [level=3] [ref=e293]
+                - generic [ref=e294]:
+                  - generic [ref=e298]: Listening (2)
+                  - generic [ref=e299]:
+                    - generic [ref=e300]:
+                      - generic [ref=e301]: C
+                      - generic [ref=e304]: curious-otter
+                      - generic [ref=e305]: root
+                    - generic [ref=e306]:
+                      - button "all msgs" [ref=e307] [cursor=pointer]
+                      - button "remove" [ref=e308] [cursor=pointer]
+                  - generic [ref=e309]:
+                    - generic [ref=e310]:
+                      - generic [ref=e311]: Z
+                      - generic [ref=e314]: zen-zebra
+                      - generic [ref=e315]: root
+                    - generic [ref=e316]:
+                      - button "all msgs" [ref=e317] [cursor=pointer]
+                      - button "remove" [ref=e318] [cursor=pointer]
+                - generic [ref=e320]:
+                  - generic [ref=e322]: Available (10)
+                  - generic [ref=e323]:
+                    - generic [ref=e324]:
+                      - generic [ref=e325]: F
+                      - generic [ref=e328]: fresh-panda
+                      - generic [ref=e329]: base
+                    - button "+ subscribe" [ref=e331] [cursor=pointer]
+                  - generic [ref=e332]:
+                    - generic [ref=e333]:
+                      - generic [ref=e334]: F
+                      - generic [ref=e337]: frost-condor
+                      - generic [ref=e338]: base
+                    - button "+ subscribe" [ref=e340] [cursor=pointer]
+                  - generic [ref=e341]:
+                    - generic [ref=e342]:
+                      - generic [ref=e343]: I
+                      - generic [ref=e346]: ideal-lemur
+                      - generic [ref=e347]: infra_lead
+                    - button "+ subscribe" [ref=e349] [cursor=pointer]
+                  - generic [ref=e350]:
+                    - generic [ref=e351]:
+                      - generic [ref=e352]: J
+                      - generic [ref=e355]: jolly-vulture
+                      - generic [ref=e356]: base
+                    - button "+ subscribe" [ref=e358] [cursor=pointer]
+                  - generic [ref=e359]:
+                    - generic [ref=e360]:
+                      - generic [ref=e361]: K
+                      - generic [ref=e364]: kognivida
+                      - generic [ref=e365]: base
+                    - button "+ subscribe" [ref=e367] [cursor=pointer]
+                  - generic [ref=e368]:
+                    - generic [ref=e369]:
+                      - generic [ref=e370]: S
+                      - generic [ref=e373]: sharp-impala
+                      - generic [ref=e374]: product_manager
+                    - button "+ subscribe" [ref=e376] [cursor=pointer]
+                  - generic [ref=e377]:
+                    - generic [ref=e378]:
+                      - generic [ref=e379]: S
+                      - generic [ref=e382]: smart-osprey
+                      - generic [ref=e383]: ui_lead
+                    - button "+ subscribe" [ref=e385] [cursor=pointer]
+                  - generic [ref=e386]:
+                    - generic [ref=e387]:
+                      - generic [ref=e388]: S
+                      - generic [ref=e391]: steady-badger
+                      - generic [ref=e392]: infra_lead
+                    - button "+ subscribe" [ref=e394] [cursor=pointer]
+                  - generic [ref=e395]:
+                    - generic [ref=e396]:
+                      - generic [ref=e397]: S
+                      - generic [ref=e400]: swift-hawk
+                      - generic [ref=e401]: api_lead
+                    - button "+ subscribe" [ref=e403] [cursor=pointer]
+                  - generic [ref=e404]:
+                    - generic [ref=e405]:
+                      - generic [ref=e406]: T
+                      - generic [ref=e409]: tidy-tapir
+                      - generic [ref=e410]: feature-dev
+                    - button "+ subscribe" [ref=e412] [cursor=pointer]
+        - paragraph [ref=e155]: Gateway channel
+      - generic [ref=e158]:
+        - generic [ref=e159]:
+          - generic [ref=e162]: Today
+          - generic [ref=e164]:
+            - generic [ref=e165]:
+              - generic [ref=e166]: P
+              - button "Puneet Rai" [ref=e167] [cursor=pointer]
+              - generic [ref=e168]: 21:18
+            - generic [ref=e169]:
+              - generic [ref=e171]: Also in the last screenshot what’s 5 and the 3 agents show me the drop down on clicking that button with 3 agents
+              - generic [ref=e173]:
+                - generic [ref=e174]:
+                  - img [ref=e175]
+                  - text: zen-zebra
+                - generic [ref=e177]:
+                  - img [ref=e178]
+                  - text: curious-otter, clever-urial
+            - generic [ref=e180]:
+              - generic [ref=e182]: Give me screenshots
+              - generic [ref=e184]:
+                - generic [ref=e185]:
+                  - img [ref=e186]
+                  - text: zen-zebra
+                - generic [ref=e188]:
+                  - img [ref=e189]
+                  - text: curious-otter, clever-urial
+        - generic [ref=e192]:
+          - generic [ref=e193]:
+            - generic [ref=e194]: P
+            - button "Puneet Rai" [ref=e195] [cursor=pointer]
+            - generic [ref=e196]: 20:47
+          - generic [ref=e197]:
+            - generic [ref=e199]: Remove GitHub etc all that should live in connect button
+            - generic [ref=e201]:
+              - generic [ref=e202]:
+                - img [ref=e203]
+                - text: zen-zebra
+              - generic [ref=e205]:
+                - img [ref=e206]
+                - text: curious-otter, clever-urial
+          - generic [ref=e208]:
+            - generic [ref=e210]: What are you doing how does the pr lol
+            - generic [ref=e212]:
+              - generic [ref=e213]:
+                - img [ref=e214]
+                - text: zen-zebra
+              - generic [ref=e216]:
+                - img [ref=e217]
+                - text: curious-otter, clever-urial
+        - generic [ref=e220]:
+          - generic [ref=e221]:
+            - generic [ref=e222]: P
+            - button "Puneet Rai" [ref=e223] [cursor=pointer]
+            - generic [ref=e224]: 21:00
+          - generic [ref=e225]:
+            - generic [ref=e227]: Could be better status
+            - generic [ref=e229]:
+              - generic [ref=e230]:
+                - img [ref=e231]
+                - text: zen-zebra
+              - generic [ref=e233]:
+                - img [ref=e234]
+                - text: curious-otter, clever-urial
+          - generic [ref=e236]:
+            - generic [ref=e238]: Keep improving this it could be much better use code simplified and frontend plugin
+            - generic [ref=e240]:
+              - generic [ref=e241]:
+                - img [ref=e242]
+                - text: zen-zebra
+              - generic [ref=e244]:
+                - img [ref=e245]
+                - text: curious-otter, clever-urial
+        - generic [ref=e248]:
+          - generic [ref=e249]:
+            - generic [ref=e250]: P
+            - button "Puneet Rai" [ref=e251] [cursor=pointer]
+            - generic [ref=e252]: 21:14
+          - generic [ref=e253]:
+            - generic [ref=e255]: Keep iterating look at the ui in all themes
+            - generic [ref=e257]:
+              - generic [ref=e258]:
+                - img [ref=e259]
+                - text: zen-zebra
+              - generic [ref=e261]:
+                - img [ref=e262]
+                - text: curious-otter, clever-urial
+          - generic [ref=e264]:
+            - generic [ref=e266]: Keep improving
+            - generic [ref=e268]:
+              - generic [ref=e269]:
+                - img [ref=e270]
+                - text: zen-zebra
+              - generic [ref=e272]:
+                - img [ref=e273]
+                - text: curious-otter, clever-urial
+          - generic [ref=e275]:
+            - generic [ref=e277]: Can you send me some sample images of how openclaw UI looks like
+            - generic [ref=e279]:
+              - generic [ref=e280]:
+                - img [ref=e281]
+                - text: zen-zebra
+              - generic [ref=e283]:
+                - img [ref=e284]
+                - text: curious-otter, clever-urial
+        - generic [ref=e286]: Beginning of channel history
+      - generic [ref=e288]:
+        - generic [ref=e289]: telegram gateway · agents respond via MCP
+        - generic [ref=e290]: 3 agents subscribed

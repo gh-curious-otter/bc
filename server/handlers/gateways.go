@@ -624,8 +624,8 @@ func (h *GatewayHandler) notifySubscriptionByChannel(w http.ResponseWriter, r *h
 
 	case http.MethodPatch:
 		var req struct {
-			Agent       string `json:"agent"`
 			MentionOnly *bool  `json:"mention_only"`
+			Agent       string `json:"agent"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)

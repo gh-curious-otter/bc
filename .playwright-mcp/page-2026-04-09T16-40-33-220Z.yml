@@ -1,0 +1,384 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: S
+        - generic [ref=e8]:
+          - paragraph [ref=e9]: skitzo
+          - paragraph [ref=e10]: workspace
+      - button "Collapse navigation" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+    - list [ref=e14]:
+      - listitem [ref=e15]:
+        - link "Live" [ref=e16] [cursor=pointer]:
+          - /url: /live
+          - img [ref=e18]
+          - generic [ref=e21]: Live
+      - listitem [ref=e23]:
+        - link "Agents" [ref=e24] [cursor=pointer]:
+          - /url: /agents
+          - img [ref=e26]
+          - generic [ref=e28]: Agents
+      - listitem [ref=e29]:
+        - link "Channels" [ref=e30] [cursor=pointer]:
+          - /url: /channels
+          - img [ref=e32]
+          - generic [ref=e33]: Channels
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - button "Slack live 6" [ref=e36] [cursor=pointer]:
+              - img [ref=e37]
+              - generic [ref=e40]: Slack
+              - generic [ref=e41]:
+                - generic [ref=e42]: live
+                - generic [ref=e43]: "6"
+            - link "# all-bc 7" [ref=e44] [cursor=pointer]:
+              - /url: /channels/slack:all-bc
+              - generic [ref=e45]: "#"
+              - generic [ref=e46]: all-bc
+              - generic [ref=e47]: "7"
+            - link "# eng 7" [ref=e48] [cursor=pointer]:
+              - /url: /channels/slack:eng
+              - generic [ref=e49]: "#"
+              - generic [ref=e50]: eng
+              - generic [ref=e51]: "7"
+            - link "# infra 6" [ref=e52] [cursor=pointer]:
+              - /url: /channels/slack:infra
+              - generic [ref=e53]: "#"
+              - generic [ref=e54]: infra
+              - generic [ref=e55]: "6"
+            - link "# pr-merge 3" [ref=e56] [cursor=pointer]:
+              - /url: /channels/slack:pr-merge
+              - generic [ref=e57]: "#"
+              - generic [ref=e58]: pr-merge
+              - generic [ref=e59]: "3"
+            - link "# sprint 2" [ref=e60] [cursor=pointer]:
+              - /url: /channels/slack:sprint
+              - generic [ref=e61]: "#"
+              - generic [ref=e62]: sprint
+              - generic [ref=e63]: "2"
+            - link "# ui 2" [ref=e64] [cursor=pointer]:
+              - /url: /channels/slack:ui
+              - generic [ref=e65]: "#"
+              - generic [ref=e66]: ui
+              - generic [ref=e67]: "2"
+          - generic [ref=e68]:
+            - button "Telegram live 3" [ref=e69] [cursor=pointer]:
+              - img [ref=e70]
+              - generic [ref=e73]: Telegram
+              - generic [ref=e74]:
+                - generic [ref=e75]: live
+                - generic [ref=e76]: "3"
+            - link "# ab010300 10" [ref=e77] [cursor=pointer]:
+              - /url: /channels/telegram:ab010300
+              - generic [ref=e78]: "#"
+              - generic [ref=e79]: ab010300
+              - generic [ref=e80]: "10"
+            - link "# trade 3" [ref=e81] [cursor=pointer]:
+              - /url: /channels/telegram:trade
+              - generic [ref=e82]: "#"
+              - generic [ref=e83]: trade
+              - generic [ref=e84]: "3"
+            - link "# trade-fo 1" [ref=e85] [cursor=pointer]:
+              - /url: /channels/telegram:trade-fo
+              - generic [ref=e86]: "#"
+              - generic [ref=e87]: trade-fo
+              - generic [ref=e88]: "1"
+          - button "+ Connect app" [ref=e90] [cursor=pointer]
+      - listitem [ref=e91]:
+        - link "Roles" [ref=e92] [cursor=pointer]:
+          - /url: /roles
+          - img [ref=e94]
+          - generic [ref=e96]: Roles
+      - listitem [ref=e97]:
+        - link "Tools" [ref=e98] [cursor=pointer]:
+          - /url: /tools
+          - img [ref=e100]
+          - generic [ref=e102]: Tools
+      - listitem [ref=e103]:
+        - link "Cron" [ref=e104] [cursor=pointer]:
+          - /url: /cron
+          - img [ref=e106]
+          - generic [ref=e109]: Cron
+      - listitem [ref=e110]:
+        - link "Secrets" [ref=e111] [cursor=pointer]:
+          - /url: /secrets
+          - img [ref=e113]
+          - generic [ref=e115]: Secrets
+      - listitem [ref=e116]:
+        - link "Metrics" [ref=e117] [cursor=pointer]:
+          - /url: /stats
+          - img [ref=e119]
+          - generic [ref=e121]: Metrics
+      - listitem [ref=e122]
+      - listitem [ref=e124]:
+        - link "Workspace" [ref=e125] [cursor=pointer]:
+          - /url: /workspace
+          - img [ref=e127]
+          - generic [ref=e129]: Workspace
+      - listitem [ref=e130]:
+        - link "Settings" [ref=e131] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e133]
+          - generic [ref=e136]: Settings
+    - button "Dark" [ref=e138] [cursor=pointer]
+  - main [ref=e139]:
+    - generic [ref=e142]:
+      - generic [ref=e144]:
+        - generic [ref=e145]:
+          - heading "trade" [level=1] [ref=e147]
+          - generic [ref=e148]: telegram
+        - generic [ref=e149]:
+          - generic [ref=e150]: "28"
+          - button "3 agents" [ref=e152] [cursor=pointer]: 3 agents
+      - generic [ref=e156]:
+        - generic [ref=e157]:
+          - generic [ref=e160]: Today
+          - generic [ref=e162]:
+            - generic [ref=e163]:
+              - generic [ref=e164]: P
+              - button "Puneet Rai" [ref=e165] [cursor=pointer]
+              - generic [ref=e166]: 20:32
+            - generic [ref=e167]:
+              - generic [ref=e169]: Give me screenshots
+              - generic [ref=e171]:
+                - generic [ref=e172]:
+                  - img [ref=e173]
+                  - text: zen-zebra
+                - generic [ref=e175]:
+                  - img [ref=e176]
+                  - text: curious-otter, clever-urial
+        - generic [ref=e179]:
+          - generic [ref=e180]:
+            - generic [ref=e181]: P
+            - button "Puneet Rai" [ref=e182] [cursor=pointer]
+            - generic [ref=e183]: 20:47
+          - generic [ref=e184]:
+            - generic [ref=e186]: Remove GitHub etc all that should live in connect button
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - img [ref=e190]
+                - text: zen-zebra
+              - generic [ref=e192]:
+                - img [ref=e193]
+                - text: curious-otter, clever-urial
+          - generic [ref=e195]:
+            - generic [ref=e197]: What are you doing how does the pr lol
+            - generic [ref=e199]:
+              - generic [ref=e200]:
+                - img [ref=e201]
+                - text: zen-zebra
+              - generic [ref=e203]:
+                - img [ref=e204]
+                - text: curious-otter, clever-urial
+        - generic [ref=e207]:
+          - generic [ref=e208]:
+            - generic [ref=e209]: P
+            - button "Puneet Rai" [ref=e210] [cursor=pointer]
+            - generic [ref=e211]: 21:00
+          - generic [ref=e212]:
+            - generic [ref=e214]: Could be better status
+            - generic [ref=e216]:
+              - generic [ref=e217]:
+                - img [ref=e218]
+                - text: zen-zebra
+              - generic [ref=e220]:
+                - img [ref=e221]
+                - text: curious-otter, clever-urial
+          - generic [ref=e223]:
+            - generic [ref=e225]: Keep improving this it could be much better use code simplified and frontend plugin
+            - generic [ref=e227]:
+              - generic [ref=e228]:
+                - img [ref=e229]
+                - text: zen-zebra
+              - generic [ref=e231]:
+                - img [ref=e232]
+                - text: curious-otter, clever-urial
+        - generic [ref=e235]:
+          - generic [ref=e236]:
+            - generic [ref=e237]: P
+            - button "Puneet Rai" [ref=e238] [cursor=pointer]
+            - generic [ref=e239]: 21:14
+          - generic [ref=e240]:
+            - generic [ref=e242]: Keep iterating look at the ui in all themes
+            - generic [ref=e244]:
+              - generic [ref=e245]:
+                - img [ref=e246]
+                - text: zen-zebra
+              - generic [ref=e248]:
+                - img [ref=e249]
+                - text: curious-otter, clever-urial
+          - generic [ref=e251]:
+            - generic [ref=e253]: Keep improving
+            - generic [ref=e255]:
+              - generic [ref=e256]:
+                - img [ref=e257]
+                - text: zen-zebra
+              - generic [ref=e259]:
+                - img [ref=e260]
+                - text: curious-otter, clever-urial
+          - generic [ref=e262]:
+            - generic [ref=e264]: Can you send me some sample images of how openclaw UI looks like
+            - generic [ref=e266]:
+              - generic [ref=e267]:
+                - img [ref=e268]
+                - text: zen-zebra
+              - generic [ref=e270]:
+                - img [ref=e271]
+                - text: curious-otter, clever-urial
+          - generic [ref=e273]:
+            - generic [ref=e275]: Also in the last screenshot what’s 5 and the 3 agents show me the drop down on clicking that button with 3 agents
+            - generic [ref=e277]:
+              - generic [ref=e278]:
+                - img [ref=e279]
+                - text: zen-zebra
+              - generic [ref=e281]:
+                - img [ref=e282]
+                - text: curious-otter, clever-urial
+          - generic [ref=e284]:
+            - generic [ref=e286]: What about tui and cli are they aligned?
+            - generic [ref=e288]:
+              - generic [ref=e289]:
+                - img [ref=e290]
+                - text: zen-zebra
+              - generic [ref=e292]:
+                - img [ref=e293]
+                - text: curious-otter, clever-urial
+          - generic [ref=e297]: Also make sure use tmux send keys to use the tui and make sure it’s aligned with the current setup of channels and gateways that we have in web tui should use api only to I tera t with bc so does cli
+          - generic [ref=e298]:
+            - generic [ref=e300]: Use todos to track everything
+            - generic [ref=e302]:
+              - generic [ref=e303]:
+                - img [ref=e304]
+                - text: zen-zebra
+              - generic [ref=e306]:
+                - img [ref=e307]
+                - text: curious-otter, clever-urial
+          - generic [ref=e311]: Can you do a thorough review of all user stories and scenriaos and write tests for all of these so that any future change should capture failure. Think of user facing tests like playwright or http tests and make sure everything is solid with proper tests for channels sections
+          - generic [ref=e314]: Let’s make sure channels work everywhere with all features tui web and cli and you should check and verify its working with your branch
+          - generic [ref=e315]:
+            - generic [ref=e317]: Also look at code rabbit reviews and make sure you address them
+            - generic [ref=e319]:
+              - generic [ref=e320]:
+                - img [ref=e321]
+                - text: zen-zebra
+              - generic [ref=e323]:
+                - img [ref=e324]
+                - text: curious-otter, clever-urial
+          - generic [ref=e326]:
+            - generic [ref=e328]: Wait won’t it be a problem if wen run test on prod
+            - generic [ref=e330]:
+              - generic [ref=e331]:
+                - img [ref=e332]
+                - text: zen-zebra
+              - generic [ref=e334]:
+                - img [ref=e335]
+                - text: curious-otter, clever-urial
+          - generic [ref=e339]: We should run test in a dogfood env. Use trade directory in projects start a bcd process / server and use that as a clean slate development environment to run tests etc
+          - generic [ref=e340]:
+            - generic [ref=e342]: Search obsidian vault and get some context on what I just said
+            - generic [ref=e344]:
+              - generic [ref=e345]:
+                - img [ref=e346]
+                - text: zen-zebra
+              - generic [ref=e348]:
+                - img [ref=e349]
+                - text: curious-otter, clever-urial
+          - generic [ref=e351]:
+            - generic [ref=e353]: Actually search obsidian thoroughly for all my messages and what you are doing to align
+            - generic [ref=e355]:
+              - generic [ref=e356]:
+                - img [ref=e357]
+                - text: zen-zebra
+              - generic [ref=e359]:
+                - img [ref=e360]
+                - text: curious-otter, clever-urial
+          - generic [ref=e362]:
+            - generic [ref=e364]: Use port 8080 and test everything there
+            - generic [ref=e366]:
+              - generic [ref=e367]:
+                - img [ref=e368]
+                - text: zen-zebra
+              - generic [ref=e370]:
+                - img [ref=e371]
+                - text: curious-otter, clever-urial
+          - generic [ref=e373]:
+            - generic [ref=e375]: I mean you test on 9374 use 8080 for e2e tests
+            - generic [ref=e377]:
+              - generic [ref=e378]:
+                - img [ref=e379]
+                - text: zen-zebra
+              - generic [ref=e381]:
+                - img [ref=e382]
+                - text: curious-otter, clever-urial
+          - generic [ref=e384]:
+            - generic [ref=e386]: Okay so can we run e2e ci safe?
+            - generic [ref=e388]:
+              - generic [ref=e389]:
+                - img [ref=e390]
+                - text: zen-zebra
+              - generic [ref=e392]:
+                - img [ref=e393]
+                - text: curious-otter, clever-urial
+          - generic [ref=e395]:
+            - generic [ref=e397]: Then no need of dogfood right
+            - generic [ref=e399]:
+              - generic [ref=e400]:
+                - img [ref=e401]
+                - text: zen-zebra
+              - generic [ref=e403]:
+                - img [ref=e404]
+                - text: curious-otter, clever-urial
+        - generic [ref=e407]:
+          - generic [ref=e408]:
+            - generic [ref=e409]: B
+            - button "Bottle Of Gin" [ref=e410] [cursor=pointer]
+            - generic [ref=e411]: 21:45
+          - generic [ref=e414]: just merged a PR, and there are unpushed changes on ~/Projects/bc (main) as well, let's make its pushed and your branch is synced with main remote and local. everything should be synced, redeploy bc send me screenshots of all the different channel use cases to verify. also look at the screenshots improve the UI and then send me screenshots again. First tell me whats left\
+          - generic [ref=e415]:
+            - generic [ref=e417]: awesome 🔥
+            - generic [ref=e419]:
+              - generic [ref=e420]:
+                - img [ref=e421]
+                - text: zen-zebra
+              - generic [ref=e423]:
+                - img [ref=e424]
+                - text: curious-otter, clever-urial
+        - generic [ref=e427]:
+          - generic [ref=e428]:
+            - generic [ref=e429]: B
+            - button "Bottle Of Gin" [ref=e430] [cursor=pointer]
+            - generic [ref=e431]: 22:05
+          - generic [ref=e432]:
+            - generic [ref=e434]: let's do TUI and UI polish usng frontend design and framer motion
+            - generic [ref=e436]:
+              - generic [ref=e437]:
+                - img [ref=e438]
+                - text: zen-zebra
+              - generic [ref=e440]:
+                - img [ref=e441]
+                - text: curious-otter, clever-urial
+          - generic [ref=e443]:
+            - generic [ref=e445]: is CI/CD passing are all your new tests part of CI/CD
+            - generic [ref=e447]:
+              - generic [ref=e448]:
+                - img [ref=e449]
+                - text: zen-zebra
+              - generic [ref=e451]:
+                - img [ref=e452]
+                - text: curious-otter, clever-urial
+          - generic [ref=e454]:
+            - generic [ref=e456]: Puneet Rai and bottol of gin are the same account and its me respond promptly when I message you
+            - generic [ref=e458]:
+              - generic [ref=e459]:
+                - img [ref=e460]
+                - text: zen-zebra
+              - generic [ref=e462]:
+                - img [ref=e463]
+                - text: curious-otter, clever-urial
+        - generic [ref=e467]: Beginning of history
+      - generic [ref=e470]:
+        - generic [ref=e471]:
+          - generic [ref=e472]: telegram gateway
+          - text: · agents respond via MCP
+        - generic [ref=e474]: 3 agents subscribed

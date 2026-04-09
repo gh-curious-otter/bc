@@ -2751,7 +2751,7 @@ func TestAgentHandler_CreateAgent(t *testing.T) {
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
-	// Use NewWorkspaceManager so worktreeMgr is initialised and doesn't panic.
+	// Use NewWorkspaceManager so worktreeMgr is initialized and doesn't panic.
 	mgr := agent.NewWorkspaceManager(stateDir, dir)
 	svc := agent.NewAgentService(mgr, nil, nil)
 
