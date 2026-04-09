@@ -429,8 +429,8 @@ func TestSSE_E2E_ToolsList(t *testing.T) {
 	}
 	decodeResult(t, resp, &result)
 
-	// send_message, list_channels, and read_channel were removed when pkg/channel was deleted.
-	wantNames := []string{"send_file", "whoami", "list_agents"}
+	// send_message, list_channels, and read_channel re-added on gateway/notify.
+	wantNames := []string{"send_message", "list_channels", "read_channel", "send_file", "whoami", "list_agents"}
 	got := make(map[string]bool)
 	for _, tool := range result.Tools {
 		got[tool.Name] = true
@@ -446,7 +446,6 @@ func TestSSE_E2E_ToolsList(t *testing.T) {
 }
 
 // TestSSE_E2E_ToolsCall_Whoami exercises the whoami tool via SSE.
-// list_channels was removed when pkg/channel was deleted.
 func TestSSE_E2E_ToolsCall_Whoami(t *testing.T) {
 	srv := newTestServer(t)
 	broker := mcp.NewSSEBroker()

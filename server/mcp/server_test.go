@@ -331,9 +331,8 @@ func TestToolsList(t *testing.T) {
 	}
 	rpc(t, srv, "tools/list", nil, &result)
 
-	// send_message, list_channels, and read_channel were removed when pkg/channel
-	// was deleted. Only send_file, whoami, and list_agents remain.
-	wantNames := []string{"send_file", "whoami", "list_agents"}
+	// send_message, list_channels, and read_channel re-added on gateway/notify.
+	wantNames := []string{"send_message", "list_channels", "read_channel", "send_file", "whoami", "list_agents"}
 	got := make(map[string]bool)
 	for _, tool := range result.Tools {
 		got[tool.Name] = true

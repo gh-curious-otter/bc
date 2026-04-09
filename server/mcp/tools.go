@@ -37,6 +37,54 @@ func definedTools() []Tool {
 			},
 		},
 		{
+			Name:        "send_message",
+			Description: "Send a text message to a gateway channel (e.g., slack:eng, telegram:trade)",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"channel": map[string]any{
+						"type":        "string",
+						"description": "Gateway channel name (e.g., slack:eng, telegram:trade)",
+					},
+					"message": map[string]any{
+						"type":        "string",
+						"description": "Message text to send",
+					},
+					"sender": map[string]any{
+						"type":        "string",
+						"description": "Sender name (defaults to agent identity)",
+					},
+				},
+				"required": []string{"channel", "message"},
+			},
+		},
+		{
+			Name:        "list_channels",
+			Description: "List all gateway channels with their platform and subscriber count",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
+		{
+			Name:        "read_channel",
+			Description: "Read recent messages from a gateway channel",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"channel": map[string]any{
+						"type":        "string",
+						"description": "Gateway channel name (e.g., slack:eng)",
+					},
+					"limit": map[string]any{
+						"type":        "number",
+						"description": "Number of messages to return (default 20)",
+					},
+				},
+				"required": []string{"channel"},
+			},
+		},
+		{
 			Name:        "whoami",
 			Description: "Returns the current agent's identity, role, workspace, and capabilities",
 			InputSchema: map[string]any{
@@ -58,6 +106,139 @@ func definedTools() []Tool {
 			},
 		},
 	}
+}
+
+// ─── send_message ───────────────────────────────────────────────────────────
+
+func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
+	var args struct {
+		Channel string `json:"channel"`
+		Message string `json:"message"`
+		Sender  string `json:"sender"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if args.Channel == "" || args.Message == "" {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("channel and message are required")},
+			IsError: true,
+		}, nil
+	}
+	if args.Sender == "" {
+		if agentID, ok := ctx.Value(ctxKeyAgent).(string); ok && agentID != "" {
+			args.Sender = agentID
+		} else {
+			args.Sender = "agent"
+		}
+	}
+
+	if s.gateway == nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("no gateway configured — cannot send messages")},
+			IsError: true,
+		}, nil
+	}
+
+	sent, err := s.gateway.Send(ctx, args.Channel, args.Sender, args.Message)
+	if err != nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("send failed: %s", err))},
+			IsError: true,
+		}, nil
+	}
+	if !sent {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("channel %q is not a gateway channel", args.Channel))},
+			IsError: true,
+		}, nil
+	}
+
+	return &toolsCallResult{
+		Content: []ToolContent{textContent(fmt.Sprintf("Sent to %s as %s", args.Channel, args.Sender))},
+	}, nil
+}
+
+// ─── list_channels ──────────────────────────────────────────────────────────
+
+func (s *Server) toolListChannels() (*toolsCallResult, error) {
+	if s.gateway == nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("no gateway configured")},
+			IsError: true,
+		}, nil
+	}
+
+	channels := s.gateway.ExternalChannels()
+	if len(channels) == 0 {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("(no channels)")},
+		}, nil
+	}
+
+	var sb strings.Builder
+	for _, ch := range channels {
+		platform := ""
+		if idx := strings.Index(ch, ":"); idx > 0 {
+			platform = ch[:idx]
+		}
+		sb.WriteString(fmt.Sprintf("%-30s  platform=%s\n", ch, platform))
+	}
+
+	return &toolsCallResult{
+		Content: []ToolContent{textContent(sb.String())},
+	}, nil
+}
+
+// ─── read_channel ───────────────────────────────────────────────────────────
+
+func (s *Server) toolReadChannel(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
+	var args struct {
+		Channel string `json:"channel"`
+		Limit   int    `json:"limit"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+	if args.Channel == "" {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("channel is required")},
+			IsError: true,
+		}, nil
+	}
+	if args.Limit <= 0 {
+		args.Limit = 20
+	}
+
+	if s.notify == nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent("notify service not available")},
+			IsError: true,
+		}, nil
+	}
+
+	msgs, err := s.notify.Store().GetMessages(ctx, args.Channel, args.Limit, 0)
+	if err != nil {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("read failed: %s", err))},
+			IsError: true,
+		}, nil
+	}
+
+	if len(msgs) == 0 {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("(no messages in %s)", args.Channel))},
+		}, nil
+	}
+
+	var sb strings.Builder
+	for _, m := range msgs {
+		sb.WriteString(fmt.Sprintf("[%s] %s: %s\n", m.CreatedAt.Format("15:04"), m.Sender, m.Content))
+	}
+
+	return &toolsCallResult{
+		Content: []ToolContent{textContent(sb.String())},
+	}, nil
 }
 
 // ─── whoami ──────────────────────────────────────────────────────────────────

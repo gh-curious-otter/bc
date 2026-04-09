@@ -10,6 +10,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/agent"
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/gateway"
+	"github.com/gh-curious-otter/bc/pkg/notify"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
@@ -33,6 +34,7 @@ type Server struct {
 	agents   *agent.Manager
 	costs    *cost.Store
 	gateway  *gateway.Manager
+	notify   *notify.Service
 	broker   *SSEBroker
 	version  string
 	ownCosts bool
@@ -46,6 +48,7 @@ type Config struct {
 	Agents    *agent.Manager   // optional: pre-built agent manager
 	Costs     *cost.Store      // optional: pre-built cost store
 	Gateway   *gateway.Manager // optional: gateway manager for file uploads
+	Notify    *notify.Service  // optional: notify service for messaging
 	Version   string           // bc binary version, e.g. "1.2.3"
 }
 
@@ -89,6 +92,7 @@ func New(cfg Config) (*Server, error) {
 		agents:   mgr,
 		costs:    costStore,
 		gateway:  cfg.Gateway,
+		notify:   cfg.Notify,
 		version:  v,
 		ownCosts: ownCosts,
 	}, nil
@@ -283,6 +287,12 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) Response {
 	)
 
 	switch p.Name {
+	case "send_message":
+		result, err = s.toolSendMessage(ctx, p.Arguments)
+	case "list_channels":
+		result, err = s.toolListChannels()
+	case "read_channel":
+		result, err = s.toolReadChannel(ctx, p.Arguments)
 	case "send_file":
 		result, err = s.toolSendFile(ctx, p.Arguments)
 	case "whoami":

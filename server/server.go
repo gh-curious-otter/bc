@@ -278,6 +278,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if svc.Gateway != nil {
 			mcpCfg.Gateway = svc.Gateway
 		}
+		if svc.Notify != nil {
+			mcpCfg.Notify = svc.Notify
+		}
 		mcpSrv, mcpErr := servermcp.New(mcpCfg)
 		if mcpErr != nil {
 			log.Warn("MCP server unavailable", "error", mcpErr)
