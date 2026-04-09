@@ -61,3 +61,4 @@ server/web/dist/assets/
 .mcp.json
 *.tsbuildinfo
 .bc/tmp/
+.playwright-mcp/
