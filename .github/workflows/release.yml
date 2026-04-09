@@ -43,7 +43,7 @@ jobs:
       - name: Resolve tag
         id: resolve
         env:
-          RELEASE_VERSION: ${{ needs.prepare.outputs.tag }}
+          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
         run: |
           echo "tag=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
