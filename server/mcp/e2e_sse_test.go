@@ -429,7 +429,8 @@ func TestSSE_E2E_ToolsList(t *testing.T) {
 	}
 	decodeResult(t, resp, &result)
 
-	wantNames := []string{"send_message", "send_file", "whoami", "list_channels", "read_channel", "list_agents"}
+	// send_message, list_channels, and read_channel were removed when pkg/channel was deleted.
+	wantNames := []string{"send_file", "whoami", "list_agents"}
 	got := make(map[string]bool)
 	for _, tool := range result.Tools {
 		got[tool.Name] = true
@@ -444,7 +445,9 @@ func TestSSE_E2E_ToolsList(t *testing.T) {
 	}
 }
 
-func TestSSE_E2E_ToolsCall_ListChannels(t *testing.T) {
+// TestSSE_E2E_ToolsCall_Whoami exercises the whoami tool via SSE.
+// list_channels was removed when pkg/channel was deleted.
+func TestSSE_E2E_ToolsCall_Whoami(t *testing.T) {
 	srv := newTestServer(t)
 	broker := mcp.NewSSEBroker()
 
@@ -462,7 +465,7 @@ func TestSSE_E2E_ToolsCall_ListChannels(t *testing.T) {
 	messageURL := ts.URL + ev.Data
 
 	postRPC(t, messageURL, 1, "tools/call", map[string]any{
-		"name":      "list_channels",
+		"name":      "whoami",
 		"arguments": map[string]any{},
 	})
 
@@ -476,10 +479,10 @@ func TestSSE_E2E_ToolsCall_ListChannels(t *testing.T) {
 	decodeResult(t, resp, &result)
 
 	if result.IsError {
-		t.Error("list_channels returned isError=true")
+		t.Error("whoami returned isError=true")
 	}
 	if len(result.Content) == 0 {
-		t.Error("list_channels returned no content")
+		t.Error("whoami returned no content")
 	}
 }
 

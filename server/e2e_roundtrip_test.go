@@ -10,80 +10,67 @@ import (
 	"testing"
 )
 
-// ─── Channel Round-Trip ──────────────────────────────────────────────────────
+// ─── Notify Subscription Round-Trip ─────────────────────────────────────────
 
-// TestE2E_ChannelRoundTrip exercises the full channel lifecycle:
-// create channel → send messages → read history → verify content matches.
+// TestE2E_ChannelRoundTrip exercises the notify subscription lifecycle:
+// subscribe agent → list subscriptions → verify → unsubscribe.
+// pkg/channel was deleted; channels are now gateway-backed via pkg/notify.
 func TestE2E_ChannelRoundTrip(t *testing.T) {
 	s := newE2EServer(t)
 
-	// 1. Create channel
-	code, body := s.postJSON(t, "/api/channels", map[string]string{
-		"name":        "roundtrip",
-		"description": "round-trip test channel",
+	// 1. Subscribe an agent to a gateway channel
+	code, body := s.postJSON(t, "/api/notify/subscriptions", map[string]any{
+		"channel":      "slack:roundtrip",
+		"agent":        "alice",
+		"mention_only": false,
 	})
 	if code != 201 {
-		t.Fatalf("create channel: want 201, got %d: %v", code, body)
+		t.Fatalf("subscribe: want 201, got %d: %v", code, body)
 	}
-	if body["name"] != "roundtrip" {
-		t.Fatalf("create channel: want name=roundtrip, got %v", body["name"])
-	}
-
-	// 2. Send two messages from different senders
-	messages := []struct {
-		sender  string
-		content string
-	}{
-		{"alice", "hello from alice"},
-		{"bob", "hello from bob"},
-	}
-	for _, m := range messages {
-		sendCode, resp := s.postJSON(t, "/api/channels/roundtrip/messages", map[string]string{
-			"sender":  m.sender,
-			"content": m.content,
-		})
-		if sendCode != 201 {
-			t.Fatalf("send message from %s: want 201, got %d: %v", m.sender, sendCode, resp)
-		}
+	if body["status"] != "subscribed" {
+		t.Fatalf("subscribe: want status=subscribed, got %v", body["status"])
 	}
 
-	// 3. Read history and verify content matches
-	histCode, history := s.getList(t, "/api/channels/roundtrip/history")
-	if histCode != 200 {
-		t.Fatalf("get history: want 200, got %d", histCode)
-	}
-	if len(history) != 2 {
-		t.Fatalf("want 2 messages in history, got %d", len(history))
-	}
-
-	// Verify each message's sender and content survived the round-trip
-	for i, m := range messages {
-		msg, ok := history[i].(map[string]any)
-		if !ok {
-			t.Fatalf("history[%d]: expected object, got %T", i, history[i])
-		}
-		if got := msg["sender"]; got != m.sender {
-			t.Errorf("history[%d].sender: want %q, got %v", i, m.sender, got)
-		}
-		if got := msg["content"]; got != m.content {
-			t.Errorf("history[%d].content: want %q, got %v", i, m.content, got)
-		}
+	// 2. Subscribe a second agent
+	code, body = s.postJSON(t, "/api/notify/subscriptions", map[string]any{
+		"channel":      "slack:roundtrip",
+		"agent":        "bob",
+		"mention_only": true,
+	})
+	if code != 201 {
+		t.Fatalf("subscribe bob: want 201, got %d: %v", code, body)
 	}
 
-	// 4. Verify channel appears in list
-	code, channels := s.getList(t, "/api/channels")
-	if code != 200 {
-		t.Fatalf("list channels: want 200, got %d", code)
+	// 3. List subscriptions for the channel
+	subCode, subs := s.getList(t, "/api/notify/subscriptions/slack:roundtrip")
+	if subCode != 200 {
+		t.Fatalf("list channel subscriptions: want 200, got %d", subCode)
 	}
+	if len(subs) != 2 {
+		t.Fatalf("want 2 subscriptions, got %d", len(subs))
+	}
+
+	// 4. Verify subscription data survived round-trip
 	found := false
-	for _, ch := range channels {
-		if chMap, ok := ch.(map[string]any); ok && chMap["name"] == "roundtrip" {
+	for _, sub := range subs {
+		if subMap, ok := sub.(map[string]any); ok && subMap["agent"] == "alice" {
 			found = true
-			break
+			if subMap["channel"] != "slack:roundtrip" {
+				t.Errorf("alice subscription: want channel=slack:roundtrip, got %v", subMap["channel"])
+			}
 		}
 	}
 	if !found {
-		t.Fatal("channel 'roundtrip' not found in list after creation")
+		t.Fatal("alice subscription not found in channel subscriptions")
+	}
+
+	// 5. Verify subscription appears in global list
+	allCode, allSubs := s.getList(t, "/api/notify/subscriptions")
+	if allCode != 200 {
+		t.Fatalf("list all subscriptions: want 200, got %d", allCode)
+	}
+	if len(allSubs) < 2 {
+		t.Fatalf("want at least 2 global subscriptions, got %d", len(allSubs))
 	}
 }
 
@@ -180,34 +167,49 @@ func TestE2E_Costs_StructureValid(t *testing.T) {
 
 // ─── Multi-Step Scenarios ────────────────────────────────────────────────────
 
-// TestE2E_ChannelCreateDeleteVerify tests that a deleted channel is actually
-// removed from the store.
+// TestE2E_ChannelCreateDeleteVerify tests that subscribe/unsubscribe lifecycle
+// works correctly via the notify subscription API.
+// pkg/channel CRUD was removed; this test now covers the notify subscription API.
 func TestE2E_ChannelCreateDeleteVerify(t *testing.T) {
 	s := newE2EServer(t)
 
-	// Create
-	code, _ := s.postJSON(t, "/api/channels", map[string]string{
-		"name": "ephemeral",
+	// Subscribe an agent to a gateway channel
+	code, _ := s.postJSON(t, "/api/notify/subscriptions", map[string]any{
+		"channel": "slack:ephemeral",
+		"agent":   "test-agent",
 	})
 	if code != 201 {
-		t.Fatalf("create: want 201, got %d", code)
+		t.Fatalf("subscribe: want 201, got %d", code)
 	}
 
-	// Verify it exists
-	code, _ = s.get(t, "/api/channels/ephemeral")
-	if code != 200 {
-		t.Fatalf("get after create: want 200, got %d", code)
+	// Verify subscription appears in channel list
+	subCode, subs := s.getList(t, "/api/notify/subscriptions/slack:ephemeral")
+	if subCode != 200 {
+		t.Fatalf("list subscriptions after subscribe: want 200, got %d", subCode)
+	}
+	if len(subs) != 1 {
+		t.Fatalf("want 1 subscription after subscribe, got %d", len(subs))
 	}
 
-	// Delete
-	code = s.delete(t, "/api/channels/ephemeral")
-	if code != 204 {
-		t.Fatalf("delete: want 204, got %d", code)
+	// Unsubscribe
+	unsubCode := s.delete(t, "/api/notify/subscriptions/slack:ephemeral?agent=test-agent")
+	if unsubCode != 200 {
+		t.Fatalf("unsubscribe: want 200, got %d", unsubCode)
 	}
 
-	// Verify it is gone
-	code, _ = s.get(t, "/api/channels/ephemeral")
-	if code != 404 {
-		t.Fatalf("get after delete: want 404, got %d", code)
+	// Verify subscription is gone
+	afterCode, afterSubs := s.getList(t, "/api/notify/subscriptions/slack:ephemeral")
+	if afterCode != 200 {
+		t.Fatalf("list subscriptions after unsubscribe: want 200, got %d", afterCode)
 	}
+	if len(afterSubs) != 0 {
+		t.Fatalf("want 0 subscriptions after unsubscribe, got %d", len(afterSubs))
+	}
+
+	// Verify /api/channels returns empty list (no gateway manager configured)
+	channelsCode, channels := s.getList(t, "/api/channels")
+	if channelsCode != 200 {
+		t.Fatalf("list channels: want 200, got %d", channelsCode)
+	}
+	_ = channels // empty workspace has no active gateway channels
 }

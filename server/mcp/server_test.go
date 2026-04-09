@@ -331,7 +331,9 @@ func TestToolsList(t *testing.T) {
 	}
 	rpc(t, srv, "tools/list", nil, &result)
 
-	wantNames := []string{"send_message", "send_file", "whoami", "list_channels", "read_channel", "list_agents"}
+	// send_message, list_channels, and read_channel were removed when pkg/channel
+	// was deleted. Only send_file, whoami, and list_agents remain.
+	wantNames := []string{"send_file", "whoami", "list_agents"}
 	got := make(map[string]bool)
 	for _, tool := range result.Tools {
 		got[tool.Name] = true
@@ -400,7 +402,9 @@ func TestToolCall_ListAgents(t *testing.T) {
 	}
 }
 
-func TestToolCall_SendMessage_MissingChannel(t *testing.T) {
+// TestToolCall_SendFile_MissingFile verifies send_file returns an error when
+// the file path does not exist (replaces deleted send_message/list_channels/read_channel tests).
+func TestToolCall_SendFile_MissingFile(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
@@ -408,49 +412,15 @@ func TestToolCall_SendMessage_MissingChannel(t *testing.T) {
 		IsError bool              `json:"isError"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
-		"name":      "send_message",
-		"arguments": map[string]any{"message": "hello"},
+		"name": "send_file",
+		"arguments": map[string]any{
+			"channel":   "slack:general",
+			"file_path": "/nonexistent/file.png",
+		},
 	}, &result)
 
 	if !result.IsError {
-		t.Fatal("expected isError=true when channel is missing")
-	}
-}
-
-func TestToolCall_ListChannels(t *testing.T) {
-	srv := newTestServer(t)
-
-	var result struct {
-		Content []mcp.ToolContent `json:"content"`
-		IsError bool              `json:"isError"`
-	}
-	rpc(t, srv, "tools/call", map[string]any{
-		"name":      "list_channels",
-		"arguments": map[string]any{},
-	}, &result)
-
-	if result.IsError {
-		t.Fatal("list_channels returned isError=true")
-	}
-	if len(result.Content) == 0 {
-		t.Error("list_channels returned no content")
-	}
-}
-
-func TestToolCall_ReadChannel_MissingChannel(t *testing.T) {
-	srv := newTestServer(t)
-
-	var result struct {
-		Content []mcp.ToolContent `json:"content"`
-		IsError bool              `json:"isError"`
-	}
-	rpc(t, srv, "tools/call", map[string]any{
-		"name":      "read_channel",
-		"arguments": map[string]any{},
-	}, &result)
-
-	if !result.IsError {
-		t.Fatal("expected isError=true when channel is missing")
+		t.Fatal("expected isError=true when file does not exist")
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 
 	"github.com/gh-curious-otter/bc/pkg/events"
 	pkgmcp "github.com/gh-curious-otter/bc/pkg/mcp"
+	"github.com/gh-curious-otter/bc/pkg/notify"
 	"github.com/gh-curious-otter/bc/pkg/tool"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 	"github.com/gh-curious-otter/bc/server"
@@ -116,6 +117,12 @@ func newE2EServer(t *testing.T) *e2eServer {
 		t.Cleanup(func() { _ = el.Close() })
 	}
 
+	// Notify service (backed by shared SQLite DB set up above)
+	var notifySvc *notify.Service
+	if ns, err := notify.OpenStore(ws.RootDir); err == nil {
+		notifySvc = notify.NewService(ns, nil, nil)
+	}
+
 	svc := server.Services{
 		Agents:   agentSvc,
 		Costs:    costStore,
@@ -123,6 +130,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 		MCP:      mcpStore,
 		Tools:    toolStore,
 		EventLog: eventLog,
+		Notify:   notifySvc,
 		WS:       ws,
 	}
 

@@ -237,7 +237,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		eh.Register(mux)
 	}
-	if svc.Gateway != nil {
+	// Register gateway handler when a gateway manager is present OR when notify
+	// service is available — notify subscription routes must be accessible even
+	// in workspaces without an active gateway adapter.
+	if svc.Gateway != nil || svc.Notify != nil {
 		gh := handlers.NewGatewayHandler(svc.Gateway, svc.WS)
 		if svc.Notify != nil {
 			gh.SetNotifyService(svc.Notify)

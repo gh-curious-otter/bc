@@ -101,16 +101,29 @@ describe("Agents", () => {
 });
 
 describe("Channels", () => {
-  it("renders skeleton loading then channel list", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse([
-        { name: "general", description: "", members: [], member_count: 3 },
-      ]),
-    );
+  it("renders skeleton loading then empty state when no gateway channels", async () => {
+    // pkg/channel was deleted; channels are now gateway-backed.
+    // An empty response means no gateway channels are connected yet.
+    fetchMock.mockReturnValue(jsonResponse([]));
     const { container } = wrap(<Channels />);
     expectSkeletonLoading(container);
     await waitFor(() => {
-      expect(screen.getByText("#general")).toBeInTheDocument();
+      // The Channels view shows "Connect your first app" when no gateway channels exist.
+      expect(screen.getByText("Connect your first app")).toBeInTheDocument();
+    });
+  });
+
+  it("renders empty state for gateway channels", async () => {
+    // Simulate a slack gateway channel — the frontend renders a feed view.
+    fetchMock.mockReturnValue(
+      jsonResponse([
+        { name: "slack:general", description: "Gateway channel", members: [], member_count: 0 },
+      ]),
+    );
+    wrap(<Channels />);
+    await waitFor(() => {
+      // When a gateway channel exists but none is selected, shows "Select a channel".
+      expect(screen.getByText("Select a channel")).toBeInTheDocument();
     });
   });
 });

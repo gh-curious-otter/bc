@@ -2751,16 +2751,18 @@ func TestAgentHandler_CreateAgent(t *testing.T) {
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
-	mgr := agent.NewManager(stateDir)
+	// Use NewWorkspaceManager so worktreeMgr is initialised and doesn't panic.
+	mgr := agent.NewWorkspaceManager(stateDir, dir)
 	svc := agent.NewAgentService(mgr, nil, nil)
 
 	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
 	defer ts.Close()
 
-	// Create agent - may fail without tmux/real runtime, but exercises the handler path
+	// Create agent - may fail without tmux/real runtime or if role doesn't exist,
+	// but must not panic (500). Accept 201 (created) or 400 (validation failure).
 	resp := post(t, ts.URL+"/api/agents", "application/json",
 		`{"name":"test-agent","role":"engineer","tool":"claude"}`)
-	// Accept 201 (created) or 400 (if runtime not available)
+	// Accept 201 (created) or 400 (if runtime not available / role missing)
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected 201 or 400, got %d", resp.StatusCode)
 	}
