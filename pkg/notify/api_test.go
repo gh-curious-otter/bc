@@ -22,9 +22,9 @@ import (
 
 // mockAgentSender records Send calls for assertion.
 type mockAgentSender struct {
-	mu    sync.Mutex
+	errFn func(name string) error
 	calls []agentSendCall
-	errFn func(name string) error // optional per-agent error injection
+	mu    sync.Mutex
 }
 
 type agentSendCall struct {
@@ -126,10 +126,11 @@ func doJSON(t *testing.T, method, url string, body any) *http.Response {
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose // body closed via t.Cleanup below
 	if err != nil {
 		t.Fatalf("do request: %v", err)
 	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
 	return resp
 }
 
@@ -169,10 +170,10 @@ func assertStatus(t *testing.T, resp *http.Response, want int) {
 // TestGetChannels — GET /api/channels returns channels from subscriptions.
 func TestGetChannels(t *testing.T) {
 	tests := []struct {
-		name       string
 		setup      func(ctx context.Context, store *notify.Store)
-		wantCount  int
+		name       string
 		wantNames  []string
+		wantCount  int
 		wantStatus int
 	}{
 		{
@@ -211,7 +212,7 @@ func TestGetChannels(t *testing.T) {
 
 			tt.setup(context.Background(), store)
 
-			resp := doJSON(t, http.MethodGet, ts.URL+"/api/channels", nil)
+			resp := doJSON(t, http.MethodGet, ts.URL+"/api/channels", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 			assertStatus(t, resp, tt.wantStatus)
 
 			type legacyChannel struct {
@@ -257,21 +258,21 @@ func TestGetChannels_MethodNotAllowed(t *testing.T) {
 // TestPostSubscription — POST /api/notify/subscriptions subscribes an agent.
 func TestPostSubscription(t *testing.T) {
 	tests := []struct {
-		name       string
-		body       any
-		wantStatus int
-		wantStatus2 string // "subscribed" or empty
+		body        any
+		name        string
+		wantStatus2 string
+		wantStatus  int
 	}{
 		{
-			name:       "valid subscription",
-			body:       map[string]any{"channel": "slack:eng", "agent": "eng-01", "mention_only": false},
-			wantStatus: http.StatusCreated,
+			name:        "valid subscription",
+			body:        map[string]any{"channel": "slack:eng", "agent": "eng-01", "mention_only": false},
+			wantStatus:  http.StatusCreated,
 			wantStatus2: "subscribed",
 		},
 		{
-			name:       "mention_only subscription",
-			body:       map[string]any{"channel": "discord:alerts", "agent": "root", "mention_only": true},
-			wantStatus: http.StatusCreated,
+			name:        "mention_only subscription",
+			body:        map[string]any{"channel": "discord:alerts", "agent": "root", "mention_only": true},
+			wantStatus:  http.StatusCreated,
 			wantStatus2: "subscribed",
 		},
 		{
@@ -350,7 +351,7 @@ func TestPostSubscription_Idempotent(t *testing.T) {
 	_ = resp.Body.Close()
 
 	// Verify one subscription with mention_only=true
-	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions", nil)
+	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 	var subs []notify.Subscription
 	decodeJSON(t, resp, &subs)
@@ -366,8 +367,8 @@ func TestPostSubscription_Idempotent(t *testing.T) {
 // TestGetSubscriptions — GET /api/notify/subscriptions lists all subscriptions.
 func TestGetSubscriptions(t *testing.T) {
 	tests := []struct {
-		name       string
 		setup      func(ctx context.Context, store *notify.Store)
+		name       string
 		wantCount  int
 		wantStatus int
 	}{
@@ -397,7 +398,7 @@ func TestGetSubscriptions(t *testing.T) {
 
 			tt.setup(context.Background(), store)
 
-			resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions", nil)
+			resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 			assertStatus(t, resp, tt.wantStatus)
 
 			var subs []notify.Subscription
@@ -413,16 +414,16 @@ func TestGetSubscriptions(t *testing.T) {
 // TestGetSubscriptionByChannel — GET /api/notify/subscriptions/{channel}.
 func TestGetSubscriptionByChannel(t *testing.T) {
 	tests := []struct {
+		setup      func(ctx context.Context, store *notify.Store)
 		name       string
 		channel    string
-		setup      func(ctx context.Context, store *notify.Store)
 		wantCount  int
 		wantStatus int
 	}{
 		{
-			name:    "empty channel returns empty array",
-			channel: "slack:empty",
-			setup:   func(_ context.Context, _ *notify.Store) {},
+			name:       "empty channel returns empty array",
+			channel:    "slack:empty",
+			setup:      func(_ context.Context, _ *notify.Store) {},
 			wantCount:  0,
 			wantStatus: http.StatusOK,
 		},
@@ -456,7 +457,7 @@ func TestGetSubscriptionByChannel(t *testing.T) {
 
 			tt.setup(context.Background(), store)
 
-			resp := doJSON(t, http.MethodGet,
+			resp := doJSON(t, http.MethodGet, //nolint:bodyclose // closed via t.Cleanup in doJSON
 				ts.URL+"/api/notify/subscriptions/"+tt.channel, nil)
 			assertStatus(t, resp, tt.wantStatus)
 
@@ -480,12 +481,12 @@ func TestGetSubscriptionByChannel(t *testing.T) {
 // TestDeleteSubscription — DELETE /api/notify/subscriptions/{channel}?agent=X.
 func TestDeleteSubscription(t *testing.T) {
 	tests := []struct {
-		name       string
-		channel    string
-		agent      string
-		queryParam string
-		wantStatus int
+		name        string
+		channel     string
+		agent       string
+		queryParam  string
 		wantStatus2 string
+		wantStatus  int
 	}{
 		{
 			name:        "valid unsubscribe",
@@ -549,13 +550,13 @@ func TestDeleteSubscription(t *testing.T) {
 // TestPatchSubscription — PATCH /api/notify/subscriptions/{channel} toggles mention_only.
 func TestPatchSubscription(t *testing.T) {
 	tests := []struct {
+		body        map[string]any
 		name        string
 		channel     string
 		agent       string
-		initMO      bool
-		body        map[string]any
-		wantStatus  int
 		wantStatus2 string
+		wantStatus  int
+		initMO      bool
 		wantMO      bool
 	}{
 		{
@@ -659,16 +660,16 @@ func TestPatchSubscription(t *testing.T) {
 // TestGetNotifyActivity — GET /api/notify/activity/{channel} returns delivery log.
 func TestGetNotifyActivity(t *testing.T) {
 	tests := []struct {
+		setup      func(ctx context.Context, store *notify.Store)
 		name       string
 		channel    string
-		setup      func(ctx context.Context, store *notify.Store)
 		wantCount  int
 		wantStatus int
 	}{
 		{
-			name:      "empty log returns empty array",
-			channel:   "slack:eng",
-			setup:     func(_ context.Context, _ *notify.Store) {},
+			name:       "empty log returns empty array",
+			channel:    "slack:eng",
+			setup:      func(_ context.Context, _ *notify.Store) {},
 			wantCount:  0,
 			wantStatus: http.StatusOK,
 		},
@@ -726,7 +727,7 @@ func TestGetNotifyActivity(t *testing.T) {
 				url += "?limit=5"
 			}
 
-			resp := doJSON(t, http.MethodGet, url, nil)
+			resp := doJSON(t, http.MethodGet, url, nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 			assertStatus(t, resp, tt.wantStatus)
 
 			var entries []notify.DeliveryEntry
@@ -754,18 +755,18 @@ func TestGetNotifyActivity_NoChannel(t *testing.T) {
 // TestGatewayChannelAgentsGet — GET /api/gateways/{gw}/channels/{ch}/agents.
 func TestGatewayChannelAgentsGet(t *testing.T) {
 	tests := []struct {
+		setup      func(ctx context.Context, store *notify.Store)
 		name       string
 		gw         string
 		channel    string
-		setup      func(ctx context.Context, store *notify.Store)
 		wantCount  int
 		wantStatus int
 	}{
 		{
-			name:      "no subscribers returns empty array",
-			gw:        "slack",
-			channel:   "eng",
-			setup:     func(_ context.Context, _ *notify.Store) {},
+			name:       "no subscribers returns empty array",
+			gw:         "slack",
+			channel:    "eng",
+			setup:      func(_ context.Context, _ *notify.Store) {},
 			wantCount:  0,
 			wantStatus: http.StatusOK,
 		},
@@ -793,7 +794,7 @@ func TestGatewayChannelAgentsGet(t *testing.T) {
 			tt.setup(context.Background(), store)
 
 			url := ts.URL + "/api/gateways/" + tt.gw + "/channels/" + tt.channel + "/agents"
-			resp := doJSON(t, http.MethodGet, url, nil)
+			resp := doJSON(t, http.MethodGet, url, nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 			assertStatus(t, resp, tt.wantStatus)
 
 			var subs []notify.Subscription
@@ -817,12 +818,12 @@ func TestGatewayChannelAgentsGet(t *testing.T) {
 // TestGatewayChannelAgentsPost — POST /api/gateways/{gw}/channels/{ch}/agents.
 func TestGatewayChannelAgentsPost(t *testing.T) {
 	tests := []struct {
+		body        any
 		name        string
 		gw          string
 		channel     string
-		body        any
-		wantStatus  int
 		wantStatus2 string
+		wantStatus  int
 	}{
 		{
 			name:        "valid subscribe",
@@ -889,8 +890,8 @@ func TestGatewayChannelAgentsDelete(t *testing.T) {
 		channel     string
 		subscribeAs string
 		queryAgent  string
-		wantStatus  int
 		wantStatus2 string
+		wantStatus  int
 	}{
 		{
 			name:        "valid unsubscribe via query param",
@@ -954,13 +955,13 @@ func TestGatewayChannelAgentsDelete(t *testing.T) {
 // TestGatewayChannelAgentsPatch — PATCH /api/gateways/{gw}/channels/{ch}/agents/{agent}.
 func TestGatewayChannelAgentsPatch(t *testing.T) {
 	tests := []struct {
+		body        map[string]any
 		name        string
 		gw          string
 		channel     string
 		agent       string
-		body        map[string]any
-		wantStatus  int
 		wantStatus2 string
+		wantStatus  int
 		wantMO      bool
 	}{
 		{
@@ -1028,13 +1029,13 @@ func TestGatewayChannelAgentsPatch(t *testing.T) {
 // TestMessageStorage — verify SaveMessage + GetMessages store and retrieve correctly.
 func TestMessageStorage(t *testing.T) {
 	tests := []struct {
-		name      string
-		messages  []struct{ channel, sender, content string }
+		name         string
 		queryChannel string
+		wantFirst    string
+		messages     []struct{ channel, sender, content string }
 		queryLimit   int
 		queryBefore  int64
-		wantCount int
-		wantFirst string // expected content of first returned message (newest-first)
+		wantCount    int
 	}{
 		{
 			name: "save and retrieve messages",
@@ -1179,7 +1180,7 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 	_ = resp.Body.Close()
 
 	// Verify both subscriptions exist
-	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/slack:eng", nil)
+	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/slack:eng", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 	subs := decodeJSONSlice[notify.Subscription](t, resp)
 	if len(subs) != 2 {
@@ -1230,7 +1231,7 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 	})
 
 	// Verify messages were stored in the activity feed
-	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/activity/slack:eng", nil)
+	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/activity/slack:eng", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 	entries := decodeJSONSlice[notify.DeliveryEntry](t, resp)
 	if len(entries) == 0 {
@@ -1329,7 +1330,7 @@ func TestSubscriptionRoundtrip(t *testing.T) {
 	ts := setupHandler(t, svc)
 
 	// 1. Start with no subscriptions
-	resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions", nil)
+	resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 	subs := decodeJSONSlice[notify.Subscription](t, resp)
 	if len(subs) != 0 {
@@ -1343,7 +1344,7 @@ func TestSubscriptionRoundtrip(t *testing.T) {
 	_ = resp.Body.Close()
 
 	// 3. List channel — should have 1
-	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/slack:eng", nil)
+	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/slack:eng", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 	subs = decodeJSONSlice[notify.Subscription](t, resp)
 	if len(subs) != 1 || subs[0].Agent != "eng-01" {
@@ -1360,7 +1361,7 @@ func TestSubscriptionRoundtrip(t *testing.T) {
 	_ = resp.Body.Close()
 
 	// 5. Verify mention_only is now true
-	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/slack:eng", nil)
+	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/slack:eng", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 	subs = decodeJSONSlice[notify.Subscription](t, resp)
 	if len(subs) != 1 || !subs[0].MentionOnly {
@@ -1368,7 +1369,7 @@ func TestSubscriptionRoundtrip(t *testing.T) {
 	}
 
 	// 6. Also verify via GET /api/channels (should include slack:eng)
-	resp = doJSON(t, http.MethodGet, ts.URL+"/api/channels", nil)
+	resp = doJSON(t, http.MethodGet, ts.URL+"/api/channels", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 	type legacyChannel struct {
 		Name string `json:"name"`
@@ -1392,7 +1393,7 @@ func TestSubscriptionRoundtrip(t *testing.T) {
 	_ = resp.Body.Close()
 
 	// 8. Verify it's gone
-	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/slack:eng", nil)
+	resp = doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/slack:eng", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 	subs = decodeJSONSlice[notify.Subscription](t, resp)
 	if len(subs) != 0 {
@@ -1426,7 +1427,7 @@ func TestDeliveryLogFields(t *testing.T) {
 	svc, _ := setupService(store)
 	ts := setupHandler(t, svc)
 
-	resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/activity/slack:eng", nil)
+	resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/activity/slack:eng", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 
 	var entries []notify.DeliveryEntry
@@ -1498,7 +1499,7 @@ func TestMultipleChannelsIndependence(t *testing.T) {
 
 	// Verify each channel is independent
 	for ch, expectedAgent := range channels {
-		resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/"+ch, nil)
+		resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions/"+ch, nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 		assertStatus(t, resp, http.StatusOK)
 
 		var subs []notify.Subscription
@@ -1514,7 +1515,7 @@ func TestMultipleChannelsIndependence(t *testing.T) {
 	}
 
 	// Total subscriptions should be 3
-	resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions", nil)
+	resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/subscriptions", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 	assertStatus(t, resp, http.StatusOK)
 	allSubs := decodeJSONSlice[notify.Subscription](t, resp)
 	if len(allSubs) != 3 {

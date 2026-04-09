@@ -11,8 +11,8 @@ import (
 
 // mockSender records SendToAgent calls.
 type mockSender struct {
-	mu    sync.Mutex
 	calls []sendCall
+	mu    sync.Mutex
 }
 
 type sendCall struct {
@@ -37,8 +37,8 @@ func (m *mockSender) getCalls() []sendCall {
 
 // mockHub records Publish calls.
 type mockHub struct {
-	mu     sync.Mutex
 	events []string
+	mu     sync.Mutex
 }
 
 func (m *mockHub) Publish(eventType string, _ map[string]any) {
@@ -56,7 +56,7 @@ func setupTestStore(t *testing.T) *Store {
 	db.SetShared(d.DB, "sqlite")
 	t.Cleanup(func() {
 		db.SetShared(nil, "")
-		d.Close()
+		_ = d.Close()
 	})
 	store, err := OpenStore("/tmp/test-workspace")
 	if err != nil {
@@ -93,7 +93,7 @@ func TestSubscribeUnsubscribe(t *testing.T) {
 	}
 
 	// Unsubscribe
-	if err := store.Unsubscribe(ctx, "slack:eng", "eng-01"); err != nil {
+	if err = store.Unsubscribe(ctx, "slack:eng", "eng-01"); err != nil {
 		t.Fatal(err)
 	}
 	subs, err = store.Subscribers(ctx, "slack:eng")
@@ -280,7 +280,7 @@ func TestGatewayUpsert(t *testing.T) {
 	}
 
 	// Update connected
-	if err := store.SetGatewayConnected(ctx, "slack", true); err != nil {
+	if err = store.SetGatewayConnected(ctx, "slack", true); err != nil {
 		t.Fatal(err)
 	}
 

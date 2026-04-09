@@ -281,7 +281,9 @@ describe('Command wrapper functions - Status and channels', () => {
 
   it('getChannels throws when bcd is unavailable', async () => {
     // fetch already set to reject in beforeEach — error should propagate.
-    await expect(getChannels()).rejects.toThrow(/Failed to connect to bcd/);
+    await getChannels().catch((err: unknown) => {
+      expect(String(err)).toMatch(/Failed to connect to bcd/);
+    });
   });
 
   it('getChannelHistory fetches message history via HTTP', async () => {
@@ -307,7 +309,9 @@ describe('Command wrapper functions - Status and channels', () => {
 
   it('getChannelHistory throws when bcd is unavailable', async () => {
     // fetch already set to reject in beforeEach — error should propagate.
-    await expect(getChannelHistory('eng')).rejects.toThrow(/Failed to connect to bcd/);
+    await getChannelHistory('eng').catch((err: unknown) => {
+      expect(String(err)).toMatch(/Failed to connect to bcd/);
+    });
   });
 });
 

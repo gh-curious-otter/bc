@@ -189,7 +189,7 @@ func (s *Store) Subscribers(ctx context.Context, channel string) ([]Subscription
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var subs []Subscription
 	for rows.Next() {
@@ -213,7 +213,7 @@ func (s *Store) AllSubscriptions(ctx context.Context) ([]Subscription, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var subs []Subscription
 	for rows.Next() {
@@ -254,7 +254,7 @@ func (s *Store) RecentActivity(ctx context.Context, channel string, limit int) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []DeliveryEntry
 	for rows.Next() {
@@ -282,11 +282,11 @@ func (s *Store) PruneActivity(ctx context.Context, channel string, keepLast int)
 
 // MessageRecord is a stored inbound gateway message for the activity feed.
 type MessageRecord struct {
-	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
 	Channel   string    `json:"channel"`
 	Sender    string    `json:"sender"`
 	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int64     `json:"id"`
 }
 
 // SaveMessage stores an inbound gateway message for the activity feed.
@@ -318,7 +318,7 @@ func (s *Store) GetMessages(ctx context.Context, channel string, limit int, befo
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var msgs []MessageRecord
 	for rows.Next() {
@@ -379,7 +379,7 @@ func (s *Store) ListGateways(ctx context.Context) ([]GatewayInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var gateways []GatewayInfo
 	for rows.Next() {

@@ -20,14 +20,14 @@ const (
 
 // Notification is the JSON payload sent to subscribed agents via tmux send-keys.
 type Notification struct {
-	Mentions    []string     `json:"mentions,omitempty"`
-	Attachments []Attachment `json:"attachments,omitempty"`
 	Timestamp   string       `json:"timestamp"`
 	Channel     string       `json:"channel"`
 	Platform    string       `json:"platform"`
 	Sender      string       `json:"sender"`
 	Content     string       `json:"content"`
 	MessageID   string       `json:"message_id,omitempty"`
+	Mentions    []string     `json:"mentions,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
 // Attachment describes a file shared on a channel.
