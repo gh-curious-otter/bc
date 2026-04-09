@@ -666,11 +666,11 @@ pie title Code Impact
 
 ---
 
-## 13. Open Questions
+## 13. Decisions
 
-| # | Question | Options |
-|---|----------|---------|
-| 1 | Keep `bc send <agent>`? | Direct agent messaging is separate from channels but shares infrastructure |
-| 2 | GitHub adapter timing | Implement now or defer? |
-| 3 | TUI channels tab | Update or deprecate in favor of web UI? |
-| 4 | Migration path | Clean-slate or migration script for existing data? |
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | Keep `bc send <agent>`? | **No.** Remove it. All communication goes through channels. |
+| 2 | GitHub adapter timing | **Defer.** Create an open issue, implement after core gateway is stable. |
+| 3 | TUI channels tab | **Keep in sync.** TUI, CLI, and Web UI all map to the same `/api/` endpoints. No separate logic. |
+| 4 | Migration path | **Clean slate.** Drop old `channels`/`messages`/`reactions`/`mentions` tables. No migration script. |
