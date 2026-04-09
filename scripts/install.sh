@@ -63,6 +63,11 @@ detect_platform() {
             ;;
     esac
 
+    # Linux arm64 builds are not yet available
+    if [ "$OS" = "linux" ] && [ "$ARCH" = "arm64" ]; then
+        error "Linux arm64 builds are not yet available. Please build from source: go install github.com/rpuneet/bc/cmd/bc@latest"
+    fi
+
     info "Detecting OS... ${OS} ${ARCH}"
 }
 
@@ -91,6 +96,15 @@ download_and_install() {
     if ! curl -fsSL "$DOWNLOAD_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"; then
         rm -rf "$TMP_DIR"
         error "Failed to download bc. Check if release exists for ${OS}/${ARCH}."
+    fi
+
+    # Verify checksum if available
+    CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt"
+    if curl -fsSL "$CHECKSUMS_URL" -o "${TMP_DIR}/checksums.txt" 2>/dev/null; then
+        info "Verifying checksum..."
+        (cd "$TMP_DIR" && shasum -a 256 -c checksums.txt --ignore-missing 2>/dev/null) || \
+        (cd "$TMP_DIR" && sha256sum -c checksums.txt --ignore-missing 2>/dev/null) || \
+            warn "Checksum verification failed — continuing anyway"
     fi
 
     info "Extracting archive..."

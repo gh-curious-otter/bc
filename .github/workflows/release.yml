@@ -37,41 +37,27 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
         with:
           fetch-depth: 0
-      - name: Create and push tag
+      - name: Validate version format
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          git tag ${{ inputs.version }}
-          git push origin ${{ inputs.version }}
+          if [[ ! "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Invalid version format: $RELEASE_VERSION (expected vX.Y.Z)"
+            exit 1
+          fi
+      - name: Create and push tag
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          git tag "$RELEASE_VERSION"
+          git push origin "$RELEASE_VERSION"
 
   # ── Linux release (GoReleaser) ──────────────────────────────────────
   release-linux:
     name: Release Linux
     runs-on: ubuntu-latest
-    needs: [ci]
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.version || github.ref }}
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v6
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@9ed2f89a662bf1735a48bc8557fd212fa902bebf # v7
-        with:
-          distribution: goreleaser
-          version: 'v2.8.2'
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-
-  # ── macOS release (native CGO build) ────────────────────────────────
-  release-macos:
-    name: Release macOS
-    runs-on: macos-latest
-    needs: [ci]
+    needs: [ci, create-tag]
+    if: always() && needs.ci.result == 'success' && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped')
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
         with:
@@ -86,24 +72,57 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Build web UI for embed
-        run: |
-          cd web && bun install && bun run build
-          mkdir -p server/web/dist && cp -r web/dist/* server/web/dist/
+        run: cd web && bun install && bun run build && rm -rf ../server/web/dist && mkdir -p ../server/web && cp -r dist ../server/web/dist
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@9ed2f89a662bf1735a48bc8557fd212fa902bebf # v7
+        with:
+          distribution: goreleaser
+          version: 'v2.8.2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+  # ── macOS release (native CGO builds on both architectures) ─────────
+  release-macos:
+    name: Release macOS
+    runs-on: macos-latest
+    needs: [ci, create-tag]
+    if: always() && needs.ci.result == 'success' && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped')
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.version || github.ref }}
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Build web UI for embed
+        run: cd web && bun install && bun run build && rm -rf ../server/web/dist && mkdir -p ../server/web && cp -r dist ../server/web/dist
 
       - name: Build macOS binaries
+        env:
+          RELEASE_TAG: ${{ inputs.version || github.ref_name }}
         run: |
-          TAG=${{ inputs.version || github.ref_name }}
-          VERSION=${TAG#v}
+          VERSION=${RELEASE_TAG#v}
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
 
-          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/bc ./cmd/bc
-          tar -C dist -czvf "dist/bc_${VERSION}_darwin_amd64.tar.gz" bc
-          rm dist/bc
-
+          # arm64 (native on macos-latest)
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/bc ./cmd/bc
           tar -C dist -czvf "dist/bc_${VERSION}_darwin_arm64.tar.gz" bc
+          rm dist/bc
+
+          # amd64 (cross-compile — macOS supports this natively via universal toolchain)
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/bc ./cmd/bc
+          tar -C dist -czvf "dist/bc_${VERSION}_darwin_amd64.tar.gz" bc
           rm dist/bc
 
           cd dist && shasum -a 256 *.tar.gz > checksums-macos.txt
