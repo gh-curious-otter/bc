@@ -143,6 +143,8 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 		// Delegate to existing activity handler
 		r.URL.Path = "/api/notify/activity/" + channelName
 		h.notifyActivity(w, r)
+	case channelRest == "send":
+		h.gatewayChannelSend(w, r, channelName)
 	default:
 		// GET /api/gateways/{platform}/channels/{channel} — channel detail
 		if h.notifySvc == nil {
@@ -164,6 +166,55 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 			"subscriptions": subs,
 		})
 	}
+}
+
+// gatewayChannelSend handles POST /api/gateways/{platform}/channels/{channel}/send
+func (h *GatewayHandler) gatewayChannelSend(w http.ResponseWriter, r *http.Request, channel string) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	if h.gw == nil {
+		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		httpError(w, "read body", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Sender  string `json:"sender"`
+		Content string `json:"content"`
+	}
+	if unmarshalErr := json.Unmarshal(body, &req); unmarshalErr != nil {
+		httpError(w, "invalid JSON: "+unmarshalErr.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.Content == "" {
+		httpError(w, "content is required", http.StatusBadRequest)
+		return
+	}
+	if req.Sender == "" {
+		req.Sender = "api"
+	}
+
+	sent, err := h.gw.Send(r.Context(), channel, req.Sender, req.Content)
+	if err != nil {
+		httpInternalError(w, "send message", err)
+		return
+	}
+	if !sent {
+		httpError(w, "channel not found or not a gateway channel", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"channel": channel,
+		"sender":  req.Sender,
+	})
 }
 
 // gatewayChannelAgents handles /api/gateways/{platform}/channels/{channel}/agents
