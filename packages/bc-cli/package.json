@@ -1,0 +1,19 @@
+{
+  "name": "bc-cli",
+  "version": "0.1.0",
+  "description": "bc — AI agent orchestration. Coordinate teams of Claude, Gemini, Cursor, and other AI agents.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rpuneet/bc"
+  },
+  "homepage": "https://github.com/rpuneet/bc",
+  "keywords": ["ai", "agents", "orchestration", "claude", "gemini", "cursor", "codex", "cli"],
+  "bin": {
+    "bc": "bin/bc"
+  },
+  "scripts": {
+    "postinstall": "node install.mjs"
+  },
+  "files": ["bin/", "install.mjs", "README.md", "LICENSE"]
+}
