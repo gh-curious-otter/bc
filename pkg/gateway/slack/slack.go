@@ -11,8 +11,8 @@ import (
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
 
-	"github.com/gh-curious-otter/bc/pkg/gateway"
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Adapter implements gateway.Adapter for Slack using Socket Mode.

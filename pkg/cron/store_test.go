@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/db"
 )
 
 func setupSharedDB(t *testing.T) {

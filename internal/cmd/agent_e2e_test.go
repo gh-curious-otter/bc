@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/agent"
 )
 
 // resetAgentFlags resets agent command flags between tests

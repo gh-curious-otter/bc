@@ -17,16 +17,16 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/channel"
-	"github.com/gh-curious-otter/bc/pkg/cost"
-	"github.com/gh-curious-otter/bc/pkg/cron"
-	"github.com/gh-curious-otter/bc/pkg/events"
-	bcdb "github.com/gh-curious-otter/bc/pkg/db"
-	pkgmcp "github.com/gh-curious-otter/bc/pkg/mcp"
-	"github.com/gh-curious-otter/bc/pkg/tool"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
-	"github.com/gh-curious-otter/bc/server"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/events"
+	bcdb "github.com/rpuneet/bc/pkg/db"
+	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/server"
 )
 
 // newE2EServerWithWebUI creates a bcd server with a synthetic web UI filesystem

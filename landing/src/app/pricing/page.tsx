@@ -195,17 +195,17 @@ export default function PricingPage() {
                 <InstallRow
                   icon={Apple}
                   title="macOS / Linux"
-                  command="curl -fsSL https://raw.githubusercontent.com/gh-curious-otter/bc/main/scripts/install.sh | bash"
+                  command="curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash"
                 />
                 <InstallRow
                   icon={Container}
                   title="Docker"
-                  command="docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/gh-curious-otter/bc bc up --addr 0.0.0.0:9374"
+                  command="docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374"
                 />
                 <InstallRow
                   icon={GitBranch}
                   title="From source"
-                  command="go install github.com/gh-curious-otter/bc/cmd/bc@latest"
+                  command="go install github.com/rpuneet/bc/cmd/bc@latest"
                 />
               </div>
 
@@ -213,7 +213,7 @@ export default function PricingPage() {
 
               <div className="mt-6">
                 <Link
-                  href="https://github.com/gh-curious-otter/bc"
+                  href="https://github.com/rpuneet/bc"
                   className="flex items-center justify-center gap-2 w-full rounded-lg bg-primary py-2.5 text-center text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 active:scale-[0.98]"
                 >
                   Get Started

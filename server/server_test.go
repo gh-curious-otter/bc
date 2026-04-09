@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gh-curious-otter/bc/server"
-	"github.com/gh-curious-otter/bc/server/ws"
+	"github.com/rpuneet/bc/server"
+	"github.com/rpuneet/bc/server/ws"
 )
 
 func buildTestServer(t *testing.T) *httptest.Server {

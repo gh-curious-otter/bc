@@ -4,9 +4,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/provider"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // expectedProviders is the canonical list of providers that must be in DefaultRegistry.

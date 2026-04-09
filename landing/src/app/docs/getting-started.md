@@ -21,31 +21,31 @@ Welcome to **bc** – the multi-agent orchestration system for coordinated softw
 
 **Install script:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gh-curious-otter/bc/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
 ```
 
 **Using Homebrew:**
 ```bash
-brew install gh-curious-otter/bc-infra/bc-infra
+brew install rpuneet/bc-infra/bc-infra
 ```
 
 ### Linux
 
 **Install script:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gh-curious-otter/bc/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
 ```
 
 ### Docker
 
 ```bash
-docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/gh-curious-otter/bc bc up --addr 0.0.0.0:9374
+docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374
 ```
 
 ### From Source
 
 ```bash
-go install github.com/gh-curious-otter/bc/cmd/bc@latest
+go install github.com/rpuneet/bc/cmd/bc@latest
 ```
 
 ### After Install

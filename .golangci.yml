@@ -70,7 +70,7 @@ formatters:
 
     goimports:
       local-prefixes:
-        - github.com/gh-curious-otter/bc
+        - github.com/rpuneet/bc
 
 issues:
   max-issues-per-linter: 0

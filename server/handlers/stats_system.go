@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/gh-curious-otter/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/stats"
 )
 
 // RegisterSystemStats mounts system stats routes on the mux.

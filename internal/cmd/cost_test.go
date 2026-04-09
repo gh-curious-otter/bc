@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/cost"
 )
 
 // Cost command tests use executeIntegrationCmd which captures os.Stdout

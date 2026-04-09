@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/gh-curious-otter/bc/pkg/client"
-	"github.com/gh-curious-otter/bc/pkg/cron"
-	"github.com/gh-curious-otter/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 var cronCmd = &cobra.Command{

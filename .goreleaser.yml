@@ -78,7 +78,7 @@ changelog:
 
 release:
   github:
-    owner: gh-curious-otter
+    owner: rpuneet
     name: bc
   draft: false
   prerelease: auto
@@ -90,16 +90,16 @@ release:
   footer: |
     ---
 
-    **Full Changelog**: https://github.com/gh-curious-otter/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/rpuneet/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 brews:
   - name: bc-infra
     repository:
-      owner: gh-curious-otter
+      owner: rpuneet
       name: homebrew-bc
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
-    homepage: https://github.com/gh-curious-otter/bc
+    homepage: https://github.com/rpuneet/bc
     description: Orchestration for AI agents
     license: MIT
     skip_upload: auto

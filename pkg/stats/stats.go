@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/agent"
 )
 
 // AgentMetrics tracks agent statistics.

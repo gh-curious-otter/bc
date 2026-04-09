@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/tool"
 )
 
 // ToolHandler handles /api/tools routes.

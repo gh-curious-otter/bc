@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/db"
 )
 
 // PassphraseEnvVar is the environment variable for the master passphrase.

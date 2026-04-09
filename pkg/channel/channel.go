@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/db"
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // HistoryEntry represents a message in channel history.

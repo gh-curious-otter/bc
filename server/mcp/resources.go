@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // ─── bc://workspace/status ───────────────────────────────────────────────────

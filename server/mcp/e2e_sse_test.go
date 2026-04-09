@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gh-curious-otter/bc/server/mcp"
+	"github.com/rpuneet/bc/server/mcp"
 )
 
 // sseEvent represents a parsed SSE event from the stream.

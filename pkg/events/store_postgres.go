@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	bcdb "github.com/gh-curious-otter/bc/pkg/db"
-	"github.com/gh-curious-otter/bc/pkg/log"
+	bcdb "github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // PostgresLog stores events in a Postgres database.

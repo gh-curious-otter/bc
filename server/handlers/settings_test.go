@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 func newTestWorkspace(t *testing.T) *workspace.Workspace {

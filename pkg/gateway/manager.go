@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Manager orchestrates all gateway adapters and routes messages.

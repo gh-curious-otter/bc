@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/attachment"
+	"github.com/rpuneet/bc/pkg/attachment"
 )
 
 // FileHandler handles file upload and download routes.

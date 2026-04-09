@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/cron"
-	"github.com/gh-curious-otter/bc/pkg/db"
-	"github.com/gh-curious-otter/bc/pkg/events"
-	"github.com/gh-curious-otter/bc/pkg/mcp"
-	"github.com/gh-curious-otter/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/tool"
 )
 
 // setupSharedDB opens a temporary SQLite database and sets it as the shared DB.
