@@ -80,6 +80,51 @@ export function Channels() {
   const channelList = channels ?? [];
   const selectedChannel = channelList.find((c: Channel) => c.name === selected);
 
+  // Check if there are any gateway channels
+  const hasGatewayChannels = channelList.some(
+    (c) => c.name.startsWith("slack:") || c.name.startsWith("telegram:") || c.name.startsWith("discord:")
+  );
+
+  // Empty state: no gateway channels at all
+  if (!hasGatewayChannels) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="max-w-lg text-center px-6">
+          <div className="text-4xl mb-4 opacity-40">#</div>
+          <h2 className="text-xl font-semibold text-bc-text mb-2">Connect your first app</h2>
+          <p className="text-sm text-bc-muted/60 mb-8">
+            Link Slack, Telegram, or Discord to start receiving messages in your agents.
+          </p>
+          <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto">
+            {[
+              { name: "Slack", color: "#E01E5A" },
+              { name: "Telegram", color: "#26A5E4" },
+              { name: "Discord", color: "#5865F2" },
+              { name: "GitHub", color: "#8B949E" },
+              { name: "Gmail", color: "#EA4335" },
+            ].map((p) => (
+              <button
+                key={p.name}
+                type="button"
+                className="p-4 border border-bc-border/30 rounded-xl hover:border-bc-border/60 hover:bg-bc-surface/30 transition-all text-center group"
+              >
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold mx-auto mb-2"
+                  style={{ backgroundColor: `${p.color}15`, color: p.color }}
+                >
+                  {p.name.charAt(0)}
+                </div>
+                <span className="text-xs font-medium text-bc-muted/60 group-hover:text-bc-text transition-colors">
+                  {p.name}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full">
       {/* Left: Gateway sidebar */}

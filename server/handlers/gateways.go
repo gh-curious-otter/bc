@@ -42,11 +42,222 @@ func (h *GatewayHandler) SetNotifyService(svc *notify.Service) {
 func (h *GatewayHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/gateways/activity", h.activity)
 	mux.HandleFunc("/api/gateways", h.list)
-	// New notify-powered endpoints for agent subscriptions
+
+	// Notify subscription endpoints
 	mux.HandleFunc("/api/notify/subscriptions", h.notifySubscriptions)
 	mux.HandleFunc("/api/notify/subscriptions/", h.notifySubscriptionByChannel)
 	mux.HandleFunc("/api/notify/activity/", h.notifyActivity)
-	mux.HandleFunc("/api/gateways/", h.byPlatform)
+
+	// Gateway-scoped routes (proposal-aligned)
+	mux.HandleFunc("/api/gateways/", h.gatewayRouter)
+}
+
+// gatewayRouter dispatches /api/gateways/{platform}/... routes.
+func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/gateways/")
+	if path == "" {
+		httpError(w, "platform required", http.StatusBadRequest)
+		return
+	}
+
+	// Split: platform / rest...
+	parts := strings.SplitN(path, "/", 2)
+	platform := parts[0]
+	rest := ""
+	if len(parts) > 1 {
+		rest = parts[1]
+	}
+
+	switch {
+	case rest == "health":
+		h.gatewayHealth(w, r, platform)
+	case rest == "channels" || strings.HasPrefix(rest, "channels/"):
+		h.gatewayChannels(w, r, platform, strings.TrimPrefix(rest, "channels"))
+	default:
+		// Existing: PATCH /api/gateways/{platform}
+		h.byPlatform(w, r)
+	}
+}
+
+// gatewayHealth returns live health status for a gateway adapter.
+func (h *GatewayHandler) gatewayHealth(w http.ResponseWriter, r *http.Request, platform string) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	if h.gw == nil {
+		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Check if adapter exists and get health
+	adapters := h.gw.ExternalChannels()
+	connected := false
+	for _, ch := range adapters {
+		if strings.HasPrefix(ch, platform+":") {
+			connected = true
+			break
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"platform":  platform,
+		"connected": connected,
+		"status":    map[bool]string{true: "ok", false: "disconnected"}[connected],
+	})
+}
+
+// gatewayChannels handles /api/gateways/{platform}/channels and sub-routes.
+func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request, platform, subpath string) {
+	subpath = strings.TrimPrefix(subpath, "/")
+
+	if subpath == "" {
+		// GET /api/gateways/{platform}/channels — list channels for this gateway
+		if !requireMethod(w, r, http.MethodGet) {
+			return
+		}
+		if h.gw == nil {
+			writeJSON(w, http.StatusOK, []string{})
+			return
+		}
+		extChannels := h.gw.ExternalChannels()
+		prefix := platform + ":"
+		var channels []map[string]string
+		for _, ch := range extChannels {
+			if strings.HasPrefix(ch, prefix) {
+				name := strings.TrimPrefix(ch, prefix)
+				channels = append(channels, map[string]string{
+					"channel_key": ch,
+					"name":        name,
+					"platform":    platform,
+				})
+			}
+		}
+		if channels == nil {
+			channels = []map[string]string{}
+		}
+		writeJSON(w, http.StatusOK, channels)
+		return
+	}
+
+	// /api/gateways/{platform}/channels/{channel}/...
+	channelParts := strings.SplitN(subpath, "/", 2)
+	channelName := platform + ":" + channelParts[0]
+	channelRest := ""
+	if len(channelParts) > 1 {
+		channelRest = channelParts[1]
+	}
+
+	switch {
+	case channelRest == "agents" || strings.HasPrefix(channelRest, "agents"):
+		h.gatewayChannelAgents(w, r, channelName, strings.TrimPrefix(channelRest, "agents"))
+	case channelRest == "activity":
+		// Delegate to existing activity handler
+		r.URL.Path = "/api/notify/activity/" + channelName
+		h.notifyActivity(w, r)
+	default:
+		// GET /api/gateways/{platform}/channels/{channel} — channel detail
+		if h.notifySvc == nil {
+			httpError(w, "notify service not available", http.StatusServiceUnavailable)
+			return
+		}
+		subs, err := h.notifySvc.ChannelSubscriptions(r.Context(), channelName)
+		if err != nil {
+			httpInternalError(w, "channel subscriptions", err)
+			return
+		}
+		if subs == nil {
+			subs = []notify.Subscription{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"channel_key":   channelName,
+			"name":          channelParts[0],
+			"platform":      platform,
+			"subscriptions": subs,
+		})
+	}
+}
+
+// gatewayChannelAgents handles /api/gateways/{platform}/channels/{channel}/agents
+func (h *GatewayHandler) gatewayChannelAgents(w http.ResponseWriter, r *http.Request, channel, subpath string) {
+	if h.notifySvc == nil {
+		httpError(w, "notify service not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	subpath = strings.TrimPrefix(subpath, "/")
+
+	switch r.Method {
+	case http.MethodGet:
+		subs, err := h.notifySvc.ChannelSubscriptions(r.Context(), channel)
+		if err != nil {
+			httpInternalError(w, "list agents", err)
+			return
+		}
+		if subs == nil {
+			subs = []notify.Subscription{}
+		}
+		writeJSON(w, http.StatusOK, subs)
+
+	case http.MethodPost:
+		var req struct {
+			Agent       string `json:"agent"`
+			MentionOnly bool   `json:"mention_only"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if req.Agent == "" {
+			httpError(w, "agent required", http.StatusBadRequest)
+			return
+		}
+		if err := h.notifySvc.Subscribe(r.Context(), channel, req.Agent, req.MentionOnly); err != nil {
+			httpInternalError(w, "subscribe", err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]string{"status": "subscribed", "channel": channel, "agent": req.Agent})
+
+	case http.MethodDelete:
+		// DELETE /api/gateways/{gw}/channels/{ch}/agents/{agent}
+		if subpath == "" {
+			agent := r.URL.Query().Get("agent")
+			if agent == "" {
+				httpError(w, "agent required (path or query param)", http.StatusBadRequest)
+				return
+			}
+			subpath = agent
+		}
+		if err := h.notifySvc.Unsubscribe(r.Context(), channel, subpath); err != nil {
+			httpInternalError(w, "unsubscribe", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "unsubscribed", "channel": channel, "agent": subpath})
+
+	case http.MethodPatch:
+		// PATCH /api/gateways/{gw}/channels/{ch}/agents/{agent}
+		var req struct {
+			MentionOnly *bool `json:"mention_only"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		agent := subpath
+		if agent == "" {
+			httpError(w, "agent required in path", http.StatusBadRequest)
+			return
+		}
+		if req.MentionOnly != nil {
+			if err := h.notifySvc.SetMentionOnly(r.Context(), channel, agent, *req.MentionOnly); err != nil {
+				httpInternalError(w, "set mention_only", err)
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "channel": channel, "agent": agent})
+
+	default:
+		methodNotAllowed(w)
+	}
 }
 
 // gatewayStatus represents a gateway platform's config and runtime state.
