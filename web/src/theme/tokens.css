@@ -8,59 +8,66 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* ── Solar Flare (default) ──────────────────────────────────────────── */
-/* Neon tangerine on deep charcoal — electric but restrained            */
+/* Warm charcoal + neon tangerine — elevated surfaces, subtle glow      */
+/* Inspired by Vercel/Linear dark with warm undertones                  */
 :root {
-  --bc-bg: #0b0908;
-  --bc-surface: #171311;
-  --bc-surface-hover: #211c18;
-  --bc-border: #2a2420;
-  --bc-text: #f2ede8;
-  --bc-muted: #8a7c70;
+  --bc-bg: #0c0a09;
+  --bc-surface: #1c1917;
+  --bc-surface-hover: #292524;
+  --bc-border: #44403c;
+  --bc-text: #fafaf9;
+  --bc-muted: #a8a29e;
   --bc-accent: #f97316;
   --bc-accent-hover: #fb923c;
-  --bc-success: #34d399;
+  --bc-success: #4ade80;
   --bc-warning: #fbbf24;
   --bc-error: #f87171;
   --bc-info: #22d3ee;
+  --bc-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --bc-shadow-lg: 0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
 
   font-family: Inter, "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   color-scheme: dark;
 }
 
 /* ── Dark ────────────────────────────────────────────────────────────── */
-/* Cool slate with emerald accent — minimal, no blue                    */
+/* Zinc palette + emerald accent — Catppuccin Mocha inspired            */
 html.dark {
-  --bc-bg: #0a0a0c;
-  --bc-surface: #141416;
-  --bc-surface-hover: #1c1c20;
-  --bc-border: #26262a;
-  --bc-text: #e8e8ec;
-  --bc-muted: #6b6b76;
+  --bc-bg: #09090b;
+  --bc-surface: #18181b;
+  --bc-surface-hover: #27272a;
+  --bc-border: #3f3f46;
+  --bc-text: #fafafa;
+  --bc-muted: #a1a1aa;
   --bc-accent: #10b981;
   --bc-accent-hover: #34d399;
-  --bc-success: #34d399;
+  --bc-success: #4ade80;
   --bc-warning: #fbbf24;
   --bc-error: #f87171;
   --bc-info: #67e8f9;
+  --bc-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+  --bc-shadow-lg: 0 4px 12px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4);
 
   color-scheme: dark;
 }
 
 /* ── Light ───────────────────────────────────────────────────────────── */
-/* Warm cream with tangerine accent — clean, readable                   */
+/* Stone palette + tangerine — Radix Sand inspired, high contrast       */
 html.light {
-  --bc-bg: #faf8f6;
+  --bc-bg: #f5f5f4;
   --bc-surface: #ffffff;
-  --bc-surface-hover: #f5f3f1;
-  --bc-border: #e5e0db;
-  --bc-text: #1a1613;
-  --bc-muted: #7a716a;
+  --bc-surface-hover: #fafaf9;
+  --bc-border: #d6d3d1;
+  --bc-text: #0c0a09;
+  --bc-muted: #57534e;
   --bc-accent: #ea580c;
   --bc-accent-hover: #c2410c;
   --bc-success: #16a34a;
   --bc-warning: #d97706;
   --bc-error: #dc2626;
   --bc-info: #0891b2;
+  --bc-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --bc-shadow-lg: 0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
 
   color-scheme: light;
 }

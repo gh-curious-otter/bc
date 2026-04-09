@@ -384,7 +384,7 @@ export function Layout() {
 
       {/* Sidebar */}
       <nav
-        className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-bc-border/50 bg-bc-surface flex flex-col transition-all duration-200 md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-bc-border/50 bg-bc-surface shadow-bc flex flex-col transition-all duration-200 md:relative md:translate-x-0 ${
           isMobile ? (mobileOpen ? "translate-x-0 w-48" : "-translate-x-full") : ""
         }`}
         style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}

@@ -39,6 +39,10 @@ export default {
           info: 'var(--bc-info)',
         },
       },
+      boxShadow: {
+        'bc': 'var(--bc-shadow)',
+        'bc-lg': 'var(--bc-shadow-lg)',
+      },
     },
   },
   plugins: [],
