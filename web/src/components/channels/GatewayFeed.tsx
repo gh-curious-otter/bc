@@ -15,7 +15,6 @@ import {
   formatTimestamp,
   groupMessages,
   agentColor,
-  getRoleColor,
   dateKey,
   formatDayLabel,
 } from "./messageUtils";
@@ -58,7 +57,8 @@ export function GatewayFeed({
   const [deliveries, setDeliveries] = useState<DeliveryEntry[]>([]);
   const [subscriptions, setSubscriptions] = useState<NotifySubscription[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentLoading, setAgentLoading] = useState<string | null>(null); // tracks which agent action is in progress
+  const [popoverLoading, setPopoverLoading] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -105,10 +105,13 @@ export function GatewayFeed({
       setAgents(agentList ?? []);
       setSubscriptions(subs ?? []);
     } catch { /* keep previous */ }
+    setPopoverLoading(false);
   }, [channelName]);
 
   useEffect(() => {
     if (!showAgents) return;
+    setPopoverLoading(true);
+    setAgents([]); // clear stale data
     void fetchAgents();
     const interval = setInterval(() => void fetchAgents(), 8000);
     return () => clearInterval(interval);
@@ -127,30 +130,30 @@ export function GatewayFeed({
   }, [showAgents]);
 
   const handleSubscribe = async (agentName: string) => {
-    setAgentLoading(true);
+    setAgentLoading(agentName);
     try {
       await api.subscribe(channelName, agentName, false);
       await fetchAgents();
     } catch { /* */ }
-    setAgentLoading(false);
+    setAgentLoading(null);
   };
 
   const handleUnsubscribe = async (agentName: string) => {
-    setAgentLoading(true);
+    setAgentLoading(agentName);
     try {
       await api.unsubscribe(channelName, agentName);
       await fetchAgents();
     } catch { /* */ }
-    setAgentLoading(false);
+    setAgentLoading(null);
   };
 
   const handleToggleMention = async (agentName: string, current: boolean) => {
-    setAgentLoading(true);
+    setAgentLoading(agentName);
     try {
       await api.setMentionOnly(channelName, agentName, !current);
       await fetchAgents();
     } catch { /* */ }
-    setAgentLoading(false);
+    setAgentLoading(null);
   };
 
   useEffect(() => {
@@ -257,6 +260,7 @@ export function GatewayFeed({
 
   return (
     <div className="flex flex-col h-full">
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="shrink-0 px-5 py-3.5 border-b border-bc-border/60">
         <div className="flex items-center justify-between">
@@ -308,8 +312,9 @@ export function GatewayFeed({
 
               {/* Agents popover */}
               {showAgents && (
-                <div className="absolute right-0 top-full mt-1.5 w-64 bg-bc-bg border border-bc-border/50 rounded-lg shadow-xl z-20 max-h-[400px] overflow-auto"
-                  style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}
+                <div
+                  className="absolute right-0 top-full mt-1.5 w-64 bg-bc-bg border border-bc-border/50 rounded-lg shadow-xl z-20 max-h-[400px] overflow-auto"
+                  style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent", animation: "fadeIn 120ms ease-out" }}
                 >
                   {/* Popover header */}
                   <div className="px-3 py-2.5 border-b border-bc-border/30">
@@ -317,6 +322,18 @@ export function GatewayFeed({
                       Agents
                     </h3>
                   </div>
+
+                  {/* Loading skeleton */}
+                  {popoverLoading && agents.length === 0 && (
+                    <div className="p-3 space-y-3 animate-pulse">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-bc-surface/40" />
+                          <div className="h-3 rounded bg-bc-surface/30" style={{ width: `${50 + i * 12}%` }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <AnimatePresence>
                     {/* Subscribed agents */}
@@ -333,7 +350,6 @@ export function GatewayFeed({
                         {subscribedAgents.map((agent) => {
                           const sub = subMap.get(agent.name);
                           const isOnline = agent.state === "running" || agent.state === "working";
-                          const roleColor = getRoleColor(agent.role);
                           const nameColor = agentColor(agent.name);
                           return (
                             <motion.div
@@ -343,44 +359,40 @@ export function GatewayFeed({
                               animate={{ opacity: 1, x: 0 }}
                               exit={{ opacity: 0, x: -8 }}
                               transition={{ duration: 0.12 }}
-                              className="px-3 py-2 hover:bg-bc-surface/30 transition-colors duration-100"
+                              className="px-3 py-1.5 hover:bg-bc-surface/30 transition-colors duration-100"
                             >
                               <div className="flex items-center gap-2">
-                                <span
-                                  className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0"
-                                  style={{ backgroundColor: `${nameColor}12`, color: nameColor }}
-                                >
-                                  {agent.name.charAt(0).toUpperCase()}
-                                </span>
-                                <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? "bg-bc-success" : "bg-bc-muted/20"}`} />
-                                  <span className="text-[12px] text-bc-text/90 truncate font-medium">{agent.name}</span>
-                                </div>
-                                <span className={`text-[8px] px-1.5 py-0.5 rounded-md ${roleColor.bg} ${roleColor.text} font-semibold uppercase tracking-wider shrink-0`}>
-                                  {agent.role}
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? "bg-bc-success" : "bg-bc-muted/20"}`} />
+                                <span className="text-[11px] truncate font-medium" style={{ color: nameColor }}>{agent.name}</span>
+                                <span className={`text-[9px] ml-auto shrink-0 ${isOnline ? "text-bc-success/60" : "text-bc-muted/30"}`}>
+                                  {agent.state}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1.5 mt-1.5 ml-7">
+                              <div className="flex items-center gap-1.5 mt-1 ml-4">
                                 <button
                                   type="button"
                                   onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)}
-                                  disabled={agentLoading}
+                                  disabled={agentLoading !== null}
                                   className={`text-[9px] px-2 py-0.5 rounded-md border transition-all duration-150 ${
-                                    agentLoading ? "opacity-50 cursor-wait" :
+                                    agentLoading === agent.name ? "opacity-60 cursor-wait" :
                                     sub?.mention_only
                                       ? "border-bc-accent/30 bg-bc-accent/8 text-bc-accent"
                                       : "border-bc-border/30 text-bc-muted/50 hover:border-bc-border/50 hover:text-bc-muted"
                                   }`}
                                 >
-                                  {agentLoading ? "..." : sub?.mention_only ? "@ mentions" : "all msgs"}
+                                  {agentLoading === agent.name ? (
+                                    <span className="inline-block w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                                  ) : sub?.mention_only ? "@ mentions" : "all msgs"}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleUnsubscribe(agent.name)}
-                                  disabled={agentLoading}
+                                  disabled={agentLoading !== null}
                                   className="text-[9px] text-bc-muted/25 hover:text-bc-error/60 transition-colors ml-auto"
                                 >
-                                  remove
+                                  {agentLoading === agent.name ? (
+                                    <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
+                                  ) : "remove"}
                                 </button>
                               </div>
                             </motion.div>
@@ -404,8 +416,6 @@ export function GatewayFeed({
                         </div>
                         {availableAgents.map((agent) => {
                           const isOnline = agent.state === "running" || agent.state === "working";
-                          const roleColor = getRoleColor(agent.role);
-                          const nameColor = agentColor(agent.name);
                           return (
                             <motion.div
                               key={agent.name}
@@ -414,33 +424,23 @@ export function GatewayFeed({
                               animate={{ opacity: 1, x: 0 }}
                               exit={{ opacity: 0, x: -8 }}
                               transition={{ duration: 0.12 }}
-                              className="px-3 py-2 hover:bg-bc-surface/15 transition-colors duration-100"
+                              className="px-3 py-1.5 hover:bg-bc-surface/15 transition-colors duration-100 flex items-center gap-2"
                             >
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0"
-                                  style={{ backgroundColor: `${nameColor}12`, color: nameColor }}
-                                >
-                                  {agent.name.charAt(0).toUpperCase()}
-                                </span>
-                                <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? "bg-bc-success" : "bg-bc-muted/20"}`} />
-                                  <span className="text-[12px] text-bc-text/90 truncate font-medium">{agent.name}</span>
-                                </div>
-                                <span className={`text-[8px] px-1.5 py-0.5 rounded-md ${roleColor.bg} ${roleColor.text} font-semibold uppercase tracking-wider shrink-0`}>
-                                  {agent.role}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5 mt-1.5 ml-7">
-                                <button
-                                  type="button"
-                                  onClick={() => handleSubscribe(agent.name)}
-                                  disabled={agentLoading}
-                                  className="text-[9px] text-bc-muted/30 hover:text-bc-accent transition-colors"
-                                >
-                                  + subscribe
-                                </button>
-                              </div>
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? "bg-bc-success" : "bg-bc-muted/20"}`} />
+                              <span className="text-[11px] truncate font-medium text-bc-muted/50">{agent.name}</span>
+                              <span className={`text-[9px] shrink-0 ${isOnline ? "text-bc-success/60" : "text-bc-muted/20"}`}>
+                                {agent.state}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleSubscribe(agent.name)}
+                                disabled={agentLoading !== null}
+                                className="text-[9px] text-bc-muted/30 hover:text-bc-accent transition-colors ml-auto"
+                              >
+                                {agentLoading === agent.name ? (
+                                  <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
+                                ) : "+ add"}
+                              </button>
                             </motion.div>
                           );
                         })}
