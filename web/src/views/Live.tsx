@@ -1508,7 +1508,7 @@ const AgentCard = memo(function AgentCard({
 
   const skipAnimation = isPaused || visibleNodes.length > 5;
 
-  const monogram = activity.name.charAt(0).toUpperCase();
+  const monogram = (activity.name ?? "?").charAt(0).toUpperCase();
   const cost = estimateCost(activity);
   const isIdle = activity.state === "idle" || activity.state === "stopped";
 
