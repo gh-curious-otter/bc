@@ -417,7 +417,7 @@ func mergeSettingsJSON(dir string, roleSettings map[string]any) error {
 
 	// Read existing settings (may contain hooks from WriteWorkspaceHookSettings).
 	existing := make(map[string]any)
-	data, err := os.ReadFile(settingsPath)
+	data, err := os.ReadFile(settingsPath) //nolint:gosec // controlled agent workspace path
 	if err == nil {
 		_ = json.Unmarshal(data, &existing) //nolint:errcheck // if malformed, start fresh
 	}

@@ -57,7 +57,7 @@ func runDown(cmd *cobra.Command, _ []string) error {
 	// Stop local daemon if running via PID file
 	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
 	wasDaemon := false
-	if pidData, readErr := os.ReadFile(pidPath); readErr == nil {
+	if pidData, readErr := os.ReadFile(pidPath); readErr == nil { //nolint:gosec // controlled workspace path
 		wasDaemon = true
 		pid := strings.TrimSpace(string(pidData))
 		fmt.Printf("  Stopping local bcd (PID %s)... ", pid)
