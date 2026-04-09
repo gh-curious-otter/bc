@@ -31,6 +31,9 @@ func (h *GatewayHandler) SetNotifyService(svc *notify.Service) {
 
 // Register mounts gateway routes.
 func (h *GatewayHandler) Register(mux *http.ServeMux) {
+	// Legacy channel list endpoint — returns gateway channels in old format
+	mux.HandleFunc("/api/channels", h.legacyChannelList)
+	mux.HandleFunc("/api/channels/", h.legacyChannelHistory)
 	mux.HandleFunc("/api/gateways/activity", h.activity)
 	mux.HandleFunc("/api/gateways", h.list)
 
@@ -377,6 +380,45 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "platform": platform})
+}
+
+// legacyChannelList returns gateway channels in the old Channel format
+// so the frontend's listChannels() call still works after pkg/channel deletion.
+func (h *GatewayHandler) legacyChannelList(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+
+	type legacyChannel struct {
+		Name        string   `json:"name"`
+		Description string   `json:"description"`
+		Members     []string `json:"members"`
+		MemberCount int      `json:"member_count"`
+	}
+
+	var channels []legacyChannel
+	if h.gw != nil {
+		for _, ch := range h.gw.ExternalChannels() {
+			channels = append(channels, legacyChannel{
+				Name:        ch,
+				Description: "Gateway channel",
+			})
+		}
+	}
+	if channels == nil {
+		channels = []legacyChannel{}
+	}
+	writeJSON(w, http.StatusOK, channels)
+}
+
+// legacyChannelHistory returns an empty history for now — the old message store is deleted.
+// Messages are visible via the gateway activity feed which gets them from the platform directly.
+func (h *GatewayHandler) legacyChannelHistory(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	// Return empty — no message store anymore
+	writeJSON(w, http.StatusOK, []struct{}{})
 }
 
 // activity returns recent activity from notify delivery log.
