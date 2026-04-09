@@ -9,14 +9,20 @@ import type { ReactNode } from "react";
  * - @mentions link to agent detail page
  * - [file:ID] attachment references rendered as inline images or download links
  */
-export function MessageContent({ content }: { content: string }) {
-  return <>{parseContent(content)}</>;
+export function MessageContent({
+  content,
+  agentNames,
+}: {
+  content: string;
+  agentNames?: Set<string>;
+}) {
+  return <>{parseContent(content, agentNames)}</>;
 }
 
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp|svg)(\?|$)/i;
 
 /** Tokenize and render inline formatting. */
-function parseContent(text: string): ReactNode[] {
+function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
   // Split on patterns we want to handle, preserving delimiters
   // Order matters: file refs, URLs first (greedy), then bold, then code, then #channel, then @mention
   const pattern =
@@ -114,13 +120,18 @@ function parseContent(text: string): ReactNode[] {
         </a>,
       );
     } else if (match[6]) {
-      // @mention → link to agent detail page
+      // @mention → link to agent detail page, highlight known agents
       const name = full.slice(1);
+      const isKnown = agentNames ? agentNames.has(name) : true;
       nodes.push(
         <a
           key={key}
           href={`/agents/${name}`}
-          className="text-bc-accent font-medium hover:underline"
+          className={
+            isKnown
+              ? "text-bc-accent font-medium hover:underline bg-bc-accent/10 rounded px-0.5"
+              : "text-bc-muted/60 font-medium hover:underline"
+          }
         >
           {full}
         </a>,

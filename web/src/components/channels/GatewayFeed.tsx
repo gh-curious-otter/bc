@@ -241,6 +241,7 @@ export function GatewayFeed({
     deliveryByPreview.set(key, list);
   }
 
+  const agentNames = new Set(agents.map((a) => a.name));
   const subAgents = new Set(subscriptions.map((s) => s.agent));
 
   const subMap = new Map<string, NotifySubscription>();
@@ -569,49 +570,22 @@ export function GatewayFeed({
                           <div key={msg.id} className="group/msg relative">
                             <div className="py-[3px] pl-8 pr-3 rounded-md transition-colors duration-100 hover:bg-bc-surface/40">
                               <div className="text-[13px] text-bc-text/80 whitespace-pre-wrap break-words leading-[1.65] [word-break:break-word]">
-                                <MessageContent content={msg.content} />
+                                <MessageContent content={msg.content} agentNames={agentNames} />
                               </div>
                             </div>
 
-                            {/* Delivery badges — shown on hover */}
+                            {/* Delivery status indicator */}
                             {hasDelivery && (
-                              <div className="pl-8 pb-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150">
-                                <div className="flex items-center gap-3 text-[9px]">
+                              <div className="pl-8 pb-0.5">
+                                <div className="flex items-center gap-2 text-[9px]">
                                   {delivered.length > 0 && (
-                                    <span className="flex items-center gap-1 text-bc-success/50">
-                                      <svg
-                                        width="10"
-                                        height="10"
-                                        viewBox="0 0 10 10"
-                                        fill="none"
-                                      >
-                                        <path
-                                          d="M2 5.5L4 7.5L8 3"
-                                          stroke="currentColor"
-                                          strokeWidth="1.2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        />
-                                      </svg>
-                                      {delivered.map((d) => d.agent).join(", ")}
+                                    <span className="text-bc-success/40">
+                                      &#10003; {delivered.length} delivered
                                     </span>
                                   )}
                                   {failed.length > 0 && (
-                                    <span className="flex items-center gap-1 text-bc-error/50">
-                                      <svg
-                                        width="10"
-                                        height="10"
-                                        viewBox="0 0 10 10"
-                                        fill="none"
-                                      >
-                                        <path
-                                          d="M3 3L7 7M7 3L3 7"
-                                          stroke="currentColor"
-                                          strokeWidth="1.2"
-                                          strokeLinecap="round"
-                                        />
-                                      </svg>
-                                      {failed.map((d) => d.agent).join(", ")}
+                                    <span className="text-bc-error/40">
+                                      &#10007; {failed.length} failed
                                     </span>
                                   )}
                                 </div>
