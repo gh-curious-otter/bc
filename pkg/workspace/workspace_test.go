@@ -843,7 +843,6 @@ func TestLoadV2Workspace(t *testing.T) {
 	}
 }
 
-
 func TestWorkspaceV2Directories(t *testing.T) {
 	dir := t.TempDir()
 

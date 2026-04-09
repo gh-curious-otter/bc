@@ -151,15 +151,15 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"agents_total":    agentsTotal,
-		"agents_running":  agentsRunning,
-		"agents_stopped":  agentsStopped,
-		"channels_total":  0, // channels are now gateway-backed; no SQLite channel store
-		"messages_total":  0, // message counts tracked per channel in notify delivery log
-		"total_cost_usd":  totalCostUSD,
-		"roles_total":     rolesTotal,
-		"tools_total":     toolsTotal,
-		"uptime_seconds":  int64(time.Since(serverStartTime).Seconds()),
+		"agents_total":   agentsTotal,
+		"agents_running": agentsRunning,
+		"agents_stopped": agentsStopped,
+		"channels_total": 0, // channels are now gateway-backed; no SQLite channel store
+		"messages_total": 0, // message counts tracked per channel in notify delivery log
+		"total_cost_usd": totalCostUSD,
+		"roles_total":    rolesTotal,
+		"tools_total":    toolsTotal,
+		"uptime_seconds": int64(time.Since(serverStartTime).Seconds()),
 	})
 }
 

@@ -132,7 +132,6 @@ func NewChannelNotification(ch, sender, message string, t time.Time) Notificatio
 	}
 }
 
-
 // Handle processes a single JSON-RPC request and returns the response.
 // For notifications (no ID), the returned Response has a nil ID and no result/error set.
 func (s *Server) Handle(ctx context.Context, req Request) Response {

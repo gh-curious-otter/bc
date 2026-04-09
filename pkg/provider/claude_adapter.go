@@ -14,11 +14,11 @@ import (
 // .claude/rules/, .claude/commands/, and plugin configs.
 type ClaudeConfigAdapter struct{}
 
-func (a *ClaudeConfigAdapter) PromptFile() string      { return "CLAUDE.md" }
-func (a *ClaudeConfigAdapter) ConfigDir() string       { return ".claude" }
-func (a *ClaudeConfigAdapter) SupportsRules() bool     { return true }
-func (a *ClaudeConfigAdapter) SupportsCommands() bool  { return true }
-func (a *ClaudeConfigAdapter) SupportsSkills() bool    { return true }
+func (a *ClaudeConfigAdapter) PromptFile() string     { return "CLAUDE.md" }
+func (a *ClaudeConfigAdapter) ConfigDir() string      { return ".claude" }
+func (a *ClaudeConfigAdapter) SupportsRules() bool    { return true }
+func (a *ClaudeConfigAdapter) SupportsCommands() bool { return true }
+func (a *ClaudeConfigAdapter) SupportsSkills() bool   { return true }
 
 // SetupMCP configures MCP servers for Claude Code.
 // Prefers `claude mcp add` CLI; falls back to .mcp.json file write.

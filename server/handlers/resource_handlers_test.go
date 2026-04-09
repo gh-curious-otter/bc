@@ -1596,19 +1596,6 @@ func TestRolesHandler_ByNameMethodNotAllowed(t *testing.T) {
 
 // --- Settings handler tests ---
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 // --- Stats handler tests ---
 
 func TestStatsHandler_System(t *testing.T) {
@@ -2438,10 +2425,7 @@ func TestWorkspaceHandler_Down(t *testing.T) {
 
 // --- Settings PUT with sections ---
 
-
 // --- Settings PUT covering all section branches ---
-
-
 
 // --- Agent handler with cost enrichment ---
 
@@ -2770,7 +2754,6 @@ func TestAgentHandler_CreateAgent(t *testing.T) {
 }
 
 // --- Settings PUT with invalid section content triggers specific validation ---
-
 
 // --- Cron handler: get nonexistent job ---
 

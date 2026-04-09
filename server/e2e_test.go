@@ -297,7 +297,6 @@ func TestE2E_Agents_StopAll(t *testing.T) {
 	}
 }
 
-
 // ─── Costs ───────────────────────────────────────────────────────────────────
 
 func TestE2E_Costs_Summary(t *testing.T) {

@@ -67,26 +67,26 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 }
 
 type agentDTO struct {
-	CreatedAt    time.Time        `json:"created_at"`
-	StartedAt    time.Time        `json:"started_at,omitempty"`
-	UpdatedAt    time.Time        `json:"updated_at"`
-	StoppedAt    *time.Time       `json:"stopped_at,omitempty"`
-	ID           string           `json:"id,omitempty"`
-	Name         string           `json:"name"`
-	Role         string           `json:"role"`
-	State        string           `json:"state"`
-	Task         string           `json:"task,omitempty"`
-	Team         string           `json:"team,omitempty"`
-	Tool         string           `json:"tool,omitempty"`
-	Runtime      string           `json:"runtime_backend,omitempty"`
-	Session      string           `json:"session,omitempty"`
-	SessionID    string           `json:"session_id,omitempty"`
-	ParentID     string           `json:"parent_id,omitempty"`
-	Children     []string         `json:"children,omitempty"`
-	MCPServers   []string         `json:"mcp_servers,omitempty"`
-	Stats        *agentStatsDTO   `json:"stats,omitempty"`
-	TotalCostUSD float64          `json:"total_cost_usd"`
-	TotalTokens  int64            `json:"total_tokens"`
+	CreatedAt    time.Time      `json:"created_at"`
+	StartedAt    time.Time      `json:"started_at,omitempty"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	StoppedAt    *time.Time     `json:"stopped_at,omitempty"`
+	ID           string         `json:"id,omitempty"`
+	Name         string         `json:"name"`
+	Role         string         `json:"role"`
+	State        string         `json:"state"`
+	Task         string         `json:"task,omitempty"`
+	Team         string         `json:"team,omitempty"`
+	Tool         string         `json:"tool,omitempty"`
+	Runtime      string         `json:"runtime_backend,omitempty"`
+	Session      string         `json:"session,omitempty"`
+	SessionID    string         `json:"session_id,omitempty"`
+	ParentID     string         `json:"parent_id,omitempty"`
+	Children     []string       `json:"children,omitempty"`
+	MCPServers   []string       `json:"mcp_servers,omitempty"`
+	Stats        *agentStatsDTO `json:"stats,omitempty"`
+	TotalCostUSD float64        `json:"total_cost_usd"`
+	TotalTokens  int64          `json:"total_tokens"`
 }
 
 // agentStatsDTO holds resource metrics included when ?include=stats is set.
