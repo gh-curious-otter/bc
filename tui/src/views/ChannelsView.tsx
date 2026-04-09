@@ -85,7 +85,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
         getChannels().catch(() => ({ channels: [] })),
         getGateways().catch(() => [] as GatewayInfo[]),
       ]);
-      setChannels(chs.channels ?? []);
+      setChannels(chs.channels);
       setGateways(gws);
       setError(null);
     } catch (err: unknown) {
@@ -96,8 +96,8 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
 
   useEffect(() => {
     void fetchData();
-    const interval = setInterval(() => void fetchData(), 15000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => { fetchData().catch(() => undefined); }, 15000);
+    return () => { clearInterval(interval); };
   }, [fetchData]);
 
   /* ── Build gateway buckets ──────────────────────────────────── */
@@ -207,8 +207,8 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
       }
       if (input === 'c') { setMode('connect'); setConnectIndex(0); return; }
       if (key.return) {
+        if (treeIndex < 0 || treeIndex >= treeItems.length) return;
         const item = treeItems[treeIndex];
-        if (!item) return;
         if (item.type === 'gateway' && item.bucketIdx !== undefined) {
           setBuckets((prev) => prev.map((b, i) => i === item.bucketIdx ? { ...b, expanded: !b.expanded } : b));
           return;
@@ -246,8 +246,8 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
       return;
     }
 
-    // Token input mode
-    if (mode === 'token') {
+    // Token input mode (remaining case after tree/feed/connect returned above)
+    {
       if (key.return && tokenInput.trim()) {
         // Save token
         const platform = connectPlatform ?? '';
@@ -314,7 +314,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
         <Box flexDirection="column" width={30} borderStyle="single" borderColor={mode === 'tree' ? theme.colors.primary : 'gray'} paddingX={1}>
           {buckets.map((bucket, bi) => {
             const gwItem = treeItems.findIndex((t) => t.type === 'gateway' && t.bucketIdx === bi);
-            const botName = bucket.gateway.bot_name || bucket.gateway.platform;
+            const botName = bucket.gateway.bot_name ?? bucket.gateway.platform;
             const color = PLATFORM_COLOR[bucket.gateway.platform] ?? '#8c7e72';
             const isConnected = bucket.gateway.enabled && bucket.channels.length > 0;
 

@@ -239,7 +239,7 @@ func (a *Adapter) processEvent(sm *socketmode.Client, evt socketmode.Event) {
 			log.Warn("slack: failed to cast EventsAPI event")
 			return
 		}
-		sm.Ack(*evt.Request)
+		sm.Ack(*evt.Request) //nolint:errcheck // best-effort ack
 		a.handleEventsAPI(eventsAPIEvent)
 
 	case socketmode.EventTypeConnecting:
@@ -258,7 +258,7 @@ func (a *Adapter) processEvent(sm *socketmode.Client, evt socketmode.Event) {
 		log.Info("slack: unhandled event type", "type", evt.Type)
 		// Acknowledge unknown events to prevent retries
 		if evt.Request != nil {
-			sm.Ack(*evt.Request)
+			sm.Ack(*evt.Request) //nolint:errcheck // best-effort ack
 		}
 	}
 }
