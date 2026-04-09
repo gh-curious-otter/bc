@@ -1,27 +1,42 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
-import type { Channel, ChannelMessage, DeliveryEntry, NotifySubscription } from "../../api/client";
+import type {
+  Channel,
+  ChannelMessage,
+  DeliveryEntry,
+  NotifySubscription,
+} from "../../api/client";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageContent } from "../MessageContent";
 import { EmptyState } from "../EmptyState";
-import { gatewayPlatform, formatTimestamp, groupMessages } from "./messageUtils";
+import {
+  gatewayPlatform,
+  formatTimestamp,
+  groupMessages,
+  agentColor,
+  dateKey,
+  formatDayLabel,
+} from "./messageUtils";
 
-function activityIcon(content: string): { icon: string; color: string } {
-  if (content.includes("[shared a file]") || content.includes("screenshot"))
-    return { icon: "\u{1F4CE}", color: "text-blue-400" };
-  if (content.includes("PR #") || content.includes("pull/"))
-    return { icon: "\u2934", color: "text-purple-400" };
-  if (content.includes("merged") || content.includes("Merge"))
-    return { icon: "\u2713", color: "text-green-400" };
-  return { icon: "\u203A", color: "text-bc-muted/50" };
-}
+/* ── Platform colors ─────────────────────────────────────────── */
 
-const messageVariants = {
-  initial: { opacity: 0, y: -8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -4 },
+const PLATFORM_ACCENT: Record<string, string> = {
+  slack: "#E01E5A",
+  telegram: "#26A5E4",
+  discord: "#5865F2",
+  github: "#8B949E",
 };
+
+/* ── Animation variants ──────────────────────────────────────── */
+
+const groupIn = {
+  initial: { opacity: 0, y: -6 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, scale: 0.98 },
+};
+
+/* ── Component ───────────────────────────────────────────────── */
 
 export function GatewayFeed({
   channelName,
@@ -39,11 +54,13 @@ export function GatewayFeed({
   const { subscribe } = useWebSocket();
 
   const platform = gatewayPlatform(channelName);
+  const platformColor = PLATFORM_ACCENT[platform ?? ""] ?? "var(--bc-accent)";
   const channelLabel = channelName.includes(":")
     ? channelName.split(":").slice(1).join(":")
     : channelName;
 
-  // Fetch history + delivery log + subscriptions
+  /* ── Data fetching ─────────────────────────────────────────── */
+
   const fetchAll = useCallback(async () => {
     try {
       const [msgs, activity, subs] = await Promise.all([
@@ -63,7 +80,8 @@ export function GatewayFeed({
     void fetchAll();
   }, [fetchAll]);
 
-  // Live updates via WebSocket
+  /* ── Live WebSocket updates ────────────────────────────────── */
+
   useEffect(() => {
     const unsub1 = subscribe("channel.message", (event) => {
       const data = event.data as {
@@ -96,7 +114,8 @@ export function GatewayFeed({
     };
   }, [subscribe, channelName]);
 
-  // Build delivery map by preview text
+  /* ── Delivery matching ─────────────────────────────────────── */
+
   const deliveryByPreview = new Map<string, DeliveryEntry[]>();
   for (const d of deliveries) {
     const key = d.preview ?? "";
@@ -107,158 +126,228 @@ export function GatewayFeed({
 
   const subAgents = new Set(subscriptions.map((s) => s.agent));
 
-  // Reverse messages: newest first (stream style)
+  /* ── Message grouping (newest first) ───────────────────────── */
+
   const reversed = [...messages].reverse();
   const groups = groupMessages(reversed);
 
+  // Day separators
+  let lastDateKey = "";
+
   return (
-    <>
-      {/* Header */}
-      <div className="px-5 py-3 border-b border-bc-border bg-bc-surface/30">
+    <div className="flex flex-col h-full">
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <div className="shrink-0 px-5 py-3.5 border-b border-bc-border/60">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-[15px] font-semibold text-bc-text">
-              #{channelLabel}
-            </span>
+          <div className="flex items-center gap-2.5">
+            {/* Platform color bar */}
+            <div
+              className="w-0.5 h-5 rounded-full"
+              style={{ backgroundColor: platformColor }}
+            />
+            <h1 className="text-[15px] font-semibold text-bc-text tracking-tight">
+              {channelLabel}
+            </h1>
             {platform && (
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-bc-border/40 text-bc-muted font-medium uppercase tracking-wider">
+              <span
+                className="text-[9px] font-semibold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded"
+                style={{
+                  color: platformColor,
+                  backgroundColor: `${platformColor}12`,
+                }}
+              >
                 {platform}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-bc-muted">
-            <span>
-              {messages.length} message{messages.length !== 1 ? "s" : ""}
+
+          <div className="flex items-center gap-4 text-[11px]">
+            <span className="text-bc-muted/60 tabular-nums">
+              {messages.length}
             </span>
-            {subscriptions.length > 0 && (
-              <span className="text-bc-success">
-                {subscriptions.length} agent
-                {subscriptions.length !== 1 ? "s" : ""}
+            {subAgents.size > 0 && (
+              <span className="flex items-center gap-1.5 text-bc-success/70">
+                <span className="w-1 h-1 rounded-full bg-bc-success animate-pulse" />
+                {subAgents.size} listening
               </span>
             )}
           </div>
         </div>
         {channel?.description && (
-          <p className="text-[11px] text-bc-muted/60 mt-1">
+          <p className="text-[11px] text-bc-muted/40 mt-1 ml-3">
             {channel.description}
           </p>
         )}
       </div>
 
-      {/* Stream — newest first */}
-      <div className="relative flex-1">
-        <div ref={scrollRef} className="absolute inset-0 overflow-auto px-5 py-3">
-          {messages.length === 0 && (
-            <div className="flex items-center justify-center py-16">
-              <EmptyState
-                icon="\u21C4"
-                title="No activity yet"
-                description={`Messages from ${platform ?? "this channel"} will appear here.`}
-              />
-            </div>
-          )}
+      {/* ── Message stream ─────────────────────────────────────── */}
+      <div className="flex-1 relative">
+        <div
+          ref={scrollRef}
+          className="absolute inset-0 overflow-auto"
+          style={{
+            scrollbarWidth: "thin",
+            scrollbarColor: "rgba(255,255,255,0.06) transparent",
+          }}
+        >
+          <div className="px-5 py-3">
+            {messages.length === 0 && (
+              <div className="flex items-center justify-center py-20">
+                <EmptyState
+                  icon="\u21C4"
+                  title="Waiting for messages"
+                  description={`Activity from ${platform ?? "this channel"} will stream here in real-time.`}
+                />
+              </div>
+            )}
 
-          <AnimatePresence initial={false}>
-            {groups.map((group, gi) => (
-              <motion.div
-                key={group.messages[0]?.id ?? gi}
-                variants={messageVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                transition={{ duration: 0.15, ease: "easeOut" }}
-                className="mb-4"
-              >
-                {/* Sender header */}
-                <div className="flex items-baseline gap-2 mb-1">
-                  <button
-                    type="button"
-                    onClick={() => onPeekAgent(group.sender)}
-                    className="text-[13px] font-semibold text-bc-accent hover:underline cursor-pointer"
+            <AnimatePresence initial={false}>
+              {groups.map((group, gi) => {
+                const dk = dateKey(group.timestamp);
+                const showDateSep = dk !== lastDateKey;
+                lastDateKey = dk;
+
+                return (
+                  <motion.div
+                    key={group.messages[0]?.id ?? gi}
+                    variants={groupIn}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
                   >
-                    {group.sender}
-                  </button>
-                  <span className="text-[10px] text-bc-muted/40">
-                    {formatTimestamp(group.timestamp)}
-                  </span>
-                </div>
-
-                {/* Messages in group */}
-                {group.messages.map((msg) => {
-                  const icon = activityIcon(msg.content);
-                  const preview = msg.content.slice(0, 120);
-                  const msgDeliveries = deliveryByPreview.get(preview) ?? [];
-                  const delivered = msgDeliveries.filter(
-                    (d) => d.status === "delivered",
-                  );
-                  const failed = msgDeliveries.filter(
-                    (d) => d.status === "failed",
-                  );
-
-                  return (
-                    <div key={msg.id} className="group">
-                      <div className="flex items-start gap-2 py-0.5 rounded-md hover:bg-bc-surface/30 transition-colors px-2 -mx-2">
-                        <span
-                          className={`text-[10px] mt-1 w-4 text-center shrink-0 ${icon.color}`}
-                        >
-                          {icon.icon}
+                    {/* Date separator */}
+                    {showDateSep && (
+                      <div className="flex items-center gap-3 my-4">
+                        <div className="flex-1 h-px bg-bc-border/30" />
+                        <span className="text-[10px] font-medium text-bc-muted/40 tracking-wide">
+                          {formatDayLabel(group.timestamp)}
                         </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12.5px] text-bc-text/85 whitespace-pre-wrap break-words leading-[1.6]">
-                            <MessageContent content={msg.content} />
-                          </p>
-                        </div>
+                        <div className="flex-1 h-px bg-bc-border/30" />
+                      </div>
+                    )}
+
+                    {/* Message group */}
+                    <div className="mb-3 group/block">
+                      {/* Sender line */}
+                      <div className="flex items-center gap-2 mb-0.5 pl-1">
+                        {/* Agent initial */}
+                        <span
+                          className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0"
+                          style={{
+                            backgroundColor: `${agentColor(group.sender)}15`,
+                            color: agentColor(group.sender),
+                          }}
+                        >
+                          {group.sender.charAt(0).toUpperCase()}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onPeekAgent(group.sender)}
+                          className="text-[13px] font-semibold hover:underline cursor-pointer decoration-1 underline-offset-2"
+                          style={{ color: agentColor(group.sender) }}
+                        >
+                          {group.sender}
+                        </button>
+                        <span className="text-[10px] text-bc-muted/30 tabular-nums">
+                          {formatTimestamp(group.timestamp)}
+                        </span>
                       </div>
 
-                      {/* Delivery badges */}
-                      {(delivered.length > 0 || failed.length > 0) && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          transition={{ duration: 0.2 }}
-                          className="flex items-center gap-2 ml-8 mt-0.5 mb-1"
-                        >
-                          {delivered.length > 0 && (
-                            <span className="text-[9px] text-bc-success/60 flex items-center gap-1">
-                              <span className="w-1 h-1 rounded-full bg-bc-success/60" />
-                              delivered to{" "}
-                              {delivered.map((d) => d.agent).join(", ")}
-                            </span>
-                          )}
-                          {failed.length > 0 && (
-                            <span className="text-[9px] text-bc-error/60 flex items-center gap-1">
-                              <span className="w-1 h-1 rounded-full bg-bc-error/60" />
-                              failed: {failed.map((d) => d.agent).join(", ")}
-                            </span>
-                          )}
-                        </motion.div>
-                      )}
+                      {/* Messages */}
+                      {group.messages.map((msg) => {
+                        const preview = msg.content.slice(0, 120);
+                        const msgDeliveries =
+                          deliveryByPreview.get(preview) ?? [];
+                        const delivered = msgDeliveries.filter(
+                          (d) => d.status === "delivered",
+                        );
+                        const failed = msgDeliveries.filter(
+                          (d) => d.status === "failed",
+                        );
+                        const hasDelivery =
+                          delivered.length > 0 || failed.length > 0;
+
+                        return (
+                          <div key={msg.id} className="group/msg relative">
+                            <div className="py-[3px] pl-8 pr-3 rounded-md transition-colors duration-100 hover:bg-bc-surface/40">
+                              <div className="text-[13px] text-bc-text/80 whitespace-pre-wrap break-words leading-[1.65] [word-break:break-word]">
+                                <MessageContent content={msg.content} />
+                              </div>
+                            </div>
+
+                            {/* Delivery badges — shown on hover */}
+                            {hasDelivery && (
+                              <div className="pl-8 pb-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150">
+                                <div className="flex items-center gap-3 text-[9px]">
+                                  {delivered.length > 0 && (
+                                    <span className="flex items-center gap-1 text-bc-success/50">
+                                      <svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 10 10"
+                                        fill="none"
+                                      >
+                                        <path
+                                          d="M2 5.5L4 7.5L8 3"
+                                          stroke="currentColor"
+                                          strokeWidth="1.2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        />
+                                      </svg>
+                                      {delivered.map((d) => d.agent).join(", ")}
+                                    </span>
+                                  )}
+                                  {failed.length > 0 && (
+                                    <span className="flex items-center gap-1 text-bc-error/50">
+                                      <svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 10 10"
+                                        fill="none"
+                                      >
+                                        <path
+                                          d="M3 3L7 7M7 3L3 7"
+                                          stroke="currentColor"
+                                          strokeWidth="1.2"
+                                          strokeLinecap="round"
+                                        />
+                                      </svg>
+                                      {failed.map((d) => d.agent).join(", ")}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </motion.div>
-            ))}
-          </AnimatePresence>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-5 py-2 border-t border-bc-border bg-bc-surface/20">
-        <p className="text-[10px] text-bc-muted/40 text-center">
-          {platform ? (
-            <>Activity from {platform}. Agents respond via MCP.</>
-          ) : (
-            <>Agents communicate via MCP tools.</>
-          )}
+      {/* ── Footer ─────────────────────────────────────────────── */}
+      <div className="shrink-0 px-5 py-2 border-t border-bc-border/30">
+        <div className="flex items-center justify-between text-[10px] text-bc-muted/30">
+          <span>
+            {platform
+              ? `${platform} gateway`
+              : "bc channel"}{" "}
+            · agents respond via MCP
+          </span>
           {subAgents.size > 0 && (
-            <>
-              {" "}
-              · {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""}{" "}
-              subscribed
-            </>
+            <span>
+              {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""} subscribed
+            </span>
           )}
-        </p>
+        </div>
       </div>
-    </>
+    </div>
   );
 }
