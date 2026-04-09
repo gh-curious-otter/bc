@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 
 const PLATFORM_STEPS: Record<
   string,
@@ -80,7 +81,7 @@ export function SetupWizard({
   const [success, setSuccess] = useState(false);
 
   if (!config) {
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
         <div className="bg-bc-bg border border-bc-border/50 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
           <p className="text-bc-muted">Unknown platform: {platform}</p>
@@ -88,7 +89,8 @@ export function SetupWizard({
             Close
           </button>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
@@ -128,8 +130,8 @@ export function SetupWizard({
     setSaving(false);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" style={{ animation: 'fadeIn 120ms ease-out' }}>
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm" style={{ animation: 'fadeIn 120ms ease-out' }}>
       <div className="bg-bc-bg border border-bc-border/50 rounded-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-auto shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-bc-border">
@@ -209,6 +211,7 @@ export function SetupWizard({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

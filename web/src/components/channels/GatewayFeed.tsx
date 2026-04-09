@@ -572,25 +572,23 @@ export function GatewayFeed({
                               <div className="text-[13px] text-bc-text/80 whitespace-pre-wrap break-words leading-[1.65] [word-break:break-word]">
                                 <MessageContent content={msg.content} agentNames={agentNames} />
                               </div>
-                            </div>
 
-                            {/* Delivery status indicator */}
-                            {hasDelivery && (
-                              <div className="pl-8 pb-0.5">
-                                <div className="flex items-center gap-2 text-[9px]">
+                              {/* Delivery tooltip — hover only */}
+                              {hasDelivery && (
+                                <div className="hidden group-hover/msg:flex items-center gap-3 mt-0.5 text-[9px]">
                                   {delivered.length > 0 && (
-                                    <span className="text-bc-success/40">
-                                      &#10003; {delivered.length} delivered
+                                    <span className="text-bc-success/50" title={delivered.map((d) => d.agent).join(", ")}>
+                                      → {delivered.map((d) => d.agent).join(", ")}
                                     </span>
                                   )}
                                   {failed.length > 0 && (
-                                    <span className="text-bc-error/40">
-                                      &#10007; {failed.length} failed
+                                    <span className="text-bc-error/50" title={failed.map((d) => `${d.agent}: ${d.error ?? "failed"}`).join(", ")}>
+                                      ✗ {failed.map((d) => d.agent).join(", ")}
                                     </span>
                                   )}
                                 </div>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         );
                       })}
