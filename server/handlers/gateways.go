@@ -189,7 +189,7 @@ func (h *GatewayHandler) gatewayChannelSend(w http.ResponseWriter, r *http.Reque
 		Content string `json:"content"`
 	}
 	if unmarshalErr := json.Unmarshal(body, &req); unmarshalErr != nil {
-		httpError(w, "invalid JSON: "+unmarshalErr.Error(), http.StatusBadRequest)
+		httpError(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
 	if req.Content == "" {

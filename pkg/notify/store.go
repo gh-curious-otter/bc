@@ -449,7 +449,7 @@ func (s *Store) SaveChannel(ctx context.Context, bcChannel, platform, platformID
 	_, err := s.db.ExecContext(ctx, s.q(
 		`INSERT INTO notify_channels (bc_channel, platform, platform_id, updated_at)
 		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(bc_channel) DO UPDATE SET platform_id = excluded.platform_id, updated_at = excluded.updated_at`),
+		 ON CONFLICT(bc_channel) DO UPDATE SET platform = excluded.platform, platform_id = excluded.platform_id, updated_at = excluded.updated_at`),
 		bcChannel, platform, platformID, time.Now().UTC().Format(time.RFC3339))
 	return err
 }

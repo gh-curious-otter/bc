@@ -106,6 +106,8 @@ func (m *Manager) Start(ctx context.Context) error {
 			log.Warn("gateway: failed to discover channels", "adapter", a.Name(), "error", err)
 			continue
 		}
+		type discovered struct{ bc, platform, id string }
+		toPersist := make([]discovered, 0, len(channels))
 		m.mu.Lock()
 		for _, ch := range channels {
 			bcName := a.Name() + ":" + sanitizeChannelName(ch.Name)
@@ -114,10 +116,13 @@ func (m *Manager) Start(ctx context.Context) error {
 				ChannelID: ch.ID,
 				Adapter:   a,
 			}
-			m.persistChannel(bcName, a.Name(), ch.ID)
+			toPersist = append(toPersist, discovered{bcName, a.Name(), ch.ID})
 			log.Info("gateway: discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
 		}
 		m.mu.Unlock()
+		for _, d := range toPersist {
+			m.persistChannel(d.bc, d.platform, d.id)
+		}
 	}
 
 	// Start all adapters in goroutines, each with a platform-tagged callback
@@ -154,6 +159,8 @@ func (m *Manager) Start(ctx context.Context) error {
 			if err != nil {
 				continue
 			}
+			type lateDiscovered struct{ bc, platform, id string }
+			var latePersist []lateDiscovered
 			m.mu.Lock()
 			for _, ch := range channels {
 				bcName := a.Name() + ":" + sanitizeChannelName(ch.Name)
@@ -163,11 +170,14 @@ func (m *Manager) Start(ctx context.Context) error {
 						ChannelID: ch.ID,
 						Adapter:   a,
 					}
-					m.persistChannel(bcName, a.Name(), ch.ID)
+					latePersist = append(latePersist, lateDiscovered{bcName, a.Name(), ch.ID})
 					log.Info("gateway: late-discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
 				}
 			}
 			m.mu.Unlock()
+			for _, d := range latePersist {
+				m.persistChannel(d.bc, d.platform, d.id)
+			}
 		}
 	}()
 
