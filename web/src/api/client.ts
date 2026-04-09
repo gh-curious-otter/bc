@@ -595,12 +595,6 @@ export const api = {
   getGatewayHealth: (platform: string) =>
     request<GatewayHealth>(`/gateways/${encodeURIComponent(platform)}/health`),
 
-  sendToChannel: (name: string, message: string, sender = "web") =>
-    request<ChannelMessage>(`/channels/${encodeURIComponent(name)}/messages`, {
-      method: "POST",
-      body: JSON.stringify({ sender, content: message }),
-    }),
-
   getCostSummary: () => request<CostSummary>("/costs"),
   getCostByAgent: () => request<AgentCostSummary[]>("/costs/agents"),
   getCostByModel: () => request<ModelCostSummary[]>("/costs/models"),
@@ -829,15 +823,4 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
-  addChannelMember: (channelName: string, agentName: string) =>
-    request<void>(`/channels/${encodeURIComponent(channelName)}/members`, {
-      method: "POST",
-      body: JSON.stringify({ agent_id: agentName }),
-    }),
-
-  updateChannel: (name: string, patch: { description?: string }) =>
-    request<Channel>(`/channels/${encodeURIComponent(name)}`, {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    }),
 };
