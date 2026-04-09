@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -138,24 +139,36 @@ func runUpDaemon(wsRoot string) error {
 		return fmt.Errorf("open log file: %w", err)
 	}
 
+	// Detach stdin so the child survives terminal close.
+	nullFile, nullErr := os.Open(os.DevNull)
+	if nullErr != nil {
+		_ = logFile.Close()
+		return fmt.Errorf("open %s: %w", os.DevNull, nullErr)
+	}
+
 	cmd := exec.CommandContext(context.Background(), selfPath, args...) //nolint:gosec // trusted binary
+	cmd.Stdin = nullFile
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = wsRoot
 	cmd.Env = os.Environ()
+	// Start in a new session so SIGHUP from terminal close doesn't propagate.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
+		_ = nullFile.Close()
 		return fmt.Errorf("start bc server: %w", err)
 	}
 	_ = logFile.Close()
+	_ = nullFile.Close()
 
 	// Write PID file
 	if writeErr := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", cmd.Process.Pid)), 0600); writeErr != nil {
 		log.Warn("failed to write PID file", "path", pidPath, "error", writeErr)
 	}
 
-	// Detach -- don't wait for the process
+	// Detach — don't wait for the process
 	_ = cmd.Process.Release()
 
 	fmt.Printf("  %s bc server started (PID %d)\n", ui.GreenText("ok"), cmd.Process.Pid)
