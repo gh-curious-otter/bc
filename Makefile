@@ -188,7 +188,7 @@ test-go: ## Run Go tests with race detector
 
 test-go-fast: ## Run Go tests excluding slow packages
 	# NOTE: Keep SLOW list in sync with .github/workflows/ci.yml "Run fast tests" step
-	$(GO) test -race $$($(GO) list ./... | grep -v -F "$$(printf 'github.com/rpuneet/bc/pkg/tmux\ngithub.com/rpuneet/bc/pkg/secret\ngithub.com/rpuneet/bc/pkg/doctor\ngithub.com/rpuneet/bc/internal/cmd')")
+	$(GO) test -race $$($(GO) list ./... | grep -v -F "$$(printf 'github.com/gh-curious-otter/bc/pkg/tmux\ngithub.com/gh-curious-otter/bc/pkg/secret\ngithub.com/gh-curious-otter/bc/pkg/doctor\ngithub.com/gh-curious-otter/bc/internal/cmd')")
 
 test-ts: test-tui test-web test-landing ## Run all TS tests
 
