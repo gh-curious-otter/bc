@@ -17,6 +17,8 @@ on:
 
 permissions:
   contents: write
+  pull-requests: read
+  security-events: write
 
 env:
   GO_VERSION: '1.25.8'
