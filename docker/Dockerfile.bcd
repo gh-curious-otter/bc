@@ -1,6 +1,6 @@
-# bcd — bc coordination daemon
+# bc — bc server (API, web UI, agent management)
 # Multi-stage build optimized for Docker layer caching.
-# Usage: docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
+# Usage: docker build -t bc-daemon:latest -f docker/Dockerfile.bcd .
 
 # Stage 1: Build web UI
 FROM oven/bun:1.2 AS web
@@ -27,7 +27,7 @@ COPY internal/ internal/
 COPY prompt[s]/ prompts/
 COPY --from=web /app/web/dist /app/server/web/dist
 
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bcd ./cmd/bcd
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bc ./cmd/bc
 
 # Stage 3: Runtime (includes dev toolchain for cron build jobs)
 FROM ubuntu:24.04
@@ -55,19 +55,19 @@ RUN curl -fsSL https://bun.sh/install | bash && \
     git config --global --add safe.directory /workspace && \
     git config --global --add safe.directory /home/agent/.bc
 
-COPY --from=go /bcd /usr/local/bin/bcd
+COPY --from=go /bc /usr/local/bin/bc
 
 # Workspace architecture: project source is mounted at /workspace, while
 # workspace state lives under BC_HOME (default ~/.bc/). The BC_STATE_DIR
 # env var can override the per-workspace state path at runtime.
 ENV BC_HOME=/home/agent/.bc
 
-# Runs as root because bcd needs access to the Docker socket
+# Runs as root because bc needs access to the Docker socket
 # (/var/run/docker.sock) to manage agent containers.
 EXPOSE 9374
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:9374/health
 
 WORKDIR /workspace
-ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _bc_init 'sleep infinity' && exec bcd \"$@\"", "--"]
-CMD ["--addr", "0.0.0.0:9374", "--workspace", "/workspace"]
+ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _bc_init 'sleep infinity' && exec bc \"$@\"", "--"]
+CMD ["up", "--addr", "0.0.0.0:9374", "--workspace", "/workspace"]

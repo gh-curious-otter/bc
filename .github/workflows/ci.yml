@@ -200,15 +200,13 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Build release binaries (bc + bcd)
-        run: |
-          make release-local-bc
-          make release-local-bcd
+      - name: Build release binary
+        run: make release-local-bc
 
-      - name: Verify binaries run
+      - name: Verify binary runs
         run: |
           ./bin/bc version
-          ./bin/bcd --help | head -1
+          ./bin/bc up --help | head -1
 
   # ── Container Scan (main only) ──────────────────────────────────────
   scan:

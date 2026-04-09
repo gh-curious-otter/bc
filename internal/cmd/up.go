@@ -8,13 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	bcdb "github.com/gh-curious-otter/bc/pkg/db"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	"github.com/gh-curious-otter/bc/pkg/ui"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
@@ -22,118 +20,157 @@ import (
 
 var upCmd = &cobra.Command{
 	Use:   "up",
-	Short: "Start bc services",
-	Long: `Start bc services (Docker containers or local daemon).
+	Short: "Start bc server",
+	Long: `Start the bc server (API, web UI, MCP, agent management).
+
+By default the server runs in the foreground (for Docker/Railway).
+Use -d to run as a background daemon.
 
 Examples:
-  bc up                    # Start Docker containers (db + bcd)
-  bc up -d                 # Start bcd as local background daemon (no Docker)
-  bc up --port 9000        # Custom port
-  bc up -d --port 8080     # Local daemon on custom port`,
+  bc up                              # Foreground (Docker/Railway)
+  bc up -d                           # Background daemon
+  bc up --addr 0.0.0.0:9374         # Custom listen address
+  bc up --workspace /path/to/ws     # Explicit workspace`,
 	RunE: runUp,
 }
 
 var (
-	upPort      string
+	upAddr      string
 	upWorkspace string
 	upDaemon    bool
+	upCORS      string
+	upAPIKey    string
 )
 
 func init() {
-	upCmd.Flags().StringVar(&upPort, "port", "9374", "Host port for bcd")
+	upCmd.Flags().StringVar(&upAddr, "addr", "127.0.0.1:9374", "Listen address (host:port)")
 	upCmd.Flags().StringVar(&upWorkspace, "workspace", "", "Workspace directory (defaults to current workspace)")
-	upCmd.Flags().BoolVarP(&upDaemon, "daemon", "d", false, "Run bcd as local background process (no Docker)")
+	upCmd.Flags().BoolVarP(&upDaemon, "daemon", "d", false, "Run as background daemon")
+	upCmd.Flags().StringVar(&upCORS, "cors-origin", "*", "CORS allowed origin")
+	upCmd.Flags().StringVar(&upAPIKey, "api-key", os.Getenv("BC_API_KEY"), "API key for Bearer token auth (or set BC_API_KEY)")
 	rootCmd.AddCommand(upCmd)
 }
 
 func runUp(cmd *cobra.Command, _ []string) error {
-	var ws *workspace.Workspace
-	var err error
-	if upWorkspace != "" {
-		ws, err = workspace.Load(upWorkspace)
-		if err != nil {
-			return fmt.Errorf("cannot load workspace at %s: %w", upWorkspace, err)
-		}
-	} else {
-		ws, err = getWorkspace()
+	wsRoot := upWorkspace
+	if wsRoot == "" {
+		ws, err := getWorkspace()
 		if err != nil {
 			return errNotInWorkspace(err)
 		}
-	}
-
-	ctx := cmd.Context()
-
-	// Daemon mode: run bcd as local background process (no Docker)
-	if upDaemon {
-		return runUpDaemon(ws)
-	}
-
-	fmt.Printf("Starting bc in %s\n\n", ws.RootDir)
-
-	id := wsID(ws.RootDir)
-
-	// Shared volume for screenshots and temp files between containers
-	const sharedVolume = "bc-shared-tmp"
-
-	// 1. bc-db — unified database (TimescaleDB = Postgres + hypertables)
-	if err := dockerRun(ctx, "bc-db", []string{
-		"-p", "5432:5432",
-		"-e", "POSTGRES_PASSWORD=" + bcdb.DefaultPassword(),
-		"-v", "bc-db-data:/var/lib/postgresql/data",
-		"--restart", "always",
-		"bc-bcdb:latest",
-	}); err != nil {
-		return fmt.Errorf("bc-db failed to start: %w", err)
-	}
-
-	// 2. Wait for database
-	fmt.Print("  Waiting for database... ")
-	if err := waitPG(ctx, "bc-db", 30*time.Second); err != nil {
-		return fmt.Errorf("bc-db not ready: %w", err)
-	}
-	fmt.Println(ui.GreenText("ready"))
-
-	// 3. bc-<id>-daemon with docker.sock + workspace mount
-	daemonName := fmt.Sprintf("bc-%s-daemon", id)
-	daemonArgs := []string{
-		"-p", upPort + ":9374",
-		"-v", ws.RootDir + ":/workspace",
-		"-v", "/var/run/docker.sock:/var/run/docker.sock",
-		"-v", sharedVolume + ":/tmp/bc-shared",
-		"-e", "DATABASE_URL=postgres://bc:" + bcdb.DefaultPassword() + "@host.docker.internal:5432/bc",
-		"-e", "STATS_DATABASE_URL=postgres://bc:" + bcdb.DefaultPassword() + "@host.docker.internal:5432/bc",
-		"-e", "BC_HOST_WORKSPACE=" + ws.RootDir,
-		"--restart", "always",
-	}
-	// Linux needs explicit host.docker.internal mapping (macOS/Windows have it built in).
-	if runtime.GOOS == "linux" {
-		daemonArgs = append(daemonArgs, "--add-host=host.docker.internal:host-gateway")
-	}
-	daemonArgs = append(daemonArgs,
-		"bc-daemon:latest",
-		"--addr", "0.0.0.0:9374",
-		"--workspace", "/workspace",
-	)
-	if err := dockerRun(ctx, daemonName, daemonArgs); err != nil {
-		fmt.Printf("  %s daemon failed to start: %v\n", ui.YellowText("warning"), err)
-	}
-
-	// 4. Wait for bcd
-	addr := fmt.Sprintf("127.0.0.1:%s", upPort)
-	fmt.Print("  Waiting for bcd... ")
-	if waitHTTP(ctx, addr, 30*time.Second) != nil {
-		fmt.Println(ui.YellowText("slow"))
+		wsRoot = ws.RootDir
 	} else {
-		fmt.Println(ui.GreenText("ready"))
+		// Validate the workspace path
+		if _, err := workspace.Load(wsRoot); err != nil {
+			return fmt.Errorf("cannot load workspace at %s: %w", wsRoot, err)
+		}
 	}
 
-	fmt.Println()
-	fmt.Printf("  %s bc workspace ready\n", ui.GreenText("ok"))
-	fmt.Printf("  bcd:        http://%s\n", addr)
-	fmt.Println("  bc-db:      localhost:5432")
+	// Read server config from settings.json for defaults
+	if ws, loadErr := workspace.Load(wsRoot); loadErr == nil && ws.Config != nil {
+		// Use settings.json addr if --addr wasn't explicitly set
+		if !cmd.Flags().Changed("addr") {
+			host := ws.Config.Server.Host
+			if host == "" {
+				host = "127.0.0.1"
+			}
+			port := 9374
+			if ws.Config.Server.Port > 0 {
+				port = ws.Config.Server.Port
+			}
+			upAddr = fmt.Sprintf("%s:%d", host, port)
+		}
+	}
+
+	// Daemon mode: re-exec bc up in background
+	if upDaemon {
+		return runUpDaemon(wsRoot)
+	}
+
+	// Foreground mode: run server directly
+	fmt.Printf("Starting bc server in %s\n", wsRoot)
+	fmt.Printf("  addr: %s\n\n", upAddr)
+
+	return RunServer(upAddr, wsRoot, upCORS, upAPIKey)
+}
+
+// runUpDaemon starts bc up in the background by re-executing the bc binary.
+// Logs go to .bc/bcd.log, PID to .bc/bcd.pid.
+func runUpDaemon(wsRoot string) error {
+	ws, err := workspace.Load(wsRoot)
+	if err != nil {
+		return fmt.Errorf("cannot load workspace: %w", err)
+	}
+
+	// Check if already running
+	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
+	if pidData, readErr := os.ReadFile(pidPath); readErr == nil {
+		pid := strings.TrimSpace(string(pidData))
+		checkCmd := exec.Command("kill", "-0", pid) //nolint:gosec // trusted
+		if checkCmd.Run() == nil {
+			fmt.Printf("  bc server already running (PID %s)\n", pid)
+			fmt.Printf("  http://%s\n", upAddr)
+			return nil
+		}
+	}
+
+	// Find our own binary to re-exec
+	selfPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("cannot find bc binary: %w", err)
+	}
+
+	logPath := filepath.Join(ws.StateDir(), "bcd.log")
+
+	// Build args for foreground mode (without -d)
+	args := []string{
+		"up",
+		"--addr", upAddr,
+		"--workspace", wsRoot,
+		"--cors-origin", upCORS,
+	}
+	if upAPIKey != "" {
+		args = append(args, "--api-key", upAPIKey)
+	}
+
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) //nolint:gosec // controlled path
+	if err != nil {
+		return fmt.Errorf("open log file: %w", err)
+	}
+
+	cmd := exec.Command(selfPath, args...) //nolint:gosec // trusted binary
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	cmd.Dir = wsRoot
+	cmd.Env = os.Environ()
+
+	if err := cmd.Start(); err != nil {
+		_ = logFile.Close()
+		return fmt.Errorf("start bc server: %w", err)
+	}
+	_ = logFile.Close()
+
+	// Write PID file
+	if writeErr := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", cmd.Process.Pid)), 0600); writeErr != nil {
+		log.Warn("failed to write PID file", "path", pidPath, "error", writeErr)
+	}
+
+	// Detach -- don't wait for the process
+	_ = cmd.Process.Release()
+
+	fmt.Printf("  %s bc server started (PID %d)\n", ui.GreenText("ok"), cmd.Process.Pid)
+	fmt.Printf("  http://%s\n", upAddr)
+	fmt.Printf("  logs: %s\n", logPath)
+	fmt.Printf("  pid:  %s\n", pidPath)
 	fmt.Println()
 
 	return nil
+}
+
+// wsID returns a short workspace hash for container naming.
+func wsID(path string) string {
+	h := sha256.Sum256([]byte(path))
+	return fmt.Sprintf("%x", h[:3])
 }
 
 // dockerRun starts a container if not already running.
@@ -200,161 +237,4 @@ func waitHTTP(ctx context.Context, addr string, timeout time.Duration) error {
 		}
 	}
 	return fmt.Errorf("timeout")
-}
-
-// wsID returns a short workspace hash for container naming.
-func wsID(path string) string {
-	h := sha256.Sum256([]byte(path))
-	return fmt.Sprintf("%x", h[:3])
-}
-
-// runUpDaemon starts bcd as a local background process using nohup.
-// Logs go to .bc/bcd.log, PID to .bc/bcd.pid.
-func runUpDaemon(ws *workspace.Workspace) error {
-	// Find bcd binary
-	bcdPath, err := exec.LookPath("bcd")
-	if err != nil {
-		// Try in same directory as bc binary
-		selfPath, _ := os.Executable()
-		bcdPath = filepath.Join(filepath.Dir(selfPath), "bcd")
-		if _, statErr := os.Stat(bcdPath); statErr != nil {
-			return fmt.Errorf("bcd binary not found in PATH or next to bc binary")
-		}
-	}
-
-	// Check if already running
-	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
-	if pidData, readErr := os.ReadFile(pidPath); readErr == nil {
-		pid := strings.TrimSpace(string(pidData))
-		// Check if process is still alive
-		checkCmd := exec.Command("kill", "-0", pid) //nolint:gosec // trusted
-		if checkCmd.Run() == nil {
-			host := "127.0.0.1"
-			port := upPort
-			if ws.Config != nil {
-				if ws.Config.Server.Host != "" {
-					host = ws.Config.Server.Host
-				}
-				if ws.Config.Server.Port > 0 && upPort == "9374" {
-					port = fmt.Sprintf("%d", ws.Config.Server.Port)
-				}
-			}
-			fmt.Printf("  bcd already running (PID %s)\n", pid)
-			fmt.Printf("  http://%s:%s\n", host, port)
-			return nil
-		}
-	}
-
-	logPath := filepath.Join(ws.StateDir(), "bcd.log")
-
-	// Read server config from settings.json
-	host := "127.0.0.1"
-	port := upPort
-	if ws.Config != nil {
-		if ws.Config.Server.Host != "" {
-			host = ws.Config.Server.Host
-		}
-		if ws.Config.Server.Port > 0 && upPort == "9374" {
-			// Only use settings.json port if --port flag wasn't explicitly set
-			port = fmt.Sprintf("%d", ws.Config.Server.Port)
-		}
-	}
-
-	// Start bcd in background
-	args := []string{bcdPath, "--addr", host + ":" + port, "--workspace", ws.RootDir}
-
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) //nolint:gosec // controlled path
-	if err != nil {
-		return fmt.Errorf("open log file: %w", err)
-	}
-
-	cmd := exec.Command(args[0], args[1:]...) //nolint:gosec // trusted binary
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
-	cmd.Dir = ws.RootDir
-	cmd.Env = os.Environ()
-
-	// Check storage config — if timescale, auto-start bc-db and set DATABASE_URL.
-	useTimescale := ws.Config != nil && (ws.Config.Storage.Default == "timescale" || ws.Config.Storage.Default == "sql")
-	if useTimescale {
-		// Build DSN from settings.json
-		ts := ws.Config.Storage.Timescale
-		dbHost := ts.Host
-		if dbHost == "" {
-			dbHost = "localhost"
-		}
-		dbPort := ts.Port
-		if dbPort == 0 {
-			dbPort = 5432
-		}
-		dbUser := ts.User
-		if dbUser == "" {
-			dbUser = "bc"
-		}
-		dbPass := ts.Password
-		if dbPass == "" {
-			dbPass = bcdb.DefaultPassword()
-		}
-		dbName := ts.Database
-		if dbName == "" {
-			dbName = "bc"
-		}
-		dbURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s", dbUser, dbPass, dbHost, dbPort, dbName)
-
-		// Auto-start bc-db container if it exists
-		//nolint:gosec // trusted
-		dbCheck, _ := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", "bc-db").Output()
-		dbRunning := strings.TrimSpace(string(dbCheck)) == "true"
-		if !dbRunning {
-			//nolint:gosec // trusted
-			dbExists, _ := exec.Command("docker", "inspect", "-f", "{{.State.Status}}", "bc-db").Output()
-			if strings.TrimSpace(string(dbExists)) != "" {
-				fmt.Print("  Starting bc-db... ")
-				//nolint:gosec // trusted
-				if startErr := exec.Command("docker", "start", "bc-db").Run(); startErr == nil {
-					if waitErr := waitPG(context.Background(), "bc-db", 15*time.Second); waitErr == nil {
-						dbRunning = true
-						fmt.Println(ui.GreenText("ready"))
-					} else {
-						fmt.Println(ui.YellowText("started but not ready"))
-					}
-				} else {
-					fmt.Println(ui.YellowText("failed"))
-				}
-			}
-		}
-		if dbRunning {
-			cmd.Env = append(cmd.Env,
-				"DATABASE_URL="+dbURL,
-				"STATS_DATABASE_URL="+dbURL,
-			)
-			fmt.Printf("  storage: timescale (%s:%d)\n", dbHost, dbPort)
-		} else {
-			fmt.Printf("  %s storage=timescale but bc-db not available, bcd will read settings.json\n", ui.YellowText("warning"))
-		}
-	} else {
-		fmt.Printf("  storage: sqlite\n")
-	}
-
-	if err := cmd.Start(); err != nil {
-		_ = logFile.Close()
-		return fmt.Errorf("start bcd: %w", err)
-	}
-	_ = logFile.Close()
-
-	// Write PID file
-	if writeErr := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", cmd.Process.Pid)), 0600); writeErr != nil {
-		log.Warn("failed to write PID file", "path", pidPath, "error", writeErr)
-	}
-
-	// Detach — don't wait for the process
-	_ = cmd.Process.Release()
-
-	fmt.Printf("  %s bcd started (PID %d)\n", ui.GreenText("ok"), cmd.Process.Pid)
-	fmt.Printf("  bcd:  http://%s:%s\n", host, port)
-	fmt.Printf("  logs: %s\n", logPath)
-	fmt.Printf("  pid:  %s\n", pidPath)
-	fmt.Println()
-
-	return nil
 }

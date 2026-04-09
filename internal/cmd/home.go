@@ -14,33 +14,8 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
-var homeCmd = &cobra.Command{
-	Use:   "home",
-	Short: "Open the bc TUI dashboard",
-	Long: `Open the bc terminal user interface (TUI) dashboard.
-
-The TUI provides a visual interface for managing agents, channels,
-costs, and other bc features using keyboard navigation.
-
-Requirements:
-  - bun (or node) must be installed
-  - TUI must be built (run 'make build-tui-local' if needed)
-
-Navigation:
-  [1-4]  Switch tabs (Dashboard, Agents, Channels, Costs)
-  [j/k]  Navigate lists (down/up)
-  [?]    Show help
-  [q]    Quit
-
-Examples:
-  bc home          # Open TUI dashboard`,
-	Args: cobra.NoArgs,
-	RunE: runHome,
-}
-
-func init() {
-	rootCmd.AddCommand(homeCmd)
-}
+// runHome is called from runRoot when a workspace is found.
+// The bc home command has been removed; the TUI opens automatically.
 
 func runHome(cmd *cobra.Command, args []string) error {
 	log.Debug("home command started")
