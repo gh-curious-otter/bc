@@ -161,6 +161,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		ah.SetTerminalHandler(handlers.NewTerminalHandler(svc.Agents, cfg.CORSOrigin))
 		ah.Register(mux)
 	}
+	// Wire channel persistence so gateway mappings survive restarts.
+	if svc.Gateway != nil && svc.Notify != nil {
+		svc.Gateway.SetChannelStore(&channelStoreAdapter{store: svc.Notify.Store()})
+	}
 	// Wire gateway inbound callback for notify dispatch and SSE publish.
 	if svc.Gateway != nil {
 		svc.Gateway.SetInboundHandler(func(ch, sender, content string) {
@@ -376,4 +380,29 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
+}
+
+// channelStoreAdapter bridges notify.Store → gateway.ChannelStore.
+type channelStoreAdapter struct {
+	store *notify.Store
+}
+
+func (a *channelStoreAdapter) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
+	return a.store.SaveChannel(ctx, bcChannel, platform, platformID)
+}
+
+func (a *channelStoreAdapter) LoadChannels(ctx context.Context) ([]gateway.PersistedChannel, error) {
+	ncs, err := a.store.LoadChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]gateway.PersistedChannel, len(ncs))
+	for i, c := range ncs {
+		result[i] = gateway.PersistedChannel{
+			BCChannel:  c.BCChannel,
+			Platform:   c.Platform,
+			PlatformID: c.PlatformID,
+		}
+	}
+	return result, nil
 }

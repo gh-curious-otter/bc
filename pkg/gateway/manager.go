@@ -10,6 +10,20 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
+// PersistedChannel is a saved bc_channel → platform_id mapping.
+type PersistedChannel struct {
+	BCChannel  string
+	Platform   string
+	PlatformID string
+}
+
+// ChannelStore persists channel mappings so they survive server restarts.
+// Implemented by notify.Store via a wrapper.
+type ChannelStore interface {
+	SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error
+	LoadChannels(ctx context.Context) ([]PersistedChannel, error)
+}
+
 // Manager orchestrates all gateway adapters and routes messages.
 type Manager struct {
 	adapters map[string]Adapter
@@ -17,8 +31,9 @@ type Manager struct {
 	channelMap map[string]channelRoute
 	// onInbound is called when a message arrives from an external platform.
 	// Typically wired to ChannelService.Send + SSE hub.
-	onInbound func(bcChannel, sender, content string)
-	mu        sync.RWMutex
+	onInbound    func(bcChannel, sender, content string)
+	channelStore ChannelStore
+	mu           sync.RWMutex
 }
 
 type channelRoute struct {
@@ -33,6 +48,11 @@ func NewManager() *Manager {
 		adapters:   make(map[string]Adapter),
 		channelMap: make(map[string]channelRoute),
 	}
+}
+
+// SetChannelStore sets the persistence store for channel mappings.
+func (m *Manager) SetChannelStore(store ChannelStore) {
+	m.channelStore = store
 }
 
 // SetInboundHandler sets the callback for inbound messages from external platforms.
@@ -56,6 +76,29 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 	m.mu.RUnlock()
 
+	// Restore persisted channel mappings so Send works immediately after restart.
+	if m.channelStore != nil {
+		saved, err := m.channelStore.LoadChannels(ctx)
+		if err != nil {
+			log.Warn("gateway: failed to load persisted channels", "error", err)
+		} else {
+			m.mu.Lock()
+			for _, ch := range saved {
+				if adapter, ok := m.adapters[ch.Platform]; ok {
+					if _, exists := m.channelMap[ch.BCChannel]; !exists {
+						m.channelMap[ch.BCChannel] = channelRoute{
+							Platform:  ch.Platform,
+							ChannelID: ch.PlatformID,
+							Adapter:   adapter,
+						}
+						log.Info("gateway: restored channel", "bc_channel", ch.BCChannel, "platform_id", ch.PlatformID)
+					}
+				}
+			}
+			m.mu.Unlock()
+		}
+	}
+
 	// Discover channels from each adapter
 	for _, a := range adapters {
 		channels, err := a.Channels(ctx)
@@ -71,6 +114,7 @@ func (m *Manager) Start(ctx context.Context) error {
 				ChannelID: ch.ID,
 				Adapter:   a,
 			}
+			m.persistChannel(bcName, a.Name(), ch.ID)
 			log.Info("gateway: discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
 		}
 		m.mu.Unlock()
@@ -119,6 +163,7 @@ func (m *Manager) Start(ctx context.Context) error {
 						ChannelID: ch.ID,
 						Adapter:   a,
 					}
+					m.persistChannel(bcName, a.Name(), ch.ID)
 					log.Info("gateway: late-discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
 				}
 			}
@@ -243,6 +288,20 @@ func (m *Manager) SeedChannel(bcChannel string) {
 	log.Info("gateway: seeded channel from store", "bc_channel", bcChannel, "platform", platform)
 }
 
+// persistChannel saves a channel mapping to the store (non-blocking, best-effort).
+func (m *Manager) persistChannel(bcChannel, platform, platformID string) {
+	if m.channelStore == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := m.channelStore.SaveChannel(ctx, bcChannel, platform, platformID); err != nil {
+			log.Warn("gateway: failed to persist channel", "channel", bcChannel, "error", err)
+		}
+	}()
+}
+
 // ExternalChannels returns all discovered external channels.
 func (m *Manager) ExternalChannels() []string {
 	m.mu.RLock()
@@ -283,6 +342,7 @@ func (m *Manager) handleInboundFromPlatform(platform string, msg InboundMessage)
 			Adapter:   adapter,
 		}
 		m.mu.Unlock()
+		m.persistChannel(bcChannel, platform, msg.ChannelID)
 		log.Info("gateway: dynamically mapped channel", "bc_channel", bcChannel, "platform", platform, "platform_id", msg.ChannelID)
 	}
 

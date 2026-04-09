@@ -99,6 +99,13 @@ CREATE TABLE IF NOT EXISTS notify_messages (
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+CREATE TABLE IF NOT EXISTS notify_channels (
+    bc_channel   TEXT PRIMARY KEY,
+    platform     TEXT NOT NULL,
+    platform_id  TEXT NOT NULL,
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_notify_subs_channel ON notify_subscriptions(channel);
 CREATE INDEX IF NOT EXISTS idx_notify_subs_agent ON notify_subscriptions(agent);
 CREATE INDEX IF NOT EXISTS idx_notify_delivery_channel ON notify_delivery_log(channel, id DESC);
@@ -139,6 +146,13 @@ CREATE TABLE IF NOT EXISTS notify_messages (
     sender    TEXT NOT NULL,
     content   TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS notify_channels (
+    bc_channel   TEXT PRIMARY KEY,
+    platform     TEXT NOT NULL,
+    platform_id  TEXT NOT NULL,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_notify_subs_channel ON notify_subscriptions(channel);
@@ -401,4 +415,41 @@ func (s *Store) ListGateways(ctx context.Context) ([]GatewayInfo, error) {
 		gateways = append(gateways, g)
 	}
 	return gateways, rows.Err()
+}
+
+// PersistedChannel is a saved bc_channel → platform_id mapping.
+type PersistedChannel struct {
+	BCChannel  string
+	Platform   string
+	PlatformID string
+}
+
+// LoadChannels returns all persisted channel mappings.
+func (s *Store) LoadChannels(ctx context.Context) ([]PersistedChannel, error) {
+	rows, err := s.db.QueryContext(ctx, s.q(
+		`SELECT bc_channel, platform, platform_id FROM notify_channels`))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck // read-only query
+
+	var channels []PersistedChannel
+	for rows.Next() {
+		var c PersistedChannel
+		if err := rows.Scan(&c.BCChannel, &c.Platform, &c.PlatformID); err != nil {
+			return nil, err
+		}
+		channels = append(channels, c)
+	}
+	return channels, rows.Err()
+}
+
+// SaveChannel persists a channel mapping so it survives server restarts.
+func (s *Store) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
+	_, err := s.db.ExecContext(ctx, s.q(
+		`INSERT INTO notify_channels (bc_channel, platform, platform_id, updated_at)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT(bc_channel) DO UPDATE SET platform_id = excluded.platform_id, updated_at = excluded.updated_at`),
+		bcChannel, platform, platformID, time.Now().UTC().Format(time.RFC3339))
+	return err
 }
