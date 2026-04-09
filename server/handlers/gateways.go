@@ -17,9 +17,9 @@ import (
 
 // GatewayHandler handles /api/gateways routes.
 type GatewayHandler struct {
-	gw       *gateway.Manager
-	ws       *workspace.Workspace
-	chanSvc  *channel.ChannelService
+	gw        *gateway.Manager
+	ws        *workspace.Workspace
+	chanSvc   *channel.ChannelService
 	notifySvc *notify.Service
 }
 

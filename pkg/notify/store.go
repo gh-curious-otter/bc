@@ -182,7 +182,7 @@ func (s *Store) Subscribers(ctx context.Context, channel string) ([]Subscription
 			return nil, err
 		}
 		sub.MentionOnly = mentionInt != 0
-		sub.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+		sub.CreatedAt, _ = time.Parse(time.RFC3339, createdStr) //nolint:errcheck // DB-written timestamp
 		subs = append(subs, sub)
 	}
 	return subs, rows.Err()
@@ -206,7 +206,7 @@ func (s *Store) AllSubscriptions(ctx context.Context) ([]Subscription, error) {
 			return nil, err
 		}
 		sub.MentionOnly = mentionInt != 0
-		sub.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
+		sub.CreatedAt, _ = time.Parse(time.RFC3339, createdStr) //nolint:errcheck // DB-written timestamp
 		subs = append(subs, sub)
 	}
 	return subs, rows.Err()
@@ -245,7 +245,7 @@ func (s *Store) RecentActivity(ctx context.Context, channel string, limit int) (
 		if err := rows.Scan(&e.ID, &loggedStr, &e.Channel, &e.Agent, &e.Status, &e.Error, &e.Preview); err != nil {
 			return nil, err
 		}
-		e.LoggedAt, _ = time.Parse(time.RFC3339, loggedStr)
+		e.LoggedAt, _ = time.Parse(time.RFC3339, loggedStr) //nolint:errcheck // DB-written timestamp
 		entries = append(entries, e)
 	}
 	return entries, rows.Err()
@@ -321,11 +321,11 @@ func (s *Store) ListGateways(ctx context.Context) ([]GatewayInfo, error) {
 		g.Enabled = enabledInt != 0
 		g.Connected = connectedInt != 0
 		if lastSeenStr.Valid {
-			t, _ := time.Parse(time.RFC3339, lastSeenStr.String)
+			t, _ := time.Parse(time.RFC3339, lastSeenStr.String) //nolint:errcheck // DB-written timestamp
 			g.LastSeenAt = &t
 		}
 		if updatedStr.Valid {
-			g.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr.String)
+			g.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr.String) //nolint:errcheck // DB-written timestamp
 		}
 		gateways = append(gateways, g)
 	}
