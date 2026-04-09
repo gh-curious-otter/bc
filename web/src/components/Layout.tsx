@@ -110,9 +110,6 @@ function ChannelNavTree() {
     if (!bucketMap.has(gw.platform)) bucketMap.set(gw.platform, []);
   }
 
-  const configuredPlatforms = new Set(bucketMap.keys());
-  const unconfigured = Object.keys(PLATFORM_META).filter((p) => !configuredPlatforms.has(p));
-
   return (
     <div className="py-0.5 ml-3 border-l border-bc-border/20">
       {[...bucketMap.entries()].map(([platform, chs]) => {
@@ -169,20 +166,6 @@ function ChannelNavTree() {
           </div>
         );
       })}
-
-      {unconfigured.length > 0 && (
-        <div className="pt-0.5 mt-0.5 mx-3 border-t border-bc-border/8">
-          {unconfigured.map((p) => (
-            <button key={p} type="button" onClick={() => setSetupPlatform(p)}
-              className="w-full flex items-center gap-1.5 py-[2px] text-[9px] text-bc-muted/15 hover:text-bc-muted/35 transition-colors"
-            >
-              <span className="w-[5px] h-[5px] rounded-full bg-bc-muted/8" />
-              <span className="uppercase tracking-[0.06em]">{getPlatformMeta(p).label}</span>
-              <span className="ml-auto text-[8px]">+</span>
-            </button>
-          ))}
-        </div>
-      )}
 
       <div className="px-3 pt-1 pb-0.5">
         <button type="button" onClick={() => setSetupPlatform("_choose")}
