@@ -480,6 +480,100 @@ export async function sendChannelMessage(channelName: string, message: string): 
   invalidateCacheKey(`channel:history:${channelName}`);
 }
 
+// ============================================================================
+// Gateway & Notify API methods (channels revamp)
+// ============================================================================
+
+export interface GatewayInfo {
+  platform: string;
+  enabled: boolean;
+  channels: string[];
+  bot_name?: string;
+  config?: Record<string, unknown>;
+}
+
+export interface GatewayHealth {
+  platform: string;
+  connected: boolean;
+  status: string;
+  error?: string;
+  last_message_at?: string;
+}
+
+export interface NotifySubscription {
+  id: number;
+  channel: string;
+  agent: string;
+  mention_only: boolean;
+  created_at: string;
+}
+
+export async function getGateways(): Promise<GatewayInfo[]> {
+  const url = `${getBcdUrl()}/api/gateways`;
+  const res = await _fetch(url).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to fetch gateways: ${msg}`);
+  });
+  if (!res.ok) throw new Error(`HTTP ${String(res.status)} fetching gateways`);
+  return (await res.json()) as GatewayInfo[];
+}
+
+export async function getGatewayHealth(platform: string): Promise<GatewayHealth> {
+  const url = `${getBcdUrl()}/api/gateways/${encodeURIComponent(platform)}/health`;
+  const res = await _fetch(url).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to fetch gateway health: ${msg}`);
+  });
+  if (!res.ok) throw new Error(`HTTP ${String(res.status)} fetching gateway health`);
+  return (await res.json()) as GatewayHealth;
+}
+
+export async function getChannelSubscriptions(channel: string): Promise<NotifySubscription[]> {
+  const parts = channel.split(':');
+  if (parts.length === 2) {
+    const url = `${getBcdUrl()}/api/gateways/${parts[0]}/channels/${parts[1]}/agents`;
+    const res = await _fetch(url).catch(() => null);
+    if (res?.ok) return (await res.json()) as NotifySubscription[];
+  }
+  const url = `${getBcdUrl()}/api/notify/subscriptions/${encodeURIComponent(channel)}`;
+  const res = await _fetch(url).catch((err: unknown) => {
+    throw new Error(`Failed to fetch subscriptions: ${err instanceof Error ? err.message : String(err)}`);
+  });
+  if (!res.ok) throw new Error(`HTTP ${String(res.status)} fetching subscriptions`);
+  return (await res.json()) as NotifySubscription[];
+}
+
+export async function subscribeAgent(channel: string, agent: string): Promise<void> {
+  const parts = channel.split(':');
+  if (parts.length === 2) {
+    const url = `${getBcdUrl()}/api/gateways/${parts[0]}/channels/${parts[1]}/agents`;
+    const res = await _fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent }) });
+    if (!res.ok) throw new Error(`HTTP ${String(res.status)} subscribing agent`);
+    return;
+  }
+  throw new Error('Invalid channel format — expected platform:channel');
+}
+
+export async function unsubscribeAgent(channel: string, agent: string): Promise<void> {
+  const parts = channel.split(':');
+  if (parts.length === 2) {
+    const url = `${getBcdUrl()}/api/gateways/${parts[0]}/channels/${parts[1]}/agents/${encodeURIComponent(agent)}`;
+    const res = await _fetch(url, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${String(res.status)} unsubscribing agent`);
+    return;
+  }
+  throw new Error('Invalid channel format — expected platform:channel');
+}
+
+export async function patchGateway(platform: string, config: Record<string, unknown>): Promise<void> {
+  const url = `${getBcdUrl()}/api/gateways/${encodeURIComponent(platform)}`;
+  const res = await _fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`HTTP ${String(res.status)} patching gateway: ${text}`);
+  }
+}
+
 /**
  * Get cost summary
  * Note: bc cost show returns text when empty, handle gracefully
