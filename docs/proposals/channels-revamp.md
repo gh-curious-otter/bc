@@ -1,6 +1,6 @@
 # Proposal: Channels Revamp — Notification Gateway
 
-**Status:** Proposal (v2)
+**Status:** Proposal (v3)
 **Author:** zen-zebra (root agent)
 **Date:** 2026-04-09
 **Issue:** #2947
@@ -9,11 +9,21 @@
 
 ## What Are Channels?
 
-Channels are how agents stay connected to the outside world. When someone messages you on Slack, comments on a GitHub PR, or sends a Telegram message to your bot — that event flows through a channel and lands in the right agent's terminal as a structured notification.
+Channels are a **bidirectional gateway** between external apps (Slack, Telegram, Discord, GitHub) and bc agents. They let humans and agents communicate through the apps they already use.
 
-**Channels are a notification gateway — not a chat system.**
+**The flow is simple:**
 
-An agent receives a notification and decides what to do. If it wants to reply, post a file, or react — it uses that app's own MCP tools directly. bc doesn't reinvent Slack or Telegram; it bridges them to agents.
+```
+Human sends message on Slack
+    ↓ bc gateway receives it
+    ↓ delivers to subscribed agents (or only @mentioned agents)
+
+Agent responds via MCP (mcp__slack__post_message)
+    ↓ bc gateway sees the agent's message
+    ↓ delivers to OTHER subscribed agents (so the team stays in sync)
+```
+
+bc doesn't reinvent Slack or Telegram — it bridges them. The gateway's job is **routing notifications to the right agents** and showing the activity in the web UI.
 
 ### What You See
 
@@ -21,27 +31,59 @@ An agent receives a notification and decides what to do. If it wants to reply, p
 
 ```
 ┌─────────────────┬──────────────────────────────────────────────┐
-│ GATEWAYS        │  #engineering (Slack)                         │
+│ GATEWAYS        │  #engineering (Slack)          [@mention only]│
 │                 │                                              │
-│ ▼ Slack     (3) │  [10:32] @alice: Can someone review PR #428? │
-│   #engineering  │  [10:33] @bob: On it, looking now            │
-│   #all-bc       │  → delivered to eng-01, eng-02               │
-│   #infra        │  [10:35] @alice: [shared screenshot.png]     │
-│                 │  → delivered to eng-01, eng-02               │
-│ ▼ Telegram  (1) │                                              │
-│   bc-dev        │  ┌─ Subscribed Agents ──────────────────┐    │
-│                 │  │ ● eng-01 (engineer)    [Unsubscribe] │    │
-│ ▼ Discord   (1) │  │ ● eng-02 (engineer)    [Unsubscribe] │    │
-│   #general      │  │ ○ lead-01 (tech-lead)  [Subscribe]   │    │
-│                 │  │ ○ root (manager)        [Subscribe]   │    │
+│ ▼ Slack     (3) │  [10:32] alice: Can someone review PR #428? │
+│   #engineering  │  [10:32] bob: @eng-01 take a look            │
+│   #all-bc       │  → delivered to eng-01                       │
+│   #infra        │  [10:35] eng-01: Looking now, will review    │
+│                 │  → delivered to eng-02 (agent msg relay)     │
+│ ▼ Telegram  (1) │  [10:40] alice: [shared screenshot.png]     │
+│   bc-dev        │  → delivered to eng-01, eng-02               │
+│                 │                                              │
+│ ▼ Discord   (1) │  ┌─ Agents ────────────────────────────┐    │
+│   #general      │  │ ● eng-01 (engineer)   [■] [Remove]  │    │
+│                 │  │ ● eng-02 (engineer)   [■] [Remove]  │    │
+│ ▼ GitHub    (0) │  │ ○ lead-01 (tech-lead) [ ] [Add]     │    │
+│   Not connected │  │ ○ root (manager)      [ ] [Add]     │    │
+│   [Setup →]     │  │                                      │    │
+│                 │  │ [■] = @mention only toggle            │    │
 │ + Connect app   │  └──────────────────────────────────────┘    │
 └─────────────────┴──────────────────────────────────────────────┘
 ```
 
-- **Left sidebar**: Gateway dropdowns (Slack, Telegram, Discord) each listing their channels
-- **Main area**: Chatroom-style activity feed with rich metadata — sender, timestamp, content, delivery status
-- **Right panel**: Subscribed agents with online indicators (green dot = running)
+- **Left sidebar**: Gateway dropdowns (Slack, Telegram, Discord) each listing channels. Unconnected gateways show "Setup →" link with step-by-step docs.
+- **Main area**: Chatroom-style activity feed showing ALL messages (human + agent), with delivery status for routed messages
+- **Right panel**: Agent management — add/remove agents, online indicators (green dot = running), @mention-only toggle per agent
 - **No channels?**: "Connect app" button with platform-specific setup instructions
+
+### @Mention Toggle
+
+Each agent subscription has an **@mention-only** toggle:
+- **ON**: Agent only receives messages where `@<agent-name>` appears in the content. Reduces noise for busy channels.
+- **OFF** (default): Agent receives ALL messages in the channel.
+
+This is per-agent per-channel. Example: `eng-01` has @mention-only ON for `slack:all-bc` (noisy channel) but OFF for `slack:engineering` (relevant channel).
+
+### Agent Management
+
+Per channel, you can:
+- **Add agent** — subscribe an agent to receive notifications from this channel
+- **Remove agent** — unsubscribe, agent stops receiving
+- **Stop agent** — stop the agent's tmux session (for runaway agents)
+- **@mention toggle** — per-agent, per-channel setting
+
+### Gateway Management
+
+Per gateway, you can:
+- **Connect** — step-by-step setup wizard with platform-specific docs:
+  - Slack: Create app → Enable Socket Mode → Add scopes → Get tokens → Invite bot to channels
+  - Telegram: Create bot via @BotFather → Get token → Add bot to groups
+  - Discord: Create app → Enable MESSAGE CONTENT intent → Get token → Invite bot to server
+  - GitHub: Create webhook / GitHub App → Configure events → Get token
+- **Update** — rotate tokens, change settings
+- **Disconnect** — disable adapter, remove tokens from secret store
+- **Health check** — live probe showing connection status and last activity
 
 ### What Agents Experience
 
@@ -52,14 +94,19 @@ An agent subscribed to `slack:engineering` receives this in its tmux session:
   "timestamp": "2026-04-09T10:32:15Z",
   "channel": "slack:engineering",
   "platform": "slack",
-  "sender": "alice",
-  "content": "Can someone review PR #428?",
+  "sender": "bob",
+  "content": "@eng-01 take a look at PR #428",
   "message_id": "1712657535.000200",
+  "mentions": ["eng-01"],
   "attachments": []
 }
 ```
 
-The agent reads this, decides to act, and uses `mcp__slack__post_message` to respond. bc never touches the response.
+The agent reads this, decides to act, and uses `mcp__slack__post_message` to respond on Slack. bc then sees the agent's outgoing message (via the gateway adapter) and routes it to other subscribed agents so the whole team stays in sync.
+
+**Bidirectional flow:**
+1. Human → Slack → gateway → subscribed agents (filtered by @mention if toggle is ON)
+2. Agent → Slack (via MCP) → gateway sees it → other subscribed agents get notified
 
 ### File & Image Handling
 
@@ -265,10 +312,11 @@ Tables are added to the shared `bc.db` (SQLite) or the shared TimescaleDB:
 ```sql
 -- Agent subscriptions to gateway channels
 CREATE TABLE IF NOT EXISTS notify_subscriptions (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    channel    TEXT NOT NULL,       -- "slack:engineering"
-    agent      TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel      TEXT NOT NULL,       -- "slack:engineering"
+    agent        TEXT NOT NULL,
+    mention_only INTEGER NOT NULL DEFAULT 0,  -- 1 = only deliver when @agent-name in content
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     UNIQUE(channel, agent)
 );
 
@@ -337,15 +385,25 @@ No manual file editing. No settings.json. No plaintext tokens.
 Consistent naming: `/api/gateways/{gateway}/channels/{channel}/...`
 
 ```
+# Gateway management
 GET    /api/gateways                                           — list all gateways + status
-POST   /api/gateways                                           — enable gateway
-DELETE /api/gateways/{gateway}                                  — disable gateway
+POST   /api/gateways                                           — connect gateway (enable + save config)
+PATCH  /api/gateways/{gateway}                                  — update gateway (rotate tokens, settings)
+DELETE /api/gateways/{gateway}                                  — disconnect gateway (disable + remove tokens)
 GET    /api/gateways/{gateway}/health                           — live health check
+GET    /api/gateways/{gateway}/setup                            — platform-specific setup instructions
+
+# Channel discovery
 GET    /api/gateways/{gateway}/channels                         — list discovered channels
 GET    /api/gateways/{gateway}/channels/{channel}               — channel detail + subscriptions
+
+# Agent management per channel
+POST   /api/gateways/{gateway}/channels/{channel}/agents        — add agent to channel
+DELETE /api/gateways/{gateway}/channels/{channel}/agents/{agent} — remove agent from channel
+PATCH  /api/gateways/{gateway}/channels/{channel}/agents/{agent} — update agent settings (mention_only toggle)
+
+# Activity
 GET    /api/gateways/{gateway}/channels/{channel}/activity      — delivery log (paginated)
-POST   /api/gateways/{gateway}/channels/{channel}/subscribe     — subscribe agent
-DELETE /api/gateways/{gateway}/channels/{channel}/subscribe/{agent} — unsubscribe
 ```
 
 ### DTOs
@@ -371,9 +429,10 @@ type ChannelDTO struct {
 }
 
 type SubscriberDTO struct {
-    Agent   string `json:"agent"`
-    Online  bool   `json:"online"`
-    Role    string `json:"role"`
+    Agent       string `json:"agent"`
+    Online      bool   `json:"online"`
+    Role        string `json:"role"`
+    MentionOnly bool   `json:"mention_only"`
 }
 
 type DeliveryEntryDTO struct {
@@ -474,11 +533,19 @@ pkg/gateway/manager.go — fan-out to dispatch
     ▼
 pkg/notify/service.Dispatch()
     ├── store.Subscribers("slack:engineering")     [db read]
+    ├── extract @mentions from content             [simple regex: @([a-zA-Z][a-zA-Z0-9_-]*)]
     ├── for each subscriber:
+    │   ├── if subscriber.mention_only && agent not in mentions → skip
+    │   ├── if sender IS this agent → skip (don't echo back)
     │   ├── agent.SendToAgent(ctx, name, jsonPayload)  [tmux send-keys]
     │   └── store.LogDelivery(entry)                    [db write]
     └── hub.Publish("gateway.message", payload)         [SSE to web UI]
 ```
+
+**Key filtering rules:**
+1. **@mention-only agents** only receive if `@<agent-name>` appears in message content
+2. **Self-skip**: if the sender IS the agent (agent's own MCP-sent message routed back), skip delivery
+3. **All other subscribers** receive every message
 
 **File handling flow:**
 ```
