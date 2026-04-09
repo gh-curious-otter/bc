@@ -21,6 +21,19 @@ import {
   formatDayLabel,
 } from "./messageUtils";
 
+/* ── Helpers ──────────────────────────────────────────────────── */
+
+/** Strip "[telegram] " or "[slack] " prefix from sender names for cleaner display. */
+function cleanSender(sender: string): string {
+  const match = sender.match(/^\[(?:telegram|slack|discord)\]\s*(.+)$/i);
+  return match?.[1] ?? sender;
+}
+
+/** Get the first letter for avatar, stripping platform prefix. */
+function senderInitial(sender: string): string {
+  return cleanSender(sender).charAt(0).toUpperCase();
+}
+
 /* ── Platform colors ─────────────────────────────────────────── */
 
 const PLATFORM_ACCENT: Record<string, string> = {
@@ -512,7 +525,7 @@ export function GatewayFeed({
                             color: agentColor(group.sender),
                           }}
                         >
-                          {group.sender.charAt(0).toUpperCase()}
+                          {senderInitial(group.sender)}
                         </span>
                         <button
                           type="button"
@@ -520,7 +533,7 @@ export function GatewayFeed({
                           className="text-[13px] font-semibold hover:underline cursor-pointer decoration-1 underline-offset-2"
                           style={{ color: agentColor(group.sender) }}
                         >
-                          {group.sender}
+                          {cleanSender(group.sender)}
                         </button>
                         <span className="text-[10px] text-bc-muted/30 tabular-nums">
                           {formatTimestamp(group.timestamp)}
