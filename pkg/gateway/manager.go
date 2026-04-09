@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/log"
 )
@@ -90,6 +91,40 @@ func (m *Manager) Start(ctx context.Context) error {
 			}
 		}(a)
 	}
+
+	// Re-discover channels after adapters have connected (5s delay)
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
+		m.mu.RLock()
+		adapterList := make([]Adapter, 0, len(m.adapters))
+		for _, a := range m.adapters {
+			adapterList = append(adapterList, a)
+		}
+		m.mu.RUnlock()
+		for _, a := range adapterList {
+			channels, err := a.Channels(ctx)
+			if err != nil {
+				continue
+			}
+			m.mu.Lock()
+			for _, ch := range channels {
+				bcName := a.Name() + ":" + sanitizeChannelName(ch.Name)
+				if _, exists := m.channelMap[bcName]; !exists {
+					m.channelMap[bcName] = channelRoute{
+						Platform:  a.Name(),
+						ChannelID: ch.ID,
+						Adapter:   a,
+					}
+					log.Info("gateway: late-discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
+				}
+			}
+			m.mu.Unlock()
+		}
+	}()
 
 	<-ctx.Done()
 	wg.Wait()
