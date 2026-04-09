@@ -358,8 +358,8 @@ func (h *ProviderHandler) hintResponse(w http.ResponseWriter, name, action strin
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"status":         action + "_hint",
-		"provider":       name,
+		"status":        action + "_hint",
+		"provider":      name,
 		action + "_cmd": hint,
 	})
 }

@@ -22,17 +22,17 @@ const MaxFilesPerMessage = 5
 
 // allowedMIME is the whitelist of permitted MIME types.
 var allowedMIME = map[string]bool{
-	"image/jpeg":         true,
-	"image/png":          true,
-	"image/gif":          true,
-	"image/webp":         true,
-	"application/pdf":    true,
-	"text/plain":         true,
-	"application/json":   true,
-	"application/zip":    true,
-	"application/gzip":   true,
-	"video/mp4":          true,
-	"audio/mpeg":         true,
+	"image/jpeg":       true,
+	"image/png":        true,
+	"image/gif":        true,
+	"image/webp":       true,
+	"application/pdf":  true,
+	"text/plain":       true,
+	"application/json": true,
+	"application/zip":  true,
+	"application/gzip": true,
+	"video/mp4":        true,
+	"audio/mpeg":       true,
 }
 
 // Metadata holds information about a stored attachment.

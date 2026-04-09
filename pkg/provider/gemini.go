@@ -8,10 +8,10 @@ import (
 // GeminiProvider implements the Provider interface for Google Gemini CLI.
 type GeminiProvider struct {
 	*GenericAdapter // GEMINI.md prompt, no special config
-	name           string
-	description    string
-	command        string
-	binary         string
+	name            string
+	description     string
+	command         string
+	binary          string
 }
 
 // NewGeminiProvider creates a new Gemini provider.
