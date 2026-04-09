@@ -1,7 +1,5 @@
 package workspace
 
-import ()
-
 // TestParseConfigWithPerformance tests parsing [performance] section from TOML (#1013)
 
 // TestParseConfigWithTUI tests parsing [tui] section from TOML (#1022)
