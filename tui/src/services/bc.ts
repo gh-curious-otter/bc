@@ -413,17 +413,18 @@ export async function getStatus(): Promise<StatusResponse> {
  */
 export async function getChannels(): Promise<ChannelsResponse> {
   const url = `${getBcdUrl()}/api/channels`;
-  const res = await _fetch(url).catch((err: Error) => {
-    throw new Error(`Failed to connect to bcd at ${getBcdUrl()}: ${err.message}. Is bcd running?`);
+  const res = await _fetch(url).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to connect to bcd at ${getBcdUrl()}: ${msg}. Is bcd running?`);
   });
   if (!res.ok) {
     throw new Error(`bcd returned HTTP ${String(res.status)} for GET /api/channels`);
   }
-  const raw = (await res.json()) as Array<{
+  const raw = (await res.json()) as {
     name: string;
     description?: string;
     members?: string[];
-  }>;
+  }[];
   return { channels: raw.map((ch) => ({
     name: ch.name,
     description: ch.description,
@@ -446,17 +447,18 @@ export async function getChannelHistory(
 ): Promise<ChannelHistory> {
   const limitParam = limit !== undefined && limit > 0 ? limit : 50;
   const url = `${getBcdUrl()}/api/channels/${encodeURIComponent(channelName)}/history?limit=${String(limitParam)}`;
-  const res = await _fetch(url).catch((err: Error) => {
-    throw new Error(`Failed to connect to bcd at ${getBcdUrl()}: ${err.message}. Is bcd running?`);
+  const res = await _fetch(url).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to connect to bcd at ${getBcdUrl()}: ${msg}. Is bcd running?`);
   });
   if (!res.ok) {
     throw new Error(`bcd returned HTTP ${String(res.status)} for GET /api/channels/${channelName}/history`);
   }
-  const raw = (await res.json()) as Array<{
+  const raw = (await res.json()) as {
     sender: string;
     content: string;
     created_at: string;
-  }>;
+  }[];
   return {
     channel: channelName,
     messages: raw.map((m) => ({
