@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 )
@@ -93,7 +94,11 @@ func (p TimescaleSettings) DSN() string {
 	}
 	pw := p.Password
 	if pw == "" {
-		pw = "bc"
+		if envPw := os.Getenv("BC_DB_PASSWORD"); envPw != "" {
+			pw = envPw
+		} else {
+			pw = "bc" // local dev fallback; production should set BC_DB_PASSWORD
+		}
 	}
 	db := p.Database
 	if db == "" {

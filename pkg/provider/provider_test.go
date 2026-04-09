@@ -18,15 +18,15 @@ func TestNewRegistry(t *testing.T) {
 
 func TestRegistryRegisterAndGet(t *testing.T) {
 	r := NewRegistry()
-	p := NewOpenCodeProvider()
+	p := NewClaudeProvider()
 	r.Register(p)
 
-	got, ok := r.Get("opencode")
+	got, ok := r.Get("claude")
 	if !ok {
 		t.Fatal("expected to find registered provider")
 	}
-	if got.Name() != "opencode" {
-		t.Errorf("expected name 'opencode', got %q", got.Name())
+	if got.Name() != "claude" {
+		t.Errorf("expected name 'claude', got %q", got.Name())
 	}
 }
 
@@ -40,8 +40,8 @@ func TestRegistryGetNotFound(t *testing.T) {
 
 func TestRegistryList(t *testing.T) {
 	r := NewRegistry()
-	r.Register(NewOpenCodeProvider())
 	r.Register(NewClaudeProvider())
+	r.Register(NewGeminiProvider())
 
 	list := r.List()
 	if len(list) != 2 {
@@ -55,37 +55,27 @@ func TestDefaultRegistryHasProviders(t *testing.T) {
 		t.Error("expected default registry to have providers")
 	}
 
-	// Check for expected providers
-	if _, ok := DefaultRegistry.Get("opencode"); !ok {
-		t.Error("expected opencode provider in default registry")
+	// Check for expected providers (aider, opencode, openclaw removed per #2921)
+	for _, name := range []string{"claude", "codex", "gemini", "cursor"} {
+		if _, ok := DefaultRegistry.Get(name); !ok {
+			t.Errorf("expected %s provider in default registry", name)
+		}
 	}
-	if _, ok := DefaultRegistry.Get("claude"); !ok {
-		t.Error("expected claude provider in default registry")
-	}
-	if _, ok := DefaultRegistry.Get("codex"); !ok {
-		t.Error("expected codex provider in default registry")
-	}
-	if _, ok := DefaultRegistry.Get("openclaw"); !ok {
-		t.Error("expected openclaw provider in default registry")
-	}
-	if _, ok := DefaultRegistry.Get("aider"); !ok {
-		t.Error("expected aider provider in default registry")
-	}
-	if _, ok := DefaultRegistry.Get("gemini"); !ok {
-		t.Error("expected gemini provider in default registry")
-	}
-	if _, ok := DefaultRegistry.Get("cursor"); !ok {
-		t.Error("expected cursor provider in default registry")
+	// Verify removed providers are gone
+	for _, name := range []string{"aider", "opencode", "openclaw"} {
+		if _, ok := DefaultRegistry.Get(name); ok {
+			t.Errorf("expected %s provider to be removed from default registry", name)
+		}
 	}
 }
 
 func TestGetProvider(t *testing.T) {
-	p, err := GetProvider("opencode")
+	p, err := GetProvider("claude")
 	if err != nil {
 		t.Fatalf("GetProvider failed: %v", err)
 	}
-	if p.Name() != "opencode" {
-		t.Errorf("expected name 'opencode', got %q", p.Name())
+	if p.Name() != "claude" {
+		t.Errorf("expected name 'claude', got %q", p.Name())
 	}
 }
 
@@ -93,82 +83,6 @@ func TestGetProviderNotFound(t *testing.T) {
 	_, err := GetProvider("nonexistent")
 	if err == nil {
 		t.Error("expected error for unknown provider")
-	}
-}
-
-func TestOpenCodeProvider(t *testing.T) {
-	p := NewOpenCodeProvider()
-
-	if p.Name() != "opencode" {
-		t.Errorf("expected name 'opencode', got %q", p.Name())
-	}
-	if p.Description() == "" {
-		t.Error("expected non-empty description")
-	}
-	if p.Command() == "" {
-		t.Error("expected non-empty command")
-	}
-}
-
-func TestOpenCodeDetectState(t *testing.T) {
-	p := NewOpenCodeProvider()
-	ctx := context.Background()
-	_ = ctx // unused in DetectState but keeps pattern consistent
-
-	tests := []struct {
-		name   string
-		output string
-		want   State
-	}{
-		{
-			name:   "working spinner",
-			output: "⠋ Processing files...\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "working thinking",
-			output: "thinking about your request\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "done checkmark",
-			output: "✓ Task complete\n",
-			want:   StateDone,
-		},
-		{
-			name:   "done finished",
-			output: "Task finished successfully\n",
-			want:   StateDone,
-		},
-		{
-			name:   "error",
-			output: "error: file not found\n",
-			want:   StateError,
-		},
-		{
-			name:   "idle prompt",
-			output: "> ",
-			want:   StateIdle,
-		},
-		{
-			name:   "unknown",
-			output: "some random output\n",
-			want:   StateUnknown,
-		},
-		{
-			name:   "empty",
-			output: "",
-			want:   StateUnknown,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := p.DetectState(tt.output)
-			if got != tt.want {
-				t.Errorf("DetectState() = %v, want %v", got, tt.want)
-			}
-		})
 	}
 }
 
@@ -327,146 +241,8 @@ func TestCodexDetectState(t *testing.T) {
 
 func TestListProviders(t *testing.T) {
 	providers := ListProviders()
-	if len(providers) < 5 {
-		t.Errorf("expected at least 5 providers, got %d", len(providers))
-	}
-}
-
-func TestOpenClawProvider(t *testing.T) {
-	p := NewOpenClawProvider()
-
-	if p.Name() != "openclaw" {
-		t.Errorf("expected name 'openclaw', got %q", p.Name())
-	}
-	if p.Description() == "" {
-		t.Error("expected non-empty description")
-	}
-	if p.Command() == "" {
-		t.Error("expected non-empty command")
-	}
-}
-
-func TestOpenClawDetectState(t *testing.T) {
-	p := NewOpenClawProvider()
-
-	tests := []struct {
-		name   string
-		output string
-		want   State
-	}{
-		{
-			name:   "working spinner",
-			output: "⠋ Analyzing codebase...\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "working search emoji",
-			output: "🔍 Searching for files\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "working tool emoji",
-			output: "🔧 Applying changes\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "working thinking",
-			output: "thinking about your request\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "working searching",
-			output: "Searching for relevant code...\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "done checkmark",
-			output: "✓ Changes applied\n",
-			want:   StateDone,
-		},
-		{
-			name:   "done celebration",
-			output: "🎉 Task completed successfully\n",
-			want:   StateDone,
-		},
-		{
-			name:   "done finished",
-			output: "Task finished successfully\n",
-			want:   StateDone,
-		},
-		{
-			name:   "error",
-			output: "error: cannot read file\n",
-			want:   StateError,
-		},
-		{
-			name:   "error cross",
-			output: "❌ Failed to compile\n",
-			want:   StateError,
-		},
-		{
-			name:   "stuck timeout",
-			output: "Connection timeout\n",
-			want:   StateStuck,
-		},
-		{
-			name:   "stuck rate limit",
-			output: "Rate limit exceeded\n",
-			want:   StateStuck,
-		},
-		{
-			name:   "stuck network",
-			output: "Network error: connection refused\n",
-			want:   StateStuck,
-		},
-		{
-			name:   "idle prompt",
-			output: "openclaw> ",
-			want:   StateIdle,
-		},
-		{
-			name:   "idle claw prompt",
-			output: "claw> ",
-			want:   StateIdle,
-		},
-		{
-			name:   "idle ready",
-			output: "Ready for input\n",
-			want:   StateIdle,
-		},
-		{
-			name:   "unknown",
-			output: "some random output\n",
-			want:   StateUnknown,
-		},
-		{
-			name:   "empty",
-			output: "",
-			want:   StateUnknown,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := p.DetectState(tt.output)
-			if got != tt.want {
-				t.Errorf("DetectState() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestAiderProvider(t *testing.T) {
-	p := NewAiderProvider()
-
-	if p.Name() != "aider" {
-		t.Errorf("expected name 'aider', got %q", p.Name())
-	}
-	if p.Description() == "" {
-		t.Error("expected non-empty description")
-	}
-	if p.Command() == "" {
-		t.Error("expected non-empty command")
+	if len(providers) < 4 {
+		t.Errorf("expected at least 4 providers, got %d", len(providers))
 	}
 }
 
@@ -509,11 +285,10 @@ func TestProviderIsInstalled(t *testing.T) {
 	// Test each provider's IsInstalled method
 	// These will return false unless the actual binaries are installed
 	providers := []Provider{
-		NewOpenCodeProvider(),
 		NewClaudeProvider(),
 		NewCodexProvider(),
-		NewOpenClawProvider(),
-		NewAiderProvider(),
+		NewGeminiProvider(),
+		NewCursorProvider(),
 	}
 
 	for _, p := range providers {
@@ -530,11 +305,10 @@ func TestProviderVersion(t *testing.T) {
 
 	// Test each provider's Version method
 	providers := []Provider{
-		NewOpenCodeProvider(),
 		NewClaudeProvider(),
 		NewCodexProvider(),
-		NewOpenClawProvider(),
-		NewAiderProvider(),
+		NewGeminiProvider(),
+		NewCursorProvider(),
 	}
 
 	for _, p := range providers {
@@ -554,8 +328,8 @@ func TestRegistryListInstalled(t *testing.T) {
 	r := NewRegistry()
 
 	// Register some providers
-	r.Register(NewOpenCodeProvider())
 	r.Register(NewClaudeProvider())
+	r.Register(NewGeminiProvider())
 
 	// Test ListInstalled - result depends on what's actually installed
 	installed := r.ListInstalled(ctx)
@@ -586,126 +360,6 @@ func TestListInstalledProviders(t *testing.T) {
 		if !p.IsInstalled(ctx) {
 			t.Errorf("ListInstalledProviders returned %s but IsInstalled returns false", p.Name())
 		}
-	}
-}
-
-func TestAiderDetectState(t *testing.T) {
-	p := NewAiderProvider()
-
-	tests := []struct {
-		name   string
-		output string
-		want   State
-	}{
-		{
-			name:   "working thinking",
-			output: "thinking about your request...\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "working sending",
-			output: "Sending request to API...\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "working editing",
-			output: "Editing file.py\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "working streaming",
-			output: "Streaming response...\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "working spinner",
-			output: "⠋ Processing...\n",
-			want:   StateWorking,
-		},
-		{
-			name:   "done applied edit",
-			output: "Applied edit to main.py\n",
-			want:   StateDone,
-		},
-		{
-			name:   "done wrote",
-			output: "Wrote 150 lines to file.py\n",
-			want:   StateDone,
-		},
-		{
-			name:   "done committed",
-			output: "Committed changes: feat: add feature\n",
-			want:   StateDone,
-		},
-		{
-			name:   "done checkmark",
-			output: "✓ Changes saved\n",
-			want:   StateDone,
-		},
-		{
-			name:   "stuck rate limit",
-			output: "Rate limit exceeded, please wait\n",
-			want:   StateStuck,
-		},
-		{
-			name:   "stuck api key",
-			output: "Invalid API key provided\n",
-			want:   StateStuck,
-		},
-		{
-			name:   "stuck timeout",
-			output: "Connection timeout\n",
-			want:   StateStuck,
-		},
-		{
-			name:   "error",
-			output: "Error: file not found\n",
-			want:   StateError,
-		},
-		{
-			name:   "error traceback",
-			output: "Traceback (most recent call last):\n",
-			want:   StateError,
-		},
-		{
-			name:   "error failed",
-			output: "Failed to apply changes\n",
-			want:   StateError,
-		},
-		{
-			name:   "idle prompt",
-			output: "> ",
-			want:   StateIdle,
-		},
-		{
-			name:   "idle aider prompt",
-			output: "aider> ",
-			want:   StateIdle,
-		},
-		{
-			name:   "idle enter to send",
-			output: "Press Enter to send message\n",
-			want:   StateIdle,
-		},
-		{
-			name:   "unknown",
-			output: "some random output\n",
-			want:   StateUnknown,
-		},
-		{
-			name:   "empty",
-			output: "",
-			want:   StateUnknown,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := p.DetectState(tt.output)
-			if got != tt.want {
-				t.Errorf("DetectState() = %v, want %v", got, tt.want)
-			}
-		})
 	}
 }
 
@@ -784,9 +438,6 @@ func TestProviderBinaryAndInstallHint(t *testing.T) {
 		{"gemini", NewGeminiProvider(), "gemini", "pip install google-generativeai"},
 		{"cursor", NewCursorProvider(), "cursor-agent", "https://cursor.sh"},
 		{"codex", NewCodexProvider(), "codex", "npm install -g @openai/codex"},
-		{"opencode", NewOpenCodeProvider(), "crush", "go install github.com/opencode-ai/opencode@latest"},
-		{"openclaw", NewOpenClawProvider(), "openclaw", "bun install -g openclaw"},
-		{"aider", NewAiderProvider(), "aider", "pip install aider-chat"},
 	}
 
 	for _, tt := range tests {
@@ -813,7 +464,6 @@ func TestProviderBuildCommand(t *testing.T) {
 		{"gemini no opts", "gemini --yolo", NewGeminiProvider(), CommandOpts{}},
 		{"gemini with agent", "gemini --yolo", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}},
 		{"codex no opts", "codex --full-auto", NewCodexProvider(), CommandOpts{}},
-		{"aider no opts", "aider --yes", NewAiderProvider(), CommandOpts{}},
 	}
 
 	for _, tt := range tests {

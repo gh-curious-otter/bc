@@ -57,8 +57,7 @@ GO ?= go
 
 REGISTRY ?= bc
 IMAGE_TAG ?= latest
-# TODO: re-evaluate after provider redesign (#2920) — aider, opencode, openclaw pending removal (#2921)
-AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
+AGENT_PROVIDERS := claude gemini codex cursor
 
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)

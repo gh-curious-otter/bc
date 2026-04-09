@@ -141,12 +141,9 @@ func (r *Registry) ListInstalled(ctx context.Context) []Provider {
 var DefaultRegistry = NewRegistry()
 
 func init() {
-	// Register built-in providers
-	DefaultRegistry.Register(NewOpenCodeProvider())
+	// Register built-in providers (aider, opencode, openclaw removed per #2921)
 	DefaultRegistry.Register(NewClaudeProvider())
 	DefaultRegistry.Register(NewCodexProvider())
-	DefaultRegistry.Register(NewOpenClawProvider())
-	DefaultRegistry.Register(NewAiderProvider())
 	DefaultRegistry.Register(NewGeminiProvider())
 	DefaultRegistry.Register(NewCursorProvider())
 }
