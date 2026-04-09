@@ -1,6 +1,8 @@
 /**
  * ActivityFeed component tests
  * Issue #796 - Live activity feed with severity filtering
+ *
+ * Uses __mocks__/useLogs.ts auto-mock (Bun discovers it automatically).
  */
 
 import React from 'react';
@@ -8,47 +10,12 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect, vi, beforeEach } from 'bun:test';
 import { ThemeProvider } from '../../theme/ThemeContext';
 import { ActivityFeed } from '../../components/ActivityFeed';
+import { useLogs } from '../../hooks/useLogs';
 
 const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
-// Mock useLogs hook with correct getSeverityColor implementation
-// IMPORTANT: Must match the real implementation's case-insensitivity
-vi.mock('../../hooks/useLogs', () => ({
-  useLogs: vi.fn(() => ({
-    data: [
-      {
-        ts: '2026-02-16T10:00:00Z',
-        type: 'message.sent',
-        agent: 'eng-01',
-        message: 'Working on task',
-      },
-      {
-        ts: '2026-02-16T10:01:00Z',
-        type: 'agent.error',
-        agent: 'eng-02',
-        message: 'Build failed',
-      },
-      {
-        ts: '2026-02-16T10:02:00Z',
-        type: 'agent.stuck',
-        agent: 'eng-03',
-        message: 'Waiting for response',
-      },
-    ],
-    loading: false,
-    error: null,
-    severityFilter: null,
-    filterBySeverity: vi.fn(),
-    refresh: vi.fn(),
-  })),
-  // Fix: use toLowerCase() to match real implementation (issue #1151)
-  getSeverityColor: (type: string) => {
-    const lower = type.toLowerCase();
-    if (lower.includes('error') || lower.includes('fail')) return 'red';
-    if (lower.includes('warn') || lower.includes('stuck')) return 'yellow';
-    return 'gray';
-  },
-}));
+// Tell Bun to use the __mocks__ directory auto-mock
+vi.mock('../../hooks/useLogs');
 
 describe('ActivityFeed', () => {
   beforeEach(() => {
@@ -92,7 +59,6 @@ describe('ActivityFeed', () => {
     const { lastFrame } = renderWithTheme(<ActivityFeed maxEntries={2} />);
     const output = lastFrame();
 
-    // Should show limited entries
     expect(output).toBeDefined();
   });
 
@@ -110,9 +76,8 @@ describe('ActivityFeed', () => {
     expect(output).toContain('(i/w/e/*)');
   });
 
-  it('handles entries with undefined message without crashing', async () => {
-    const mod = await import('../../hooks/useLogs');
-    (mod.useLogs as ReturnType<typeof vi.fn>).mockReturnValue({
+  it('handles entries with undefined message without crashing', () => {
+    (useLogs as ReturnType<typeof vi.fn>).mockReturnValue({
       data: [{ ts: '2026-02-16T10:00:00Z', type: 'agent.start', agent: 'eng-04' }],
       loading: false, error: null, severityFilter: null,
       filterBySeverity: vi.fn(), refresh: vi.fn(),
@@ -123,9 +88,8 @@ describe('ActivityFeed', () => {
     expect(output).toBeDefined();
   });
 
-  it('handles entries with undefined agent and message without crashing', async () => {
-    const mod = await import('../../hooks/useLogs');
-    (mod.useLogs as ReturnType<typeof vi.fn>).mockReturnValue({
+  it('handles entries with undefined agent and message without crashing', () => {
+    (useLogs as ReturnType<typeof vi.fn>).mockReturnValue({
       data: [{ ts: '2026-02-16T10:00:00Z', type: 'agent.start' }],
       loading: false, error: null, severityFilter: null,
       filterBySeverity: vi.fn(), refresh: vi.fn(),
