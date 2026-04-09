@@ -192,7 +192,7 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Build web UI for embed
-        run: cd web && bun install && bun run build && rm -rf ../server/web/dist && cp -r dist ../server/web/dist
+        run: cd web && bun install && bun run build && rm -rf ../server/web/dist && mkdir -p ../server/web && cp -r dist ../server/web/dist
 
       - name: Build release binaries (bc + bcd)
         run: |
