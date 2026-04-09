@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -18,14 +19,18 @@ import (
 type Adapter struct {
 	bot *tgbotapi.BotAPI
 	// chatMap stores chat_id → group name for discovered groups
-	chatMap map[int64]string
-	token   string
-	mode    string // "polling" or "webhook"
-	chatMu  sync.RWMutex
+	chatMap       map[int64]string
+	token         string
+	mode          string // "polling" or "webhook"
+	connected     bool
+	lastMessageAt time.Time
+	lastError     string
+	chatMu        sync.RWMutex
 }
 
 // Ensure Adapter implements gateway.Adapter.
 var _ gateway.Adapter = (*Adapter)(nil)
+var _ gateway.StatusReporter = (*Adapter)(nil)
 
 // New creates a new Telegram adapter.
 func New(token, mode string) *Adapter {
@@ -47,6 +52,9 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 		return fmt.Errorf("telegram: failed to connect: %w", err)
 	}
 	a.bot = bot
+	a.chatMu.Lock()
+	a.connected = true
+	a.chatMu.Unlock()
 	log.Info("telegram: connected", "bot", bot.Self.UserName)
 
 	u := tgbotapi.NewUpdate(0)
@@ -114,6 +122,10 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 				"sender", sender,
 				"content", gateway.Truncate(content, 50))
 
+			a.chatMu.Lock()
+			a.lastMessageAt = time.Now()
+			a.chatMu.Unlock()
+
 			if onMessage != nil {
 				onMessage(msg)
 			}
@@ -171,7 +183,30 @@ func (a *Adapter) Health(_ context.Context) error {
 	if a.bot == nil {
 		return fmt.Errorf("telegram: not connected")
 	}
+	// Live probe: call getMe to verify the connection
+	if _, err := a.bot.GetMe(); err != nil {
+		a.chatMu.Lock()
+		a.connected = false
+		a.lastError = err.Error()
+		a.chatMu.Unlock()
+		return fmt.Errorf("telegram: getMe failed: %w", err)
+	}
+	a.chatMu.Lock()
+	a.connected = true
+	a.lastError = ""
+	a.chatMu.Unlock()
 	return nil
+}
+
+// Status returns the current connection state.
+func (a *Adapter) Status() gateway.AdapterStatus {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+	return gateway.AdapterStatus{
+		Connected:     a.connected,
+		LastMessageAt: a.lastMessageAt,
+		Error:         a.lastError,
+	}
 }
 
 // DiscoverViaUpdate processes a single getUpdates call to discover groups

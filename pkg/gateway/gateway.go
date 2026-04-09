@@ -35,6 +35,19 @@ type FileSender interface {
 	SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error
 }
 
+// StatusReporter is optionally implemented by adapters that report connection state.
+type StatusReporter interface {
+	// Status returns the current connection state for UI display.
+	Status() AdapterStatus
+}
+
+// AdapterStatus reports connection state for the web UI.
+type AdapterStatus struct {
+	Connected     bool      `json:"connected"`
+	LastMessageAt time.Time `json:"last_message_at,omitempty"`
+	Error         string    `json:"error,omitempty"`
+}
+
 // Attachment represents a file attached to a message.
 type Attachment struct {
 	URL      string `json:"url"`

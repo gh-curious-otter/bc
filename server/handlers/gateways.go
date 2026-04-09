@@ -89,20 +89,15 @@ func (h *GatewayHandler) gatewayHealth(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	// Check if adapter exists and get health
-	adapters := h.gw.ExternalChannels()
-	connected := false
-	for _, ch := range adapters {
-		if strings.HasPrefix(ch, platform+":") {
-			connected = true
-			break
-		}
-	}
+	// Try to get adapter status via StatusReporter interface
+	status := h.gw.AdapterStatus(platform)
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"platform":  platform,
-		"connected": connected,
-		"status":    map[bool]string{true: "ok", false: "disconnected"}[connected],
+		"platform":        platform,
+		"connected":       status.Connected,
+		"status":          map[bool]string{true: "ok", false: "disconnected"}[status.Connected],
+		"error":           status.Error,
+		"last_message_at": status.LastMessageAt,
 	})
 }
 

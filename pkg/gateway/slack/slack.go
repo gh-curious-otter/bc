@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
@@ -23,15 +24,19 @@ type Adapter struct {
 	// channelMap maps channel_id → channel name
 	channelMap map[string]string
 	// userCache maps user_id → display name
-	userCache map[string]string
-	botToken  string
-	appToken  string
-	botUserID string
-	chatMu    sync.RWMutex
+	userCache     map[string]string
+	botToken      string
+	appToken      string
+	botUserID     string
+	connected     bool
+	lastMessageAt time.Time
+	lastError     string
+	chatMu        sync.RWMutex
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)
 var _ gateway.FileSender = (*Adapter)(nil)
+var _ gateway.StatusReporter = (*Adapter)(nil)
 
 // New creates a new Slack adapter using Socket Mode.
 func New(botToken, appToken string) *Adapter {
@@ -60,6 +65,9 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 		return fmt.Errorf("slack: auth test failed: %w", err)
 	}
 	a.botUserID = authResp.UserID
+	a.chatMu.Lock()
+	a.connected = true
+	a.chatMu.Unlock()
 	log.Info("slack: connected", "bot_user_id", a.botUserID, "team", authResp.Team)
 
 	// Discover channels the bot is in
@@ -139,11 +147,34 @@ func (a *Adapter) Channels(_ context.Context) ([]gateway.ExternalChannel, error)
 	return channels, nil
 }
 
-func (a *Adapter) Health(_ context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	if a.api == nil {
 		return fmt.Errorf("slack: not connected")
 	}
+	// Live probe: call auth.test to verify the connection
+	if _, err := a.api.AuthTestContext(ctx); err != nil {
+		a.chatMu.Lock()
+		a.connected = false
+		a.lastError = err.Error()
+		a.chatMu.Unlock()
+		return fmt.Errorf("slack: auth test failed: %w", err)
+	}
+	a.chatMu.Lock()
+	a.connected = true
+	a.lastError = ""
+	a.chatMu.Unlock()
 	return nil
+}
+
+// Status returns the current connection state.
+func (a *Adapter) Status() gateway.AdapterStatus {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+	return gateway.AdapterStatus{
+		Connected:     a.connected,
+		LastMessageAt: a.lastMessageAt,
+		Error:         a.lastError,
+	}
 }
 
 // discoverChannels lists channels the bot is a member of.
@@ -307,7 +338,9 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 		}
 	}
 
+	now := time.Now()
 	msg := gateway.InboundMessage{
+		Timestamp:   now,
 		ChannelID:   ev.Channel,
 		ChannelName: channelName,
 		Sender:      sender,
@@ -315,6 +348,10 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 		Content:     content,
 		MessageID:   ev.TimeStamp,
 	}
+
+	a.chatMu.Lock()
+	a.lastMessageAt = now
+	a.chatMu.Unlock()
 
 	log.Info("slack: received message",
 		"channel", channelName,

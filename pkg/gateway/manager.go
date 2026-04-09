@@ -96,6 +96,29 @@ func (m *Manager) Start(ctx context.Context) error {
 	return nil
 }
 
+// AdapterStatus returns the connection status for a specific adapter.
+// If the adapter implements StatusReporter, uses that; otherwise infers from channels.
+func (m *Manager) AdapterStatus(platform string) AdapterStatus {
+	m.mu.RLock()
+	adapter, ok := m.adapters[platform]
+	m.mu.RUnlock()
+	if !ok {
+		return AdapterStatus{Error: "adapter not registered"}
+	}
+	if sr, ok := adapter.(StatusReporter); ok {
+		return sr.Status()
+	}
+	// Fallback: check if any channels exist for this platform
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for name := range m.channelMap {
+		if len(name) > len(platform) && name[:len(platform)+1] == platform+":" {
+			return AdapterStatus{Connected: true}
+		}
+	}
+	return AdapterStatus{}
+}
+
 // Stop gracefully shuts down all adapters.
 func (m *Manager) Stop(ctx context.Context) {
 	m.mu.RLock()
