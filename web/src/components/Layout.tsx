@@ -3,6 +3,10 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
+import { api } from "../api/client";
+import type { Channel, GatewayStatus, NotifySubscription } from "../api/client";
+import { channelPlatform } from "./channels/messageUtils";
+import { SetupWizard } from "./channels/SetupWizard";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
 
@@ -28,6 +32,228 @@ function NavIcon({ name }: { name: string }) {
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       {icons[name] ?? <path d="M4 4h8v8H4z" />}
     </svg>
+  );
+}
+
+const PLATFORM_META: Record<string, { label: string; color: string }> = {
+  slack: { label: "Slack", color: "#E01E5A" },
+  telegram: { label: "Telegram", color: "#26A5E4" },
+  discord: { label: "Discord", color: "#5865F2" },
+  github: { label: "GitHub", color: "#8B949E" },
+  gmail: { label: "Gmail", color: "#EA4335" },
+};
+
+function getPlatformMeta(p: string) {
+  return PLATFORM_META[p] ?? { label: p, color: "#8c7e72" };
+}
+
+function displayChannelName(name: string): string {
+  const idx = name.indexOf(":");
+  return idx > 0 ? name.slice(idx + 1) : name;
+}
+
+function ChannelNavTree() {
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [gateways, setGateways] = useState<GatewayStatus[]>([]);
+  const [subs, setSubs] = useState<NotifySubscription[]>([]);
+  const [expandedGw, setExpandedGw] = useState<Set<string>>(new Set(["slack", "telegram", "discord"]));
+  const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [chs, gws, subList] = await Promise.all([
+        api.listChannels().catch(() => [] as Channel[]),
+        api.listGateways().catch(() => [] as GatewayStatus[]),
+        api.listSubscriptions().catch(() => [] as NotifySubscription[]),
+      ]);
+      setChannels(chs ?? []);
+      setGateways(gws ?? []);
+      setSubs(subList ?? []);
+    } catch { /* */ }
+  }, []);
+
+  useEffect(() => {
+    void fetchData();
+    const interval = setInterval(() => void fetchData(), 12000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  const toggleGw = (p: string) => {
+    setExpandedGw((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p); else next.add(p);
+      return next;
+    });
+  };
+
+  // Subscription counts per channel
+  const subCountMap = new Map<string, number>();
+  for (const sub of subs) {
+    subCountMap.set(sub.channel, (subCountMap.get(sub.channel) ?? 0) + 1);
+  }
+
+  // Build gateway buckets
+  const gwMap = new Map<string, GatewayStatus>();
+  for (const gw of gateways) gwMap.set(gw.platform, gw);
+
+  const bucketMap = new Map<string, Channel[]>();
+  for (const ch of channels) {
+    const p = channelPlatform(ch.name);
+    if (p === "internal") continue;
+    const list = bucketMap.get(p) ?? [];
+    list.push(ch);
+    bucketMap.set(p, list);
+  }
+  for (const gw of gateways) {
+    if (!bucketMap.has(gw.platform)) bucketMap.set(gw.platform, []);
+  }
+
+  const configuredPlatforms = new Set(bucketMap.keys());
+  const unconfigured = Object.keys(PLATFORM_META).filter((p) => !configuredPlatforms.has(p));
+
+  return (
+    <div className="pb-1">
+      {[...bucketMap.entries()].map(([platform, chs]) => {
+        const meta = getPlatformMeta(platform);
+        const gwStatus = gwMap.get(platform);
+        const isConnected = (gwStatus?.enabled && (gwStatus?.channels?.length ?? 0) > 0) || chs.length > 0;
+        const isExpanded = expandedGw.has(platform);
+
+        return (
+          <div key={platform} className="mb-0.5">
+            <button
+              type="button"
+              onClick={() => toggleGw(platform)}
+              className="w-full flex items-center gap-1.5 pl-4 pr-3 py-1 hover:bg-bc-bg/60 transition-colors"
+            >
+              <svg
+                width="7" height="7" viewBox="0 0 8 8"
+                className={`text-bc-muted/30 transition-transform duration-150 shrink-0 ${isExpanded ? "" : "-rotate-90"}`}
+              >
+                <path d="M1.5 2L4 5L6.5 2" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+              </svg>
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{
+                  backgroundColor: isConnected
+                    ? "#22c55e"
+                    : gwStatus?.enabled
+                    ? "#fb923c"
+                    : "rgba(140,126,114,0.15)",
+                }}
+              />
+              <span className="text-[9px] font-bold uppercase tracking-[0.08em] truncate" style={{ color: meta.color }}>
+                {meta.label}
+              </span>
+              <span className="text-[8px] text-bc-muted/20 ml-auto tabular-nums shrink-0">{chs.length}</span>
+            </button>
+
+            {isExpanded && (
+              <div className="pb-0.5">
+                {chs.length === 0 && (
+                  <div className="pl-8 pr-3 py-0.5 text-[9px] text-bc-muted/20 italic">No channels</div>
+                )}
+                {chs.map((ch) => {
+                  const count = subCountMap.get(ch.name) ?? 0;
+                  return (
+                    <NavLink
+                      key={ch.name}
+                      to={"/channels/" + ch.name}
+                      className={({ isActive }) =>
+                        `w-full text-left pl-8 pr-3 py-[4px] text-[11px] flex items-center gap-1 transition-all duration-100 ${
+                          isActive
+                            ? "bg-bc-surface/50 text-bc-text font-medium"
+                            : "text-bc-muted/50 hover:text-bc-text/80 hover:bg-bc-bg/60"
+                        }`
+                      }
+                      style={({ isActive }) => ({
+                        borderLeft: isActive ? `2px solid ${meta.color}` : "2px solid transparent",
+                      })}
+                    >
+                      <span className="text-bc-muted/20 text-[9px] shrink-0">#</span>
+                      <span className="truncate">{displayChannelName(ch.name)}</span>
+                      {count > 0 && (
+                        <span className="ml-auto text-[8px] text-bc-success/40 tabular-nums shrink-0">{count}</span>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Unconfigured platforms */}
+      {unconfigured.length > 0 && (
+        <div className="pt-1 mt-0.5 border-t border-bc-border/10 mx-3">
+          {unconfigured.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setSetupPlatform(p)}
+              className="w-full flex items-center gap-1.5 py-0.5 text-[9px] text-bc-muted/20 hover:text-bc-muted/40 transition-colors"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-bc-muted/10 shrink-0" />
+              <span className="uppercase tracking-[0.08em] font-medium truncate">{getPlatformMeta(p).label}</span>
+              <span className="ml-auto opacity-50 shrink-0">+</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Connect app */}
+      <div className="px-3 pt-1 pb-0.5">
+        <button
+          type="button"
+          onClick={() => setSetupPlatform("_choose")}
+          className="w-full py-1 text-[9px] font-medium text-bc-muted/25 hover:text-bc-accent border border-bc-border/15 rounded-md hover:border-bc-accent/20 transition-all"
+        >
+          + Connect app
+        </button>
+      </div>
+
+      {/* Setup wizard */}
+      {setupPlatform && setupPlatform !== "_choose" && (
+        <SetupWizard
+          platform={setupPlatform}
+          onClose={() => setSetupPlatform(null)}
+          onConnected={() => void fetchData()}
+        />
+      )}
+      {setupPlatform === "_choose" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-bc-bg border border-bc-border/50 rounded-xl p-5 max-w-sm w-full mx-4 shadow-2xl">
+            <h2 className="text-[14px] font-semibold text-bc-text mb-4">Connect an app</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(PLATFORM_META).map(([key, meta]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSetupPlatform(key)}
+                  className="p-3 border border-bc-border/30 rounded-lg hover:border-bc-border/50 hover:bg-bc-surface/20 transition-all text-left group"
+                >
+                  <div
+                    className="w-6 h-6 rounded flex items-center justify-center text-[11px] font-bold mb-1.5"
+                    style={{ backgroundColor: `${meta.color}12`, color: meta.color }}
+                  >
+                    {meta.label.charAt(0)}
+                  </div>
+                  <span className="text-[11px] text-bc-muted/50 group-hover:text-bc-text">{meta.label}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSetupPlatform(null)}
+              className="mt-3 w-full py-1.5 text-[10px] text-bc-muted/30 hover:text-bc-text transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -69,38 +295,46 @@ function NavList({
   items,
   collapsed,
   isMobile,
+  channelsExpanded,
 }: {
   items: ReadonlyArray<{ to: string; label: string; icon: string }>;
   collapsed: boolean;
   isMobile: boolean;
+  channelsExpanded?: boolean;
 }) {
   const isIconOnly = collapsed && !isMobile;
+  const showTree = !isIconOnly && channelsExpanded;
+
   return (
     <>
-      {items.map(({ to, label, icon }) => (
-        <li key={to}>
-          <NavLink
-            to={to}
-            end
-            title={isIconOnly ? label : undefined}
-            className={({ isActive }) =>
-              `relative flex items-center gap-3 ${isIconOnly ? "justify-center px-2" : "px-4"} py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-inset transition-colors ${
-                isActive
-                  ? "text-bc-accent bg-bc-bg font-medium border-l-[3px] border-bc-accent"
-                  : "text-bc-muted hover:text-bc-text hover:bg-bc-bg/50 border-l-[3px] border-transparent"
-              }`
-            }
-          >
-            <span className="shrink-0 flex items-center justify-center w-5">
-              <NavIcon name={icon} />
-            </span>
-            {(!collapsed || isMobile) && <span>{label}</span>}
-            {label === "Live" && (
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            )}
-          </NavLink>
-        </li>
-      ))}
+      {items.map(({ to, label, icon }) => {
+        const isChannels = label === "Channels";
+        return (
+          <li key={to}>
+            <NavLink
+              to={to}
+              end={!isChannels}
+              title={isIconOnly ? label : undefined}
+              className={({ isActive }) =>
+                `relative flex items-center gap-3 ${isIconOnly ? "justify-center px-2" : "px-4"} py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-inset transition-colors ${
+                  isActive
+                    ? "text-bc-accent bg-bc-bg font-medium border-l-[3px] border-bc-accent"
+                    : "text-bc-muted hover:text-bc-text hover:bg-bc-bg/50 border-l-[3px] border-transparent"
+                }`
+              }
+            >
+              <span className="shrink-0 flex items-center justify-center w-5">
+                <NavIcon name={icon} />
+              </span>
+              {(!collapsed || isMobile) && <span>{label}</span>}
+              {label === "Live" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              )}
+            </NavLink>
+            {isChannels && showTree && <ChannelNavTree />}
+          </li>
+        );
+      })}
     </>
   );
 }
@@ -258,7 +492,12 @@ export function Layout() {
           )}
         </div>
         <ul className="flex-1 py-2 overflow-y-auto">
-          <NavList items={MAIN_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
+          <NavList
+            items={MAIN_NAV_ITEMS}
+            collapsed={collapsed}
+            isMobile={isMobile}
+            channelsExpanded={location.pathname.startsWith("/channels")}
+          />
           <li className={`my-2 ${collapsed && !isMobile ? "mx-2" : "mx-4"}`}>
             <div className="border-t border-bc-border" />
           </li>

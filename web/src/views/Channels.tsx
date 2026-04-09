@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Channel } from "../api/client";
@@ -6,7 +6,6 @@ import { usePolling } from "../hooks/usePolling";
 import { AgentPeekPanel } from "../components/AgentPeekPanel";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
-import { ChannelSidebar } from "../components/channels/ChannelSidebar";
 import { GatewayFeed } from "../components/channels/GatewayFeed";
 
 export function Channels() {
@@ -16,12 +15,8 @@ export function Channels() {
   const fetcher = useCallback(() => api.listChannels(), []);
   const { data: channels, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
 
-  const [selected, setSelected] = useState<string | null>(paramChannel ?? null);
+  const selected = paramChannel ?? null;
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSelected(paramChannel ?? null);
-  }, [paramChannel]);
 
   // Auto-select first gateway channel if none selected
   useEffect(() => {
@@ -34,10 +29,6 @@ export function Channels() {
       }
     }
   }, [selected, channels, navigate]);
-
-  const selectChannel = (name: string) => {
-    navigate("/channels/" + name);
-  };
 
   if (loading && !channels) {
     return (
@@ -126,14 +117,7 @@ export function Channels() {
 
   return (
     <div className="flex h-full">
-      {/* Left: Gateway sidebar */}
-      <ChannelSidebar
-        channels={channelList}
-        selected={selected}
-        onSelect={selectChannel}
-      />
-
-      {/* Right: Activity feed */}
+      {/* Activity feed — full width, channel tree is now in the main nav sidebar */}
       <div className="flex-1 flex flex-col min-w-0">
         {selected ? (
           <GatewayFeed
