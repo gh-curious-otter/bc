@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
 import type {
+  Agent,
   Channel,
   ChannelMessage,
   DeliveryEntry,
@@ -15,6 +16,7 @@ import {
   formatTimestamp,
   groupMessages,
   agentColor,
+  getRoleColor,
   dateKey,
   formatDayLabel,
 } from "./messageUtils";
@@ -51,10 +53,14 @@ export function GatewayFeed({
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryEntry[]>([]);
   const [subscriptions, setSubscriptions] = useState<NotifySubscription[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [showAgents, setShowAgents] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const agentsPopoverRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
 
   const platform = gatewayPlatform(channelName);
@@ -81,6 +87,61 @@ export function GatewayFeed({
       setMessages([]);
     }
   }, [channelName]);
+
+  const fetchAgents = useCallback(async () => {
+    try {
+      const [agentList, subs] = await Promise.all([
+        api.listAgents(),
+        api.getChannelSubscriptions(channelName).catch(() => []),
+      ]);
+      setAgents(agentList ?? []);
+      setSubscriptions(subs ?? []);
+    } catch { /* keep previous */ }
+  }, [channelName]);
+
+  useEffect(() => {
+    if (!showAgents) return;
+    void fetchAgents();
+    const interval = setInterval(() => void fetchAgents(), 8000);
+    return () => clearInterval(interval);
+  }, [showAgents, fetchAgents]);
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (!showAgents) return;
+    const handleClick = (e: MouseEvent) => {
+      if (agentsPopoverRef.current && !agentsPopoverRef.current.contains(e.target as Node)) {
+        setShowAgents(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showAgents]);
+
+  const handleSubscribe = async (agentName: string) => {
+    setAgentLoading(true);
+    try {
+      await api.subscribe(channelName, agentName, false);
+      await fetchAgents();
+    } catch { /* */ }
+    setAgentLoading(false);
+  };
+
+  const handleUnsubscribe = async (agentName: string) => {
+    setAgentLoading(true);
+    try {
+      await api.unsubscribe(channelName, agentName);
+      await fetchAgents();
+    } catch { /* */ }
+    setAgentLoading(false);
+  };
+
+  const handleToggleMention = async (agentName: string, current: boolean) => {
+    try {
+      await api.setMentionOnly(channelName, agentName, !current);
+      await fetchAgents();
+    } catch { /* */ }
+  };
 
   useEffect(() => {
     void fetchInitial();
@@ -169,6 +230,13 @@ export function GatewayFeed({
 
   const subAgents = new Set(subscriptions.map((s) => s.agent));
 
+  const subMap = new Map<string, NotifySubscription>();
+  for (const sub of subscriptions) subMap.set(sub.agent, sub);
+  const subscribedAgents = agents.filter((a) => subMap.has(a.name));
+  const availableAgents = agents
+    .filter((a) => !subMap.has(a.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   /* ── Message grouping (newest first) ───────────────────────── */
 
   const reversed = [...messages].reverse();
@@ -208,12 +276,174 @@ export function GatewayFeed({
             <span className="text-bc-muted/60 tabular-nums">
               {messages.length}
             </span>
-            {subAgents.size > 0 && (
-              <span className="flex items-center gap-1.5 text-bc-success/70">
-                <span className="w-1 h-1 rounded-full bg-bc-success animate-pulse" />
-                {subAgents.size} listening
-              </span>
-            )}
+
+            {/* Agents popover trigger */}
+            <div className="relative" ref={agentsPopoverRef}>
+              <button
+                type="button"
+                onClick={() => setShowAgents((v) => !v)}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border transition-all duration-150 text-[11px] ${
+                  showAgents
+                    ? "border-bc-accent/40 bg-bc-accent/8 text-bc-accent"
+                    : subAgents.size > 0
+                    ? "border-bc-success/25 bg-bc-success/5 text-bc-success/70 hover:border-bc-success/40"
+                    : "border-bc-border/30 text-bc-muted/50 hover:border-bc-border/50 hover:text-bc-muted"
+                }`}
+              >
+                {subAgents.size > 0 && (
+                  <span className="w-1 h-1 rounded-full bg-bc-success animate-pulse" />
+                )}
+                {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""}
+              </button>
+
+              {/* Agents popover */}
+              {showAgents && (
+                <div className="absolute right-0 top-full mt-1.5 w-64 bg-bc-bg border border-bc-border/50 rounded-lg shadow-xl z-20 max-h-[400px] overflow-auto"
+                  style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}
+                >
+                  {/* Popover header */}
+                  <div className="px-3 py-2.5 border-b border-bc-border/30">
+                    <h3 className="text-[11px] font-bold text-bc-muted/70 uppercase tracking-[0.12em]">
+                      Agents
+                    </h3>
+                  </div>
+
+                  <AnimatePresence>
+                    {/* Subscribed agents */}
+                    {subscribedAgents.length > 0 && (
+                      <div>
+                        <div className="px-3 pt-2.5 pb-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1 h-1 rounded-full bg-bc-success" />
+                            <span className="text-[9px] font-bold text-bc-success/70 uppercase tracking-[0.1em]">
+                              Listening ({subscribedAgents.length})
+                            </span>
+                          </div>
+                        </div>
+                        {subscribedAgents.map((agent) => {
+                          const sub = subMap.get(agent.name);
+                          const isOnline = agent.state === "running" || agent.state === "working";
+                          const roleColor = getRoleColor(agent.role);
+                          const nameColor = agentColor(agent.name);
+                          return (
+                            <motion.div
+                              key={agent.name}
+                              layout
+                              initial={{ opacity: 0, x: 8 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -8 }}
+                              transition={{ duration: 0.12 }}
+                              className="px-3 py-2 hover:bg-bc-surface/30 transition-colors duration-100"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0"
+                                  style={{ backgroundColor: `${nameColor}12`, color: nameColor }}
+                                >
+                                  {agent.name.charAt(0).toUpperCase()}
+                                </span>
+                                <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? "bg-bc-success" : "bg-bc-muted/20"}`} />
+                                  <span className="text-[12px] text-bc-text/90 truncate font-medium">{agent.name}</span>
+                                </div>
+                                <span className={`text-[8px] px-1.5 py-0.5 rounded-md ${roleColor.bg} ${roleColor.text} font-semibold uppercase tracking-wider shrink-0`}>
+                                  {agent.role}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-1.5 ml-7">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)}
+                                  className={`text-[9px] px-2 py-0.5 rounded-md border transition-all duration-150 ${
+                                    sub?.mention_only
+                                      ? "border-bc-accent/30 bg-bc-accent/8 text-bc-accent"
+                                      : "border-bc-border/30 text-bc-muted/50 hover:border-bc-border/50 hover:text-bc-muted"
+                                  }`}
+                                >
+                                  {sub?.mention_only ? "@ mentions" : "all msgs"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUnsubscribe(agent.name)}
+                                  disabled={agentLoading}
+                                  className="text-[9px] text-bc-muted/25 hover:text-bc-error/60 transition-colors ml-auto"
+                                >
+                                  remove
+                                </button>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Divider */}
+                    {subscribedAgents.length > 0 && availableAgents.length > 0 && (
+                      <div className="mx-3 my-2 border-t border-bc-border/15" />
+                    )}
+
+                    {/* Available agents */}
+                    {availableAgents.length > 0 && (
+                      <div>
+                        <div className="px-3 pt-2 pb-1">
+                          <span className="text-[9px] font-bold text-bc-muted/30 uppercase tracking-[0.1em]">
+                            Available ({availableAgents.length})
+                          </span>
+                        </div>
+                        {availableAgents.map((agent) => {
+                          const isOnline = agent.state === "running" || agent.state === "working";
+                          const roleColor = getRoleColor(agent.role);
+                          const nameColor = agentColor(agent.name);
+                          return (
+                            <motion.div
+                              key={agent.name}
+                              layout
+                              initial={{ opacity: 0, x: 8 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -8 }}
+                              transition={{ duration: 0.12 }}
+                              className="px-3 py-2 hover:bg-bc-surface/15 transition-colors duration-100"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0"
+                                  style={{ backgroundColor: `${nameColor}12`, color: nameColor }}
+                                >
+                                  {agent.name.charAt(0).toUpperCase()}
+                                </span>
+                                <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? "bg-bc-success" : "bg-bc-muted/20"}`} />
+                                  <span className="text-[12px] text-bc-text/90 truncate font-medium">{agent.name}</span>
+                                </div>
+                                <span className={`text-[8px] px-1.5 py-0.5 rounded-md ${roleColor.bg} ${roleColor.text} font-semibold uppercase tracking-wider shrink-0`}>
+                                  {agent.role}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-1.5 ml-7">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSubscribe(agent.name)}
+                                  disabled={agentLoading}
+                                  className="text-[9px] text-bc-muted/30 hover:text-bc-accent transition-colors"
+                                >
+                                  + subscribe
+                                </button>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </AnimatePresence>
+
+                  {agents.length === 0 && (
+                    <div className="p-6 text-center text-[11px] text-bc-muted/25">
+                      No agents
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         {channel?.description && (

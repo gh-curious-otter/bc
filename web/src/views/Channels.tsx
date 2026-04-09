@@ -8,7 +8,6 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ChannelSidebar } from "../components/channels/ChannelSidebar";
 import { GatewayFeed } from "../components/channels/GatewayFeed";
-import { SubscriptionPanel } from "../components/channels/SubscriptionPanel";
 
 export function Channels() {
   const { channelName: paramChannel } = useParams<{ channelName: string }>();
@@ -134,7 +133,7 @@ export function Channels() {
         onSelect={selectChannel}
       />
 
-      {/* Center: Activity feed */}
+      {/* Right: Activity feed */}
       <div className="flex-1 flex flex-col min-w-0">
         {selected ? (
           <GatewayFeed
@@ -152,11 +151,6 @@ export function Channels() {
           </div>
         )}
       </div>
-
-      {/* Right: Subscription panel */}
-      {selected && (
-        <SubscriptionPanel channelName={selected} />
-      )}
 
       {/* Agent peek overlay */}
       {peekAgent && (
