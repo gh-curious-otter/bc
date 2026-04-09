@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Channel, GatewayStatus } from "../../api/client";
+import type { Channel, GatewayStatus, NotifySubscription } from "../../api/client";
 import { api } from "../../api/client";
 import { channelPlatform } from "./messageUtils";
 
@@ -38,6 +38,7 @@ export function ChannelSidebar({
   onSelect: (name: string) => void;
 }) {
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
+  const [allSubs, setAllSubs] = useState<NotifySubscription[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem("bc-channels-collapsed");
@@ -49,8 +50,12 @@ export function ChannelSidebar({
 
   const fetchGateways = useCallback(async () => {
     try {
-      const gw = await api.listGateways();
+      const [gw, subs] = await Promise.all([
+        api.listGateways(),
+        api.listSubscriptions().catch(() => []),
+      ]);
       setGateways(gw ?? []);
+      setAllSubs(subs ?? []);
     } catch {
       // keep empty
     }
@@ -71,6 +76,12 @@ export function ChannelSidebar({
       return next;
     });
   };
+
+  // Build subscription count per channel
+  const subCountMap = new Map<string, number>();
+  for (const sub of allSubs) {
+    subCountMap.set(sub.channel, (subCountMap.get(sub.channel) ?? 0) + 1);
+  }
 
   // Build gateway buckets from channels + gateway status
   const gwMap = new Map<string, GatewayStatus>();
@@ -175,9 +186,14 @@ export function ChannelSidebar({
                     >
                       <span className="text-bc-muted/50 text-[11px]">#</span>
                       <span className="truncate">{displayName(ch.name)}</span>
-                      <span className="ml-auto text-[10px] text-bc-muted shrink-0">
-                        {ch.member_count}
-                      </span>
+                      {(() => {
+                        const count = subCountMap.get(ch.name) ?? 0;
+                        return count > 0 ? (
+                          <span className="ml-auto text-[9px] text-bc-success/60 shrink-0">
+                            {count} agent{count !== 1 ? "s" : ""}
+                          </span>
+                        ) : null;
+                      })()}
                     </button>
                   ))}
                 </>

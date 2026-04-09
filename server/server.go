@@ -191,7 +191,17 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 					},
 				})
 			}
-			// Deliver to agent sessions via tmux send-keys.
+			// Dispatch to notify subscribers (new subscription system).
+			// Handles @mention filtering and delivery logging.
+			if svc.Notify != nil {
+				platform := ""
+				if idx := strings.Index(ch, ":"); idx > 0 {
+					platform = ch[:idx]
+				}
+				svc.Notify.Dispatch(ch, platform, sender, "", content, "", nil)
+			}
+
+			// Deliver to agent sessions via tmux send-keys (legacy channel membership).
 			// JSON format gives agents structured context about the message.
 			if svc.Agents != nil {
 				go func() {

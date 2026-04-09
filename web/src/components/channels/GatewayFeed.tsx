@@ -109,9 +109,11 @@ export function GatewayFeed({
             )}
           </div>
           <div className="flex items-center gap-3 text-[11px] text-bc-muted">
-            <span>{messages.length} messages</span>
+            <span>{messages.length} message{messages.length !== 1 ? "s" : ""}</span>
             {subscriptions.length > 0 && (
-              <span className="text-bc-success">{subscriptions.length} agents</span>
+              <span className="text-bc-success">
+                {subscriptions.length} agent{subscriptions.length !== 1 ? "s" : ""}
+              </span>
             )}
           </div>
         </div>
@@ -206,7 +208,7 @@ export function GatewayFeed({
             <>Agents communicate via MCP tools.</>
           )}
           {subAgents.size > 0 && (
-            <> &middot; {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""} subscribed</>
+            <> · {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""} subscribed</>
           )}
         </p>
       </div>
