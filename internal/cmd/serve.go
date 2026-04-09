@@ -40,7 +40,7 @@ import (
 
 // RunServer starts the bc server (formerly bcd) in the foreground.
 // It loads the workspace, wires up all services, and blocks until
-// the context is cancelled or a signal is received.
+// the context is canceled or a signal is received.
 func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	ws, err := bcworkspace.Load(wsRoot)
 	if err != nil {

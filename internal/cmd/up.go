@@ -104,9 +104,9 @@ func runUpDaemon(wsRoot string) error {
 
 	// Check if already running
 	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
-	if pidData, readErr := os.ReadFile(pidPath); readErr == nil {
+	if pidData, readErr := os.ReadFile(pidPath); readErr == nil { //nolint:gosec // controlled workspace path
 		pid := strings.TrimSpace(string(pidData))
-		checkCmd := exec.Command("kill", "-0", pid) //nolint:gosec // trusted
+		checkCmd := exec.CommandContext(context.Background(), "kill", "-0", pid) //nolint:gosec // trusted
 		if checkCmd.Run() == nil {
 			fmt.Printf("  bc server already running (PID %s)\n", pid)
 			fmt.Printf("  http://%s\n", upAddr)
@@ -138,7 +138,7 @@ func runUpDaemon(wsRoot string) error {
 		return fmt.Errorf("open log file: %w", err)
 	}
 
-	cmd := exec.Command(selfPath, args...) //nolint:gosec // trusted binary
+	cmd := exec.CommandContext(context.Background(), selfPath, args...) //nolint:gosec // trusted binary
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = wsRoot
