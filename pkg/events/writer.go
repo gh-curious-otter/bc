@@ -170,7 +170,7 @@ func (w *JSONLWriter) lineCount() (int, error) {
 // readAllLines reads all non-empty lines from the file.
 // Caller must hold w.mu.
 func (w *JSONLWriter) readAllLines() ([][]byte, error) {
-	f, err := os.Open(w.path) //nolint:gosec // reading JSONL file from agent dir
+	f, err := os.Open(w.path)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (w *JSONLWriter) rotate() error {
 	keep := lines[len(lines)-rotationTrimLines:]
 
 	tmp := w.path + ".tmp"
-	f, err := os.Create(tmp) //nolint:gosec // tmp file in same dir as JSONL
+	f, err := os.Create(tmp) //nolint:gosec // controlled workspace path
 	if err != nil {
 		return fmt.Errorf("create tmp for rotation: %w", err)
 	}
@@ -408,6 +408,7 @@ func extractTaskUpdate(data map[string]any) (string, string, []string) {
 		"completed":   "completed",
 		"done":        "completed",
 		"deleted":     "deleted",
+		"cancelled":   "deleted", //nolint:misspell // intentional alias for British spelling
 		"canceled":    "deleted",
 	}
 

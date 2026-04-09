@@ -17,7 +17,7 @@ import (
 )
 
 // ProviderInfo represents a provider with usage stats.
-type ProviderInfo struct {
+type ProviderInfo struct { //nolint:govet // field order matches JSON/API contract
 	Name         string  `json:"name"`
 	Description  string  `json:"description"`
 	Binary       string  `json:"binary"`
@@ -33,11 +33,11 @@ type ProviderInfo struct {
 }
 
 // ProviderDetail extends ProviderInfo with per-model cost breakdown and agent list.
-type ProviderDetail struct {
+type ProviderDetail struct { //nolint:govet // field order matches JSON/API contract
+	ProviderInfo
 	Config      map[string]string `json:"config"`
 	Agents      []AgentSummary    `json:"agents"`
 	CostByModel []ModelCost       `json:"cost_by_model"`
-	ProviderInfo
 }
 
 // AgentSummary is a lightweight agent reference.
@@ -660,7 +660,7 @@ func (h *ProviderHandler) parseMCPJSONFile(relPath string) []MCPServer {
 		return []MCPServer{}
 	}
 
-	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, relPath)) //nolint:gosec // reading provider config file
+	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, relPath)) //nolint:gosec // controlled workspace path
 	if err != nil {
 		return []MCPServer{}
 	}

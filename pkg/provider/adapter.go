@@ -2,13 +2,13 @@
 package provider
 
 // MCPEntry represents an MCP server configuration for adapter setup.
-type MCPEntry struct {
+type MCPEntry struct { //nolint:govet // field order matches API contract
 	Env       map[string]string
+	Args      []string
 	Name      string
-	Transport string
+	Transport string // "sse" or "stdio"
 	Command   string
 	URL       string
-	Args      []string
 }
 
 // ConfigAdapter handles provider-specific configuration file setup.

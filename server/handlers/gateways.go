@@ -301,7 +301,8 @@ func (h *GatewayHandler) gatewayChannelAgents(w http.ResponseWriter, r *http.Req
 }
 
 // gatewayStatus represents a gateway platform's config and runtime state.
-type gatewayStatus struct {
+
+type gatewayStatus struct { //nolint:govet // field order matches JSON/API contract
 	Config   any      `json:"config,omitempty"`
 	Platform string   `json:"platform"`
 	BotName  string   `json:"bot_name,omitempty"`

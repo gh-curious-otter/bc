@@ -386,7 +386,7 @@ func mergeSettingsJSON(dir string, roleSettings map[string]any) error {
 
 	// Read existing settings (may contain hooks from WriteWorkspaceHookSettings).
 	existing := make(map[string]any)
-	data, err := os.ReadFile(settingsPath) //nolint:gosec // reading role template file
+	data, err := os.ReadFile(settingsPath) //nolint:gosec // controlled agent workspace path
 	if err == nil {
 		_ = json.Unmarshal(data, &existing) //nolint:errcheck // if malformed, start fresh
 	}
@@ -525,8 +525,6 @@ func checkSSEEndpoint(url string) error {
 // Returns true if claude CLI was used successfully, false if caller should
 // fall back to file-based .mcp.json.
 func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEntry) bool {
-	ctx := context.Background()
-
 	// Check if claude CLI is available
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
@@ -535,12 +533,12 @@ func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEnt
 	}
 
 	// First remove any existing MCP servers to avoid duplicates
-	existingCmd := exec.CommandContext(ctx, claudePath, "mcp", "list") //nolint:gosec // executing configured tool binary
+	existingCmd := exec.CommandContext(context.TODO(), claudePath, "mcp", "list") //nolint:gosec // trusted claude CLI path
 	existingCmd.Dir = targetDir
 	if out, err := existingCmd.Output(); err == nil && len(out) > 0 {
 		// Parse existing servers and remove them
 		for name := range servers {
-			rmCmd := exec.CommandContext(ctx, claudePath, "mcp", "remove", name, "--scope", "project") //nolint:gosec // executing configured tool binary
+			rmCmd := exec.CommandContext(context.TODO(), claudePath, "mcp", "remove", name, "--scope", "project") //nolint:gosec // trusted claude CLI path
 			rmCmd.Dir = targetDir
 			_ = rmCmd.Run() //nolint:errcheck // ignore if not found
 		}
@@ -576,7 +574,7 @@ func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEnt
 			continue
 		}
 
-		cmd := exec.CommandContext(ctx, claudePath, args...) //nolint:gosec // args are from trusted config
+		cmd := exec.CommandContext(context.TODO(), claudePath, args...) //nolint:gosec // args are from trusted config
 		cmd.Dir = targetDir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			log.Warn("claude mcp add failed", "name", name, "error", err, "output", string(out))

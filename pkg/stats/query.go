@@ -246,19 +246,24 @@ func (s *Store) queryChannel(ctx context.Context, f ChannelFilter, tr TimeRange)
 }
 
 // AgentSummary combines resource metrics and token/cost totals for a single agent.
-type AgentSummary struct {
-	AgentName string               `json:"agent_name"`
-	Role      string               `json:"role"`
-	Tool      string               `json:"tool"`
-	Runtime   string               `json:"runtime"`
-	State     string               `json:"state"`
-	Models    []ModelCostBreakdown `json:"models,omitempty"`
-	Tokens    TokenSummary         `json:"tokens"`
-	Memory    MemorySummary        `json:"memory"`
-	CPU       CPUSummary           `json:"cpu"`
-	Disk      DiskSummary          `json:"disk"`
-	Net       NetSummary           `json:"network"`
-	Cost      CostSummary          `json:"cost"`
+type AgentSummary struct { //nolint:govet // field order matches JSON/API contract
+	// Token and cost totals (over period)
+	Models []ModelCostBreakdown `json:"models,omitempty"`
+
+	AgentName string `json:"agent_name"`
+	Role      string `json:"role"`
+	Tool      string `json:"tool"`
+	Runtime   string `json:"runtime"`
+	State     string `json:"state"`
+
+	// Resource metrics (latest sample)
+	CPU    CPUSummary    `json:"cpu"`
+	Memory MemorySummary `json:"memory"`
+	Disk   DiskSummary   `json:"disk"`
+	Net    NetSummary    `json:"network"`
+
+	Tokens TokenSummary `json:"tokens"`
+	Cost   CostSummary  `json:"cost"`
 }
 
 // CPUSummary holds aggregated CPU metrics.
@@ -334,14 +339,14 @@ func (s *Store) QueryAgentSummary(ctx context.Context, agentName string, tr Time
 	}
 
 	// Query token totals (aggregated over period)
-	tkQuery := `SELECT
+	usageQuery := `SELECT
 		COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0),
 		COALESCE(SUM(cache_read), 0), COALESCE(SUM(cache_create), 0),
 		COALESCE(SUM(cost_usd), 0)
 	FROM token_metrics
 	WHERE agent_name = $1 AND time >= $2 AND time < $3`
 
-	err = s.db.QueryRowContext(ctx, tkQuery, agentName, tr.From, tr.To).Scan(
+	err = s.db.QueryRowContext(ctx, usageQuery, agentName, tr.From, tr.To).Scan(
 		&summary.Tokens.Input, &summary.Tokens.Output,
 		&summary.Tokens.CacheRead, &summary.Tokens.CacheCreate,
 		&summary.Cost.TotalUSD,

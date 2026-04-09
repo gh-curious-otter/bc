@@ -33,8 +33,8 @@ func MigrateToGlobalState(rootDir string) (string, error) {
 	}
 
 	// Create new state directory
-	if mkErr := os.MkdirAll(newDir, 0750); mkErr != nil {
-		return "", fmt.Errorf("failed to create %s: %w", newDir, mkErr)
+	if mkdirErr := os.MkdirAll(newDir, 0750); mkdirErr != nil {
+		return "", fmt.Errorf("failed to create %s: %w", newDir, mkdirErr)
 	}
 
 	// Copy files from legacy to new location

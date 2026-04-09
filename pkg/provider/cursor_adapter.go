@@ -23,11 +23,11 @@ func (a *CursorConfigAdapter) SetupMCP(targetDir, _ string, servers map[string]M
 		return nil
 	}
 
-	type cursorMCPServer struct {
+	type cursorMCPServer struct { //nolint:govet // field order matches JSON/API contract
 		Env     map[string]string `json:"env,omitempty"`
+		Args    []string          `json:"args,omitempty"`
 		Command string            `json:"command,omitempty"`
 		URL     string            `json:"url,omitempty"`
-		Args    []string          `json:"args,omitempty"`
 	}
 	type cursorMCPConfig struct {
 		MCPServers map[string]cursorMCPServer `json:"mcpServers"`

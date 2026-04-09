@@ -75,7 +75,7 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		log.Warn("terminal: pty start failed", "agent", agentName, "error", err)
 		writeWSError(conn, "failed to attach to session")
-		_ = conn.Close() //nolint:errcheck // best-effort cleanup on error path
+		_ = conn.Close()
 		return
 	}
 
@@ -174,8 +174,7 @@ func handleResize(ptmx *os.File, msg []byte) {
 	if err := json.Unmarshal(msg, &rm); err != nil {
 		return
 	}
-	const maxUint16 = 1<<16 - 1
-	if rm.Cols > 0 && rm.Rows > 0 && rm.Cols <= maxUint16 && rm.Rows <= maxUint16 {
+	if rm.Cols > 0 && rm.Rows > 0 && rm.Cols <= 65535 && rm.Rows <= 65535 { //nolint:gosec // bounds checked
 		_ = pty.Setsize(ptmx, &pty.Winsize{ //nolint:errcheck
 			Rows: uint16(rm.Rows), //nolint:gosec // bounds checked above
 			Cols: uint16(rm.Cols), //nolint:gosec // bounds checked above

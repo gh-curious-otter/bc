@@ -66,7 +66,7 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/", h.byName)
 }
 
-type agentDTO struct {
+type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	CreatedAt    time.Time      `json:"created_at"`
 	StartedAt    time.Time      `json:"started_at,omitempty"`
 	UpdatedAt    time.Time      `json:"updated_at"`

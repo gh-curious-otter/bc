@@ -76,16 +76,16 @@ mcp_servers:
 prompt_create: |
   You have been created as a new agent in a bc workspace.
   Use the report_status MCP tool to set your initial task.
-  Check #all and #engineering for context.
+  Check #all and #engineering channels for context.
 prompt_start: |
   You are online. Use report_status to update your current task.
-  Check for any messages sent while you were offline.
+  Check channels for any messages sent while you were offline.
 prompt_stop: |
   You are being stopped. Save any important state.
   Post a status update to #engineering if you have work in progress.
 commands:
   status: |
-    Check for recent messages addressed to you.
+    Check all channels for recent messages addressed to you.
     Report your current task using the report_status MCP tool.
     Query workspace costs using query_costs.
   notify: |
@@ -136,7 +136,7 @@ All workspace operations use bc MCP tools (never CLI commands):
 - Report your status when starting or finishing work
 - Post to the appropriate channel, not #all, for routine updates
 - Use #merge when a PR is ready for review
-- Check for messages before starting new work
+- Check channels for messages before starting new work
 `
 
 // DefaultRootRole returns the default content for root.md.
@@ -150,7 +150,7 @@ mcp_servers:
 secrets:
   - GITHUB_PERSONAL_ACCESS_TOKEN
 prompt_start: |
-  You are back online. Check #all for any messages you missed.
+  You are back online. Check #all channel for any messages you missed.
   Report your status using the report_status MCP tool.
 ---
 
@@ -181,7 +181,7 @@ mcp_servers:
 secrets:
   - GITHUB_PERSONAL_ACCESS_TOKEN
 prompt_start: |
-  Check #engineering for any new assignments or updates.
+  Check #engineering channel for any new assignments or updates.
 ---
 
 # Feature Developer
@@ -536,24 +536,24 @@ func FormatRoleFile(role *Role) (string, error) {
 }
 
 // ResolvedRole contains the fully resolved role after BFS inheritance merge.
-type ResolvedRole struct {
-	Settings     map[string]any
-	Rules        map[string]string
-	Agents       map[string]string
-	Skills       map[string]string
-	Commands     map[string]string
-	PromptDelete string
-	Name         string
-	PromptStop   string
-	PromptStart  string
-	PromptCreate string
-	Prompt       string
-	Review       string
-	Description  string
-	Plugins      []string
-	Secrets      []string
-	MCPServers   []string
-	CLITools     []string
+type ResolvedRole struct { //nolint:govet // field order matches API contract
+	Settings     map[string]any    // Merged settings (child overrides parent)
+	Rules        map[string]string // Merged rule files (child overrides parent)
+	Agents       map[string]string // Merged agent templates
+	Skills       map[string]string // Merged skill files
+	Commands     map[string]string // Merged command files
+	PromptStart  string            // Lifecycle: sent on agent start/restart
+	Name         string            // Role name
+	PromptStop   string            // Lifecycle: sent on agent stop
+	PromptDelete string            // Lifecycle: sent on agent delete
+	PromptCreate string            // Lifecycle: sent on agent create
+	Prompt       string            // Merged prompt body (child + parent)
+	Review       string            // REVIEW.md content
+	Plugins      []string          // Unioned plugins from all ancestors
+	Secrets      []string          // Unioned secret names from all ancestors
+	MCPServers   []string          // Unioned MCP servers from all ancestors
+	CLITools     []string          // Unioned CLI tools from all ancestors
+	Description  string            // Human-readable role description
 }
 
 // ResolveRole loads a role directly from the store. No inheritance — each role

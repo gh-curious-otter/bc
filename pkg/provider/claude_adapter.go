@@ -71,7 +71,6 @@ func (a *ClaudeConfigAdapter) SetupPlugins(agentDir string, plugins []string) er
 
 // setupMCPViaCLI uses `claude mcp add` commands.
 func (a *ClaudeConfigAdapter) setupMCPViaCLI(targetDir string, servers map[string]MCPEntry) bool {
-	ctx := context.Background()
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
 		return false
@@ -79,7 +78,7 @@ func (a *ClaudeConfigAdapter) setupMCPViaCLI(targetDir string, servers map[strin
 
 	for name, entry := range servers {
 		// Remove existing to avoid duplicates
-		rmCmd := exec.CommandContext(ctx, claudePath, "mcp", "remove", name, "--scope", "project") //nolint:gosec
+		rmCmd := exec.CommandContext(context.TODO(), claudePath, "mcp", "remove", name, "--scope", "project") //nolint:gosec
 		rmCmd.Dir = targetDir
 		_ = rmCmd.Run() //nolint:errcheck
 
@@ -101,7 +100,7 @@ func (a *ClaudeConfigAdapter) setupMCPViaCLI(targetDir string, servers map[strin
 			continue
 		}
 
-		cmd := exec.CommandContext(ctx, claudePath, args...) //nolint:gosec
+		cmd := exec.CommandContext(context.TODO(), claudePath, args...) //nolint:gosec
 		cmd.Dir = targetDir
 		_ = cmd.Run() //nolint:errcheck
 	}

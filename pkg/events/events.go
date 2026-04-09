@@ -59,4 +59,5 @@ type EventStore interface {
 }
 
 // Log manages the append-only event log file.
+// Deprecated: Log is retained for reference; use JSONLWriter or SQLiteLog instead.
 type Log struct{}

@@ -54,7 +54,7 @@ type Attachment struct {
 	URL      string `json:"url"`
 	Name     string `json:"name"`
 	MimeType string `json:"mime_type"`
-	Source   string `json:"source"`
+	Source   string `json:"source"` // "slack", "telegram", "discord", "local"
 	FileID   string `json:"file_id,omitempty"`
 	Size     int64  `json:"size,omitempty"`
 }

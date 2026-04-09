@@ -423,7 +423,7 @@ func TestStorageConfigValidation(t *testing.T) {
 	})
 
 	t.Run("TimescaleSettings DSN builds correct string", func(t *testing.T) {
-		tests := []struct {
+		tests := []struct { //nolint:govet // field order matches test readability
 			name     string
 			want     string
 			settings db.TimescaleSettings
