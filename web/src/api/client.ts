@@ -77,6 +77,7 @@ export interface GatewayStatus {
   platform: string;
   enabled: boolean;
   channels: string[];
+  bot_name?: string;
   config?: Record<string, unknown>;
 }
 

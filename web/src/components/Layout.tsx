@@ -110,6 +110,13 @@ function ChannelNavTree() {
     if (!bucketMap.has(gw.platform)) bucketMap.set(gw.platform, []);
   }
 
+  const [showConnectMenu, setShowConnectMenu] = useState(false);
+
+  const botDisplayName = (platform: string, gw?: GatewayStatus): string => {
+    if (gw?.bot_name) return gw.bot_name;
+    return platform;
+  };
+
   return (
     <div className="py-0.5 ml-3 border-l border-bc-border/20">
       {[...bucketMap.entries()].map(([platform, chs]) => {
@@ -117,13 +124,14 @@ function ChannelNavTree() {
         const gwStatus = gwMap.get(platform);
         const isConnected = (gwStatus?.enabled && (gwStatus?.channels?.length ?? 0) > 0) || chs.length > 0;
         const isExpanded = expandedGw.has(platform);
+        const name = botDisplayName(platform, gwStatus);
 
         return (
           <div key={platform}>
             <button
               type="button"
               onClick={() => toggleGw(platform)}
-              className="w-full flex items-center gap-1.5 pl-3 pr-2 py-[3px] text-[10px] hover:bg-bc-bg/40 transition-colors"
+              className="w-full flex items-center gap-1.5 pl-3 pr-2 py-[3px] text-[10px] hover:bg-bc-bg/40 transition-colors group"
             >
               <svg width="6" height="6" viewBox="0 0 8 8"
                 className={`text-bc-muted/25 transition-transform duration-100 shrink-0 ${isExpanded ? "" : "-rotate-90"}`}
@@ -133,8 +141,11 @@ function ChannelNavTree() {
               <span className="w-[5px] h-[5px] rounded-full shrink-0"
                 style={{ backgroundColor: isConnected ? "#22c55e" : gwStatus?.enabled ? "#fb923c" : "rgba(140,126,114,0.12)" }}
               />
-              <span className="font-semibold uppercase tracking-[0.06em]" style={{ color: meta.color }}>
-                {meta.label}
+              <span className="font-medium text-bc-text/60 group-hover:text-bc-text/80 truncate">
+                @{name}
+              </span>
+              <span className="text-[8px] px-1 py-px rounded shrink-0" style={{ color: meta.color, opacity: 0.5 }}>
+                {meta.label.toLowerCase()}
               </span>
               <span className="ml-auto flex items-center gap-1">
                 {isConnected && (
@@ -172,39 +183,41 @@ function ChannelNavTree() {
         );
       })}
 
-      <div className="px-3 pt-1 pb-0.5">
-        <button type="button" onClick={() => setSetupPlatform("_choose")}
-          className="w-full py-[3px] text-[9px] text-bc-muted/20 hover:text-bc-accent border border-bc-border/10 rounded hover:border-bc-accent/15 transition-all"
+      {/* Connect app — inline dropdown */}
+      <div className="px-3 pt-1 pb-0.5 relative">
+        <button type="button" onClick={() => setShowConnectMenu((v) => !v)}
+          className={`w-full py-[3px] text-[9px] border rounded transition-all ${
+            showConnectMenu
+              ? "text-bc-accent border-bc-accent/20 bg-bc-accent/5"
+              : "text-bc-muted/20 hover:text-bc-accent border-bc-border/10 hover:border-bc-accent/15"
+          }`}
         >
           + Connect app
         </button>
+
+        {showConnectMenu && (
+          <div className="mt-1 border border-bc-border/30 rounded-lg bg-bc-bg overflow-hidden"
+            style={{ animation: "fadeIn 100ms ease-out" }}
+          >
+            {Object.entries(PLATFORM_META).map(([key, meta]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { setShowConnectMenu(false); setSetupPlatform(key); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-[10px] text-bc-muted/50 hover:text-bc-text hover:bg-bc-surface/20 transition-colors"
+              >
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
+                <span>{meta.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {setupPlatform && setupPlatform !== "_choose" && (
         <SetupWizard platform={setupPlatform} onClose={() => setSetupPlatform(null)} onConnected={() => void fetchData()} />
       )}
-      {setupPlatform === "_choose" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-bc-bg border border-bc-border/50 rounded-xl p-5 max-w-sm w-full mx-4 shadow-2xl">
-            <h2 className="text-[14px] font-semibold text-bc-text mb-4">Connect an app</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(PLATFORM_META).map(([key, meta]) => (
-                <button key={key} type="button" onClick={() => setSetupPlatform(key)}
-                  className="p-3 border border-bc-border/30 rounded-lg hover:border-bc-border/50 hover:bg-bc-surface/20 transition-all text-left group"
-                >
-                  <div className="w-6 h-6 rounded flex items-center justify-center text-[11px] font-bold mb-1.5"
-                    style={{ backgroundColor: `${meta.color}12`, color: meta.color }}
-                  >{meta.label.charAt(0)}</div>
-                  <span className="text-[11px] text-bc-muted/50 group-hover:text-bc-text">{meta.label}</span>
-                </button>
-              ))}
-            </div>
-            <button type="button" onClick={() => setSetupPlatform(null)}
-              className="mt-3 w-full py-1.5 text-[10px] text-bc-muted/30 hover:text-bc-text transition-colors"
-            >Cancel</button>
-          </div>
-        </div>
-      )}
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
     </div>
   );
 }

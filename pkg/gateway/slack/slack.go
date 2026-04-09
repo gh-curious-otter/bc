@@ -27,6 +27,7 @@ type Adapter struct {
 	botToken      string
 	appToken      string
 	botUserID     string
+	botName       string
 	lastError     string
 	chatMu        sync.RWMutex
 	connected     bool
@@ -63,10 +64,14 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 		return fmt.Errorf("slack: auth test failed: %w", err)
 	}
 	a.botUserID = authResp.UserID
+	a.botName = authResp.User
+	if a.botName == "" {
+		a.botName = authResp.Team
+	}
 	a.chatMu.Lock()
 	a.connected = true
 	a.chatMu.Unlock()
-	log.Info("slack: connected", "bot_user_id", a.botUserID, "team", authResp.Team)
+	log.Info("slack: connected", "bot_user_id", a.botUserID, "bot_name", a.botName, "team", authResp.Team)
 
 	// Discover channels the bot is in
 	if err := a.discoverChannels(ctx); err != nil {
@@ -172,6 +177,7 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 		Connected:     a.connected,
 		LastMessageAt: a.lastMessageAt,
 		Error:         a.lastError,
+		BotName:       a.botName,
 	}
 }
 

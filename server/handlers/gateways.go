@@ -304,6 +304,7 @@ func (h *GatewayHandler) gatewayChannelAgents(w http.ResponseWriter, r *http.Req
 type gatewayStatus struct {
 	Config   any      `json:"config,omitempty"`
 	Platform string   `json:"platform"`
+	BotName  string   `json:"bot_name,omitempty"`
 	Channels []string `json:"channels"`
 	Enabled  bool     `json:"enabled"`
 }
@@ -351,7 +352,7 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Enrich with discovered channels
+	// Enrich with discovered channels and bot name from adapter status
 	if h.gw != nil {
 		extChannels := h.gw.ExternalChannels()
 		for i := range platforms {
@@ -360,6 +361,10 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 				if strings.HasPrefix(ch, prefix) {
 					platforms[i].Channels = append(platforms[i].Channels, ch)
 				}
+			}
+			status := h.gw.AdapterStatus(platforms[i].Platform)
+			if status.BotName != "" {
+				platforms[i].BotName = status.BotName
 			}
 		}
 	}

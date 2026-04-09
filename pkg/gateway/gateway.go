@@ -45,6 +45,7 @@ type StatusReporter interface {
 type AdapterStatus struct {
 	LastMessageAt time.Time `json:"last_message_at,omitempty"`
 	Error         string    `json:"error,omitempty"`
+	BotName       string    `json:"bot_name,omitempty"`
 	Connected     bool      `json:"connected"`
 }
 

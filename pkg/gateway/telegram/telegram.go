@@ -201,10 +201,15 @@ func (a *Adapter) Health(_ context.Context) error {
 func (a *Adapter) Status() gateway.AdapterStatus {
 	a.chatMu.RLock()
 	defer a.chatMu.RUnlock()
+	botName := ""
+	if a.bot != nil {
+		botName = a.bot.Self.UserName
+	}
 	return gateway.AdapterStatus{
 		Connected:     a.connected,
 		LastMessageAt: a.lastMessageAt,
 		Error:         a.lastError,
+		BotName:       botName,
 	}
 }
 
