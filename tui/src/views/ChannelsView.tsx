@@ -213,11 +213,27 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
         return;
       }
       if (input === 'c') { setMode('connect'); setConnectIndex(0); return; }
-      if (key.return) {
+      // Space toggles gateway collapse
+      if (input === ' ') {
         if (treeIndex < 0 || treeIndex >= treeItems.length) return;
         const item = treeItems[treeIndex];
         if (item.type === 'gateway' && item.bucketIdx !== undefined) {
           setBuckets((prev) => prev.map((b, i) => i === item.bucketIdx ? { ...b, expanded: !b.expanded } : b));
+        }
+        return;
+      }
+      if (key.return) {
+        if (treeIndex < 0 || treeIndex >= treeItems.length) return;
+        const item = treeItems[treeIndex];
+        if (item.type === 'gateway' && item.bucketIdx !== undefined) {
+          const bucket = buckets[item.bucketIdx];
+          if (bucket.expanded && bucket.channels.length > 0) {
+            // Already expanded with channels — jump to first child
+            setTreeIndex(treeIndex + 1);
+          } else {
+            // Collapsed or empty — toggle expand
+            setBuckets((prev) => prev.map((b, i) => i === item.bucketIdx ? { ...b, expanded: !b.expanded } : b));
+          }
           return;
         }
         if (item.type === 'channel' && item.channel) {
@@ -455,6 +471,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
             ? [
                 { key: 'j/k', label: 'nav' },
                 { key: 'Enter', label: 'select' },
+                { key: 'Space', label: 'collapse' },
                 { key: 'Tab', label: 'feed' },
                 { key: 'c', label: 'connect' },
                 { key: 'r', label: 'refresh' },

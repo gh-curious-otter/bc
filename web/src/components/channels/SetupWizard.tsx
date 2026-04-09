@@ -81,8 +81,8 @@ export function SetupWizard({
 
   if (!config) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div className="bg-bc-bg border border-bc-border rounded-lg p-6 max-w-md w-full mx-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="bg-bc-bg border border-bc-border/50 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
           <p className="text-bc-muted">Unknown platform: {platform}</p>
           <button type="button" onClick={onClose} className="mt-4 text-sm text-bc-accent">
             Close
@@ -129,8 +129,8 @@ export function SetupWizard({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-bc-bg border border-bc-border rounded-lg max-w-lg w-full mx-4 max-h-[80vh] overflow-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" style={{ animation: 'fadeIn 120ms ease-out' }}>
+      <div className="bg-bc-bg border border-bc-border/50 rounded-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-auto shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-bc-border">
           <h2 className="text-[15px] font-semibold text-bc-text">
