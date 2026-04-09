@@ -237,6 +237,10 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 			(gw.Discord != nil && gw.Discord.Enabled && gw.Discord.BotToken != "") ||
 			(gw.Slack != nil && gw.Slack.Enabled && gw.Slack.BotToken != "") {
 			gwManager = bcgateway.NewManager()
+			// Wire channel persistence before Start so channels survive restarts.
+			if notifyService != nil {
+				gwManager.SetChannelStore(&channelPersister{store: notifyService.Store()})
+			}
 		}
 
 		// Telegram adapter
@@ -641,4 +645,29 @@ func parseBytes(s string) int64 {
 	default:
 		return int64(val)
 	}
+}
+
+// channelPersister bridges notify.Store → gateway.ChannelStore.
+type channelPersister struct {
+	store *bcnotify.Store
+}
+
+func (p *channelPersister) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
+	return p.store.SaveChannel(ctx, bcChannel, platform, platformID)
+}
+
+func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.PersistedChannel, error) {
+	ncs, err := p.store.LoadChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]bcgateway.PersistedChannel, len(ncs))
+	for i, c := range ncs {
+		result[i] = bcgateway.PersistedChannel{
+			BCChannel:  c.BCChannel,
+			Platform:   c.Platform,
+			PlatformID: c.PlatformID,
+		}
+	}
+	return result, nil
 }
