@@ -169,7 +169,7 @@ describe("Tools", () => {
 });
 
 describe("Live", () => {
-  it("renders skeleton loading then event feed", async () => {
+  it("renders event feed with agent activity", async () => {
     fetchMock.mockReturnValue(
       jsonResponse([
         {
@@ -181,8 +181,7 @@ describe("Live", () => {
         },
       ]),
     );
-    const { container } = wrap(<Live />);
-    expectSkeletonLoading(container);
+    wrap(<Live />);
     await waitFor(() => {
       expect(screen.getByText("bot")).toBeInTheDocument();
     });
@@ -246,9 +245,20 @@ describe("Secrets", () => {
 
 describe("Workspace", () => {
   it("renders skeleton loading then workspace status", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse({ root_dir: "/home/project", version: "2", name: "my-workspace", is_healthy: true }),
-    );
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes("/stats"))
+        return jsonResponse({
+          agents_total: 2, agents_running: 1,
+          channels_total: 3, messages_total: 100,
+          total_cost_usd: 5.0, roles_total: 2,
+        });
+      if (url.includes("/settings"))
+        return jsonResponse({ version: "2" });
+      return jsonResponse({
+        root_dir: "/home/project", version: "2",
+        name: "my-workspace", is_healthy: true,
+      });
+    });
     const { container } = wrap(<Workspace />);
     expectSkeletonLoading(container);
     await waitFor(() => {

@@ -253,11 +253,11 @@ export function Workspace() {
             <InfoCard
               label="Channels"
               value={String(stats.channels_total)}
-              sub={`${stats.messages_total.toLocaleString()} messages`}
+              sub={`${(stats.messages_total ?? 0).toLocaleString()} messages`}
             />
             <InfoCard
               label="Cost"
-              value={`$${stats.total_cost_usd.toFixed(2)}`}
+              value={`$${(stats.total_cost_usd ?? 0).toFixed(2)}`}
             />
             <InfoCard
               label="Roles"

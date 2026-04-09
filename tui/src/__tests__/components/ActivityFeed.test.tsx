@@ -5,43 +5,27 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { ThemeProvider } from '../../theme/ThemeContext';
-import { ActivityFeed } from '../../components/ActivityFeed';
 
 const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
-// Mock useLogs hook with correct getSeverityColor implementation
-// IMPORTANT: Must match the real implementation's case-insensitivity
-vi.mock('../../hooks/useLogs', () => ({
-  useLogs: vi.fn(() => ({
-    data: [
-      {
-        ts: '2026-02-16T10:00:00Z',
-        type: 'message.sent',
-        agent: 'eng-01',
-        message: 'Working on task',
-      },
-      {
-        ts: '2026-02-16T10:01:00Z',
-        type: 'agent.error',
-        agent: 'eng-02',
-        message: 'Build failed',
-      },
-      {
-        ts: '2026-02-16T10:02:00Z',
-        type: 'agent.stuck',
-        agent: 'eng-03',
-        message: 'Waiting for response',
-      },
-    ],
+const mockData = [
+  { ts: '2026-02-16T10:00:00Z', type: 'message.sent', agent: 'eng-01', message: 'Working on task' },
+  { ts: '2026-02-16T10:01:00Z', type: 'agent.error', agent: 'eng-02', message: 'Build failed' },
+  { ts: '2026-02-16T10:02:00Z', type: 'agent.stuck', agent: 'eng-03', message: 'Waiting for response' },
+];
+
+// Use Bun's native mock.module instead of vi.mock to avoid unhandled error between tests
+mock.module('../../hooks/useLogs', () => ({
+  useLogs: () => ({
+    data: mockData,
     loading: false,
     error: null,
     severityFilter: null,
-    filterBySeverity: vi.fn(),
-    refresh: vi.fn(),
-  })),
-  // Fix: use toLowerCase() to match real implementation (issue #1151)
+    filterBySeverity: () => {},
+    refresh: () => {},
+  }),
   getSeverityColor: (type: string) => {
     const lower = type.toLowerCase();
     if (lower.includes('error') || lower.includes('fail')) return 'red';
@@ -50,13 +34,12 @@ vi.mock('../../hooks/useLogs', () => ({
   },
 }));
 
+// Import after mock setup
+const { ActivityFeed } = await import('../../components/ActivityFeed');
+
 describe('ActivityFeed', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it('renders activity entries', () => {
