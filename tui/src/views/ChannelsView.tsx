@@ -149,6 +149,13 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
     return items;
   }, [buckets]);
 
+  // Clamp treeIndex when tree structure changes (collapse/expand)
+  useEffect(() => {
+    if (treeItems.length > 0 && treeIndex >= treeItems.length) {
+      setTreeIndex(treeItems.length - 1);
+    }
+  }, [treeItems.length, treeIndex]);
+
   /* ── Load channel messages ──────────────────────────────────── */
 
   const loadMessages = useCallback(async (ch: Channel) => {
@@ -311,7 +318,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
       {/* Main content: tree + feed */}
       <Box flexDirection="row" flexGrow={1} marginTop={1}>
         {/* Left: Gateway tree */}
-        <Box flexDirection="column" width={30} borderStyle="single" borderColor={mode === 'tree' ? theme.colors.primary : 'gray'} paddingX={1}>
+        <Box flexDirection="column" width={34} borderStyle="single" borderColor={mode === 'tree' ? theme.colors.primary : 'gray'} paddingX={1}>
           {buckets.map((bucket, bi) => {
             const gwItem = treeItems.findIndex((t) => t.type === 'gateway' && t.bucketIdx === bi);
             const botName = bucket.gateway.bot_name ?? bucket.gateway.platform;
