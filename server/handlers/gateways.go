@@ -11,14 +11,16 @@ import (
 
 	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/gateway"
+	"github.com/gh-curious-otter/bc/pkg/notify"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 // GatewayHandler handles /api/gateways routes.
 type GatewayHandler struct {
-	gw      *gateway.Manager
-	ws      *workspace.Workspace
-	chanSvc *channel.ChannelService
+	gw       *gateway.Manager
+	ws       *workspace.Workspace
+	chanSvc  *channel.ChannelService
+	notifySvc *notify.Service
 }
 
 // NewGatewayHandler creates a GatewayHandler.
@@ -31,10 +33,19 @@ func (h *GatewayHandler) SetChannelService(svc *channel.ChannelService) {
 	h.chanSvc = svc
 }
 
+// SetNotifyService sets the notification service for subscription management.
+func (h *GatewayHandler) SetNotifyService(svc *notify.Service) {
+	h.notifySvc = svc
+}
+
 // Register mounts gateway routes.
 func (h *GatewayHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/gateways/activity", h.activity)
 	mux.HandleFunc("/api/gateways", h.list)
+	// New notify-powered endpoints for agent subscriptions
+	mux.HandleFunc("/api/notify/subscriptions", h.notifySubscriptions)
+	mux.HandleFunc("/api/notify/subscriptions/", h.notifySubscriptionByChannel)
+	mux.HandleFunc("/api/notify/activity/", h.notifyActivity)
 	mux.HandleFunc("/api/gateways/", h.byPlatform)
 }
 
@@ -242,5 +253,155 @@ func (h *GatewayHandler) activity(w http.ResponseWriter, r *http.Request) {
 		entries = entries[:limit]
 	}
 
+	writeJSON(w, http.StatusOK, entries)
+}
+
+// --- Notify-powered subscription endpoints ---
+
+// notifySubscriptions handles GET/POST /api/notify/subscriptions
+func (h *GatewayHandler) notifySubscriptions(w http.ResponseWriter, r *http.Request) {
+	if h.notifySvc == nil {
+		httpError(w, "notify service not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// List all subscriptions
+		subs, err := h.notifySvc.AllSubscriptions(r.Context())
+		if err != nil {
+			httpInternalError(w, "list subscriptions", err)
+			return
+		}
+		if subs == nil {
+			subs = []notify.Subscription{}
+		}
+		writeJSON(w, http.StatusOK, subs)
+
+	case http.MethodPost:
+		// Subscribe: {"channel": "slack:eng", "agent": "eng-01", "mention_only": false}
+		var req struct {
+			Channel     string `json:"channel"`
+			Agent       string `json:"agent"`
+			MentionOnly bool   `json:"mention_only"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Channel == "" || req.Agent == "" {
+			httpError(w, "channel and agent are required", http.StatusBadRequest)
+			return
+		}
+		if err := h.notifySvc.Subscribe(r.Context(), req.Channel, req.Agent, req.MentionOnly); err != nil {
+			httpInternalError(w, "subscribe", err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]string{"status": "subscribed", "channel": req.Channel, "agent": req.Agent})
+
+	default:
+		methodNotAllowed(w)
+	}
+}
+
+// notifySubscriptionByChannel handles operations on /api/notify/subscriptions/{channel}
+// GET    — list subscribers for a channel
+// DELETE — unsubscribe: ?agent=eng-01
+// PATCH  — update: {"agent": "eng-01", "mention_only": true}
+func (h *GatewayHandler) notifySubscriptionByChannel(w http.ResponseWriter, r *http.Request) {
+	if h.notifySvc == nil {
+		httpError(w, "notify service not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Extract channel from path: /api/notify/subscriptions/slack:eng
+	channel := strings.TrimPrefix(r.URL.Path, "/api/notify/subscriptions/")
+	if channel == "" {
+		httpError(w, "channel name required", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		subs, err := h.notifySvc.ChannelSubscriptions(r.Context(), channel)
+		if err != nil {
+			httpInternalError(w, "list channel subscriptions", err)
+			return
+		}
+		if subs == nil {
+			subs = []notify.Subscription{}
+		}
+		writeJSON(w, http.StatusOK, subs)
+
+	case http.MethodDelete:
+		agent := r.URL.Query().Get("agent")
+		if agent == "" {
+			httpError(w, "agent query param required", http.StatusBadRequest)
+			return
+		}
+		if err := h.notifySvc.Unsubscribe(r.Context(), channel, agent); err != nil {
+			httpInternalError(w, "unsubscribe", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "unsubscribed", "channel": channel, "agent": agent})
+
+	case http.MethodPatch:
+		var req struct {
+			Agent       string `json:"agent"`
+			MentionOnly *bool  `json:"mention_only"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Agent == "" {
+			httpError(w, "agent is required", http.StatusBadRequest)
+			return
+		}
+		if req.MentionOnly != nil {
+			if err := h.notifySvc.SetMentionOnly(r.Context(), channel, req.Agent, *req.MentionOnly); err != nil {
+				httpInternalError(w, "set mention_only", err)
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "channel": channel, "agent": req.Agent})
+
+	default:
+		methodNotAllowed(w)
+	}
+}
+
+// notifyActivity handles GET /api/notify/activity/{channel}
+func (h *GatewayHandler) notifyActivity(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	if h.notifySvc == nil {
+		httpError(w, "notify service not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	channel := strings.TrimPrefix(r.URL.Path, "/api/notify/activity/")
+	if channel == "" {
+		httpError(w, "channel name required", http.StatusBadRequest)
+		return
+	}
+
+	limit := 50
+	if s := r.URL.Query().Get("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	limit = clampInt(limit, 1, 200)
+
+	entries, err := h.notifySvc.ChannelActivity(r.Context(), channel, limit)
+	if err != nil {
+		httpInternalError(w, "channel activity", err)
+		return
+	}
+	if entries == nil {
+		entries = []notify.DeliveryEntry{}
+	}
 	writeJSON(w, http.StatusOK, entries)
 }

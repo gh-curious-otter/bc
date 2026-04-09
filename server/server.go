@@ -30,6 +30,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/gateway"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	"github.com/gh-curious-otter/bc/pkg/mcp"
+	"github.com/gh-curious-otter/bc/pkg/notify"
 	"github.com/gh-curious-otter/bc/pkg/provider"
 	"github.com/gh-curious-otter/bc/pkg/secret"
 	"github.com/gh-curious-otter/bc/pkg/stats"
@@ -78,6 +79,7 @@ type Services struct {
 	EventWriter  *events.JSONLWriter
 	WS           *workspace.Workspace
 	Gateway      *gateway.Manager
+	Notify       *notify.Service
 }
 
 // Server is the bcd HTTP server.
@@ -292,6 +294,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		gh := handlers.NewGatewayHandler(svc.Gateway, svc.WS)
 		if svc.Channels != nil {
 			gh.SetChannelService(svc.Channels)
+		}
+		if svc.Notify != nil {
+			gh.SetNotifyService(svc.Notify)
 		}
 		gh.Register(mux)
 	}

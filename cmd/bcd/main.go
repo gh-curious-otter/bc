@@ -39,6 +39,7 @@ import (
 	bctelegram "github.com/gh-curious-otter/bc/pkg/gateway/telegram"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	bcmcp "github.com/gh-curious-otter/bc/pkg/mcp"
+	bcnotify "github.com/gh-curious-otter/bc/pkg/notify"
 	"github.com/gh-curious-otter/bc/pkg/provider"
 	bcsecret "github.com/gh-curious-otter/bc/pkg/secret"
 	bcstats "github.com/gh-curious-otter/bc/pkg/stats"
@@ -263,6 +264,14 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 	}
 
+	// Notify service for channel subscriptions and delivery dispatch
+	var notifyService *bcnotify.Service
+	if ns, err := bcnotify.OpenStore(ws.RootDir); err != nil {
+		log.Warn("notify store unavailable", "error", err)
+	} else {
+		notifyService = bcnotify.NewService(ns, agentSvc, hub)
+	}
+
 	// Gateway manager for external messaging platforms (Telegram, Discord, Slack).
 	var gwManager *bcgateway.Manager
 	{
@@ -362,6 +371,7 @@ func run(addr, wsRoot, corsOrigin, apiKey string) error {
 		EventWriter:  eventWriter,
 		WS:           ws,
 		Gateway:      gwManager,
+		Notify:       notifyService,
 	}
 
 	cfg := server.DefaultConfig()

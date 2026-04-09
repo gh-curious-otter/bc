@@ -11,13 +11,15 @@ import (
 )
 
 // AgentSender is the interface for sending a message to an agent's tmux session.
+// Implemented by *agent.AgentService (Send method).
 type AgentSender interface {
-	SendToAgent(ctx context.Context, name, message string) error
+	Send(ctx context.Context, name, message string) error
 }
 
 // Broadcaster pushes events to connected web clients via SSE/WebSocket.
+// Implemented by *ws.Hub.
 type Broadcaster interface {
-	Publish(eventType string, data any)
+	Publish(eventType string, data map[string]any)
 }
 
 // Service is the notification dispatch core. It receives inbound messages
@@ -114,7 +116,7 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			}
 
 			// Deliver via tmux send-keys
-			sendErr := s.agents.SendToAgent(ctx, sub.Agent, string(payload))
+			sendErr := s.agents.Send(ctx, sub.Agent, string(payload))
 			status := StatusDelivered
 			errStr := ""
 			if sendErr != nil {

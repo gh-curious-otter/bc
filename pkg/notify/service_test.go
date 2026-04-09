@@ -20,7 +20,7 @@ type sendCall struct {
 	Message string
 }
 
-func (m *mockSender) SendToAgent(_ context.Context, name, message string) error {
+func (m *mockSender) Send(_ context.Context, name, message string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.calls = append(m.calls, sendCall{Name: name, Message: message})
@@ -41,7 +41,7 @@ type mockHub struct {
 	events []string
 }
 
-func (m *mockHub) Publish(eventType string, _ any) {
+func (m *mockHub) Publish(eventType string, _ map[string]any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.events = append(m.events, eventType)
