@@ -2,12 +2,12 @@ package cmd
 
 import "testing"
 
-func TestUpCmd_DefaultPort(t *testing.T) {
-	f := upCmd.Flags().Lookup("port")
+func TestUpCmd_DefaultAddr(t *testing.T) {
+	f := upCmd.Flags().Lookup("addr")
 	if f == nil {
-		t.Fatal("port flag not found")
+		t.Fatal("addr flag not found")
 	}
-	if f.DefValue != "9374" {
-		t.Errorf("got %q, want %q", f.DefValue, "9374")
+	if f.DefValue != "127.0.0.1:9374" {
+		t.Errorf("got %q, want %q", f.DefValue, "127.0.0.1:9374")
 	}
 }
