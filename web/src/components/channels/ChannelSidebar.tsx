@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { Channel, GatewayStatus, NotifySubscription } from "../../api/client";
 import { api } from "../../api/client";
 import { channelPlatform } from "./messageUtils";
+import { SetupWizard } from "./SetupWizard";
 
 interface GatewayBucket {
   platform: string;
@@ -39,6 +40,7 @@ export function ChannelSidebar({
 }) {
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [allSubs, setAllSubs] = useState<NotifySubscription[]>([]);
+  const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem("bc-channels-collapsed");
@@ -214,9 +216,13 @@ export function ChannelSidebar({
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-bc-muted/20 shrink-0" />
                   <span className="uppercase tracking-widest font-medium">{meta.label}</span>
-                  <span className="ml-auto text-[10px] text-bc-muted/30 hover:text-bc-accent cursor-pointer transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => setSetupPlatform(platform)}
+                    className="ml-auto text-[10px] text-bc-muted/30 hover:text-bc-accent cursor-pointer transition-colors"
+                  >
                     Setup &rarr;
-                  </span>
+                  </button>
                 </div>
               );
             })}
@@ -228,11 +234,49 @@ export function ChannelSidebar({
       <div className="p-2 border-t border-bc-border">
         <button
           type="button"
+          onClick={() => setSetupPlatform("_choose")}
           className="w-full py-1.5 text-[11px] text-bc-muted hover:text-bc-accent border border-bc-border/50 rounded hover:border-bc-accent/30 transition-colors"
         >
           + Connect app
         </button>
       </div>
+
+      {/* Setup wizard modal */}
+      {setupPlatform && setupPlatform !== "_choose" && (
+        <SetupWizard
+          platform={setupPlatform}
+          onClose={() => setSetupPlatform(null)}
+          onConnected={() => void fetchGateways()}
+        />
+      )}
+
+      {/* Platform chooser modal */}
+      {setupPlatform === "_choose" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-bc-bg border border-bc-border rounded-lg p-5 max-w-sm w-full mx-4">
+            <h2 className="text-[14px] font-semibold text-bc-text mb-4">Connect an app</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(PLATFORM_META).map(([key, meta]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSetupPlatform(key)}
+                  className="p-3 border border-bc-border rounded hover:border-bc-accent/40 hover:bg-bc-surface/30 transition-colors text-left"
+                >
+                  <span className={`text-[13px] font-medium ${meta.color}`}>{meta.label}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSetupPlatform(null)}
+              className="mt-3 w-full py-1.5 text-[11px] text-bc-muted hover:text-bc-text transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
