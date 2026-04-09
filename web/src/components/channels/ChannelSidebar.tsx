@@ -1,31 +1,30 @@
-import { useState } from "react";
-import type { Channel } from "../../api/client";
+import { useState, useEffect, useCallback } from "react";
+import type { Channel, GatewayStatus } from "../../api/client";
+import { api } from "../../api/client";
 import { channelPlatform } from "./messageUtils";
-import { EmptyState } from "../EmptyState";
 
-interface PlatformBucket {
-  key: string;
+interface GatewayBucket {
+  platform: string;
   label: string;
+  enabled: boolean;
   channels: Channel[];
 }
 
-const PLATFORM_CONFIG: Record<string, { label: string; badgeClass: string }> = {
-  internal: { label: "Channels", badgeClass: "" },
-  slack: { label: "Slack", badgeClass: "bg-bc-accent/10 text-bc-accent" },
-  telegram: { label: "Telegram", badgeClass: "bg-blue-500/10 text-blue-400" },
-  discord: { label: "Discord", badgeClass: "bg-indigo-500/10 text-indigo-400" },
+const PLATFORM_META: Record<string, { label: string; color: string }> = {
+  slack: { label: "Slack", color: "text-[#E01E5A]" },
+  telegram: { label: "Telegram", color: "text-[#26A5E4]" },
+  discord: { label: "Discord", color: "text-[#5865F2]" },
+  github: { label: "GitHub", color: "text-[#8B949E]" },
+  gmail: { label: "Gmail", color: "text-[#EA4335]" },
 };
 
-function getPlatformConfig(key: string) {
-  return PLATFORM_CONFIG[key] ?? { label: key, badgeClass: "bg-bc-border/60 text-bc-muted" };
+function getMeta(platform: string) {
+  return PLATFORM_META[platform] ?? { label: platform, color: "text-bc-muted" };
 }
 
-/** Strip platform prefix from channel name for display. */
 function displayName(name: string): string {
-  const colonIdx = name.indexOf(":");
-  if (colonIdx > 0 && ["slack", "telegram", "discord"].includes(name.slice(0, colonIdx))) {
-    return name.slice(colonIdx + 1);
-  }
+  const idx = name.indexOf(":");
+  if (idx > 0) return name.slice(idx + 1);
   return name;
 }
 
@@ -38,6 +37,7 @@ export function ChannelSidebar({
   selected: string | null;
   onSelect: (name: string) => void;
 }) {
+  const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem("bc-channels-collapsed");
@@ -47,116 +47,176 @@ export function ChannelSidebar({
     }
   });
 
+  const fetchGateways = useCallback(async () => {
+    try {
+      const gw = await api.listGateways();
+      setGateways(gw ?? []);
+    } catch {
+      // keep empty
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchGateways();
+    const interval = setInterval(() => void fetchGateways(), 15000);
+    return () => clearInterval(interval);
+  }, [fetchGateways]);
+
   const toggleCollapse = (key: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      try {
-        localStorage.setItem("bc-channels-collapsed", JSON.stringify([...next]));
-      } catch {
-        // ignore
-      }
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try { localStorage.setItem("bc-channels-collapsed", JSON.stringify([...next])); } catch { /* */ }
       return next;
     });
   };
 
-  // Group channels by platform
+  // Build gateway buckets from channels + gateway status
+  const gwMap = new Map<string, GatewayStatus>();
+  for (const gw of gateways) gwMap.set(gw.platform, gw);
+
   const bucketMap = new Map<string, Channel[]>();
   for (const ch of channels) {
     const platform = channelPlatform(ch.name);
+    if (platform === "internal") continue; // skip bc-native channels
     const list = bucketMap.get(platform) ?? [];
     list.push(ch);
     bucketMap.set(platform, list);
   }
 
-  // Sort buckets: internal first, then alphabetically
-  const buckets: PlatformBucket[] = [];
-  const internalChannels = bucketMap.get("internal");
-  if (internalChannels && internalChannels.length > 0) {
-    buckets.push({ key: "internal", label: "Channels", channels: internalChannels });
-  }
-  for (const [key, chs] of bucketMap) {
-    if (key !== "internal") {
-      const config = getPlatformConfig(key);
-      buckets.push({ key, label: config.label, channels: chs });
+  // Also add empty buckets for configured but channelless gateways
+  for (const gw of gateways) {
+    if (!bucketMap.has(gw.platform)) {
+      bucketMap.set(gw.platform, []);
     }
   }
 
-  if (channels.length === 0) {
-    return (
-      <div className="w-64 shrink-0 border-r border-bc-border overflow-auto">
-        <div className="p-3 border-b border-bc-border">
-          <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-            Channels
-          </h2>
-        </div>
-        <div className="p-4">
-          <EmptyState
-            icon="#"
-            title="No channels"
-            description="Channels are created automatically when agents communicate."
-          />
-        </div>
-      </div>
-    );
+  const buckets: GatewayBucket[] = [];
+  for (const [platform, chs] of bucketMap) {
+    const meta = getMeta(platform);
+    const gwStatus = gwMap.get(platform);
+    buckets.push({
+      platform,
+      label: meta.label,
+      enabled: gwStatus?.enabled ?? false,
+      channels: chs,
+    });
   }
+  // Sort: enabled first, then alphabetically
+  buckets.sort((a, b) => {
+    if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+    return a.label.localeCompare(b.label);
+  });
+
+  // Supported but not configured gateways
+  const configuredPlatforms = new Set(bucketMap.keys());
+  const unconfigured = Object.keys(PLATFORM_META).filter(p => !configuredPlatforms.has(p));
 
   return (
-    <nav className="w-64 shrink-0 border-r border-bc-border overflow-auto" aria-label="Channel list">
+    <nav className="w-60 shrink-0 border-r border-bc-border overflow-auto flex flex-col" aria-label="Channel list">
       <div className="p-3 border-b border-bc-border">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-          Channels
+        <h2 className="text-[11px] font-semibold text-bc-muted uppercase tracking-widest">
+          Gateways
         </h2>
       </div>
-      {buckets.map((bucket) => {
-        const config = getPlatformConfig(bucket.key);
-        const isCollapsed = collapsed.has(bucket.key);
-        return (
-          <div key={bucket.key}>
-            <button
-              type="button"
-              onClick={() => toggleCollapse(bucket.key)}
-              className="w-full flex items-center gap-2 px-3 pt-3 pb-1 group"
-              aria-expanded={!isCollapsed}
-            >
-              <span className="text-[10px] text-bc-muted transition-transform duration-150"
-                style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+
+      <div className="flex-1 overflow-auto">
+        {buckets.map((bucket) => {
+          const meta = getMeta(bucket.platform);
+          const isCollapsed = collapsed.has(bucket.platform);
+          const gwStatus = gwMap.get(bucket.platform);
+          const isConnected = gwStatus?.enabled && (gwStatus?.channels?.length ?? 0) > 0;
+
+          return (
+            <div key={bucket.platform}>
+              <button
+                type="button"
+                onClick={() => toggleCollapse(bucket.platform)}
+                className="w-full flex items-center gap-2 px-3 pt-3 pb-1 group hover:bg-bc-surface/30 transition-colors"
+                aria-expanded={!isCollapsed}
               >
-                ▼
-              </span>
-              <span className="text-[10px] font-semibold text-bc-muted uppercase tracking-widest">
-                {config.label}
-              </span>
-              {bucket.key !== "internal" && (
-                <span className={`text-[9px] px-1.5 py-0.5 rounded ${config.badgeClass}`}>
+                <span
+                  className="text-[10px] text-bc-muted transition-transform duration-150"
+                  style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+                >
+                  ▼
+                </span>
+                {/* Status dot */}
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    isConnected ? "bg-bc-success" : bucket.enabled ? "bg-bc-warning" : "bg-bc-muted/40"
+                  }`}
+                />
+                <span className={`text-[10px] font-semibold uppercase tracking-widest ${meta.color}`}>
+                  {meta.label}
+                </span>
+                <span className="text-[9px] text-bc-muted ml-auto">
                   {bucket.channels.length}
                 </span>
+              </button>
+
+              {!isCollapsed && (
+                <>
+                  {bucket.channels.length === 0 && (
+                    <div className="px-3 py-2 text-[11px] text-bc-muted/60 italic">
+                      No channels discovered
+                    </div>
+                  )}
+                  {bucket.channels.map((ch) => (
+                    <button
+                      key={ch.name}
+                      onClick={() => onSelect(ch.name)}
+                      className={`w-full text-left px-3 py-1.5 text-[13px] flex items-center gap-2 transition-colors ${
+                        selected === ch.name
+                          ? "bg-bc-accent/10 text-bc-accent border-l-2 border-l-bc-accent"
+                          : "text-bc-text/80 hover:bg-bc-surface/50 border-l-2 border-l-transparent"
+                      }`}
+                    >
+                      <span className="text-bc-muted/50 text-[11px]">#</span>
+                      <span className="truncate">{displayName(ch.name)}</span>
+                      <span className="ml-auto text-[10px] text-bc-muted shrink-0">
+                        {ch.member_count}
+                      </span>
+                    </button>
+                  ))}
+                </>
               )}
-            </button>
-            {!isCollapsed &&
-              bucket.channels.map((ch) => (
-                <button
-                  key={ch.name}
-                  onClick={() => onSelect(ch.name)}
-                  className={`w-full text-left px-3 py-2 text-sm border-b border-bc-border/30 flex items-center gap-2 transition-colors ${
-                    selected === ch.name
-                      ? "bg-bc-accent/10 text-bc-accent border-l-2 border-l-bc-accent"
-                      : "text-bc-text hover:bg-bc-surface border-l-2 border-l-transparent"
-                  }`}
+            </div>
+          );
+        })}
+
+        {/* Unconfigured gateways */}
+        {unconfigured.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-bc-border/30">
+            {unconfigured.map((platform) => {
+              const meta = getMeta(platform);
+              return (
+                <div
+                  key={platform}
+                  className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-bc-muted/50"
                 >
-                  <span className="font-medium truncate">#{displayName(ch.name)}</span>
-                  <span className="ml-auto text-xs text-bc-muted shrink-0">
-                    {ch.member_count}
+                  <span className="w-1.5 h-1.5 rounded-full bg-bc-muted/20 shrink-0" />
+                  <span className="uppercase tracking-widest font-medium">{meta.label}</span>
+                  <span className="ml-auto text-[10px] text-bc-muted/30 hover:text-bc-accent cursor-pointer transition-colors">
+                    Setup &rarr;
                   </span>
-                </button>
-              ))}
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        )}
+      </div>
+
+      {/* Connect app button */}
+      <div className="p-2 border-t border-bc-border">
+        <button
+          type="button"
+          className="w-full py-1.5 text-[11px] text-bc-muted hover:text-bc-accent border border-bc-border/50 rounded hover:border-bc-accent/30 transition-colors"
+        >
+          + Connect app
+        </button>
+      </div>
     </nav>
   );
 }

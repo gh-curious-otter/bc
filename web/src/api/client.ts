@@ -55,6 +55,31 @@ export interface ChannelMessage {
   created_at: string;
 }
 
+export interface NotifySubscription {
+  id: number;
+  channel: string;
+  agent: string;
+  mention_only: boolean;
+  created_at: string;
+}
+
+export interface DeliveryEntry {
+  id: number;
+  logged_at: string;
+  channel: string;
+  agent: string;
+  status: "delivered" | "failed" | "pending";
+  error?: string;
+  preview?: string;
+}
+
+export interface GatewayStatus {
+  platform: string;
+  enabled: boolean;
+  channels: string[];
+  config?: Record<string, unknown>;
+}
+
 export interface CostSummary {
   input_tokens: number;
   output_tokens: number;
@@ -490,6 +515,31 @@ export const api = {
       `/channels/${encodeURIComponent(name)}/history?${params}`,
     );
   },
+  // Notify subscription API
+  listSubscriptions: () =>
+    request<NotifySubscription[]>("/notify/subscriptions"),
+  getChannelSubscriptions: (channel: string) =>
+    request<NotifySubscription[]>(`/notify/subscriptions/${encodeURIComponent(channel)}`),
+  subscribe: (channel: string, agent: string, mentionOnly = false) =>
+    request<{ status: string }>("/notify/subscriptions", {
+      method: "POST",
+      body: JSON.stringify({ channel, agent, mention_only: mentionOnly }),
+    }),
+  unsubscribe: (channel: string, agent: string) =>
+    request<{ status: string }>(
+      `/notify/subscriptions/${encodeURIComponent(channel)}?agent=${encodeURIComponent(agent)}`,
+      { method: "DELETE" },
+    ),
+  setMentionOnly: (channel: string, agent: string, mentionOnly: boolean) =>
+    request<{ status: string }>(`/notify/subscriptions/${encodeURIComponent(channel)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ agent, mention_only: mentionOnly }),
+    }),
+  getChannelActivity: (channel: string, limit = 50) =>
+    request<DeliveryEntry[]>(`/notify/activity/${encodeURIComponent(channel)}?limit=${limit}`),
+  listGateways: () =>
+    request<GatewayStatus[]>("/gateways"),
+
   sendToChannel: (name: string, message: string, sender = "web") =>
     request<ChannelMessage>(`/channels/${encodeURIComponent(name)}/messages`, {
       method: "POST",

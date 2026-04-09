@@ -10,6 +10,10 @@ export type WSEventType =
   | "channel.message"
   | "cost.updated"
   | "cost.budget_alert"
+  | "gateway.message"
+  | "gateway.connected"
+  | "gateway.disconnected"
+  | "gateway.delivery"
   | "connected";
 
 export interface WSEvent {
