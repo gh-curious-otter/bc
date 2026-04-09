@@ -205,9 +205,8 @@ jobs:
 
       - name: Verify binary runs
         run: |
-          set -o pipefail
           ./bin/bc version
-          ./bin/bc up --help | head -1
+          ./bin/bc up --help > /dev/null
 
   # ── Container Scan (main only) ──────────────────────────────────────
   scan:
