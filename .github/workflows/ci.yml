@@ -78,7 +78,7 @@ jobs:
         if: github.event_name == 'push' || github.repository == 'rpuneet/bc'
         with:
           files: coverage.out
-          fail_ci_if_error: ${{ github.event_name == 'push' }}
+          fail_ci_if_error: false
 
   # ── Go: Full Tests (main only) ─────────────────────────────────────
   test-full:
