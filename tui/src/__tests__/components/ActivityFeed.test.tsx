@@ -110,9 +110,9 @@ describe('ActivityFeed', () => {
     expect(output).toContain('(i/w/e/*)');
   });
 
-  it('handles entries with undefined message without crashing', () => {
-    const { useLogs } = require('../../hooks/useLogs');
-    (useLogs as ReturnType<typeof vi.fn>).mockReturnValue({
+  it('handles entries with undefined message without crashing', async () => {
+    const mod = await import('../../hooks/useLogs');
+    (mod.useLogs as ReturnType<typeof vi.fn>).mockReturnValue({
       data: [{ ts: '2026-02-16T10:00:00Z', type: 'agent.start', agent: 'eng-04' }],
       loading: false, error: null, severityFilter: null,
       filterBySeverity: vi.fn(), refresh: vi.fn(),
@@ -123,9 +123,9 @@ describe('ActivityFeed', () => {
     expect(output).toBeDefined();
   });
 
-  it('handles entries with undefined agent and message without crashing', () => {
-    const { useLogs } = require('../../hooks/useLogs');
-    (useLogs as ReturnType<typeof vi.fn>).mockReturnValue({
+  it('handles entries with undefined agent and message without crashing', async () => {
+    const mod = await import('../../hooks/useLogs');
+    (mod.useLogs as ReturnType<typeof vi.fn>).mockReturnValue({
       data: [{ ts: '2026-02-16T10:00:00Z', type: 'agent.start' }],
       loading: false, error: null, severityFilter: null,
       filterBySeverity: vi.fn(), refresh: vi.fn(),
