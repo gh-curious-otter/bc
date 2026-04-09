@@ -459,6 +459,17 @@ export interface SettingsConfig {
   ui: { theme: string; mode: string; default_view: string };
 }
 
+/** Split "slack:eng" into { gw: "slack", ch: "eng" }. Returns empty if not a gateway channel. */
+function splitChannel(channel: string): { gw: string; ch: string } {
+  const platforms = ["slack", "telegram", "discord", "github"];
+  for (const p of platforms) {
+    if (channel.startsWith(p + ":")) {
+      return { gw: p, ch: channel.slice(p.length + 1) };
+    }
+  }
+  return { gw: "", ch: "" };
+}
+
 export const api = {
   listAgents: () => request<Agent[]>("/agents"),
   getAgent: (name: string) =>
@@ -515,28 +526,61 @@ export const api = {
       `/channels/${encodeURIComponent(name)}/history?${params}`,
     );
   },
-  // Notify subscription API
+  // Gateway-scoped subscription API (proposal-aligned)
   listSubscriptions: () =>
     request<NotifySubscription[]>("/notify/subscriptions"),
-  getChannelSubscriptions: (channel: string) =>
-    request<NotifySubscription[]>(`/notify/subscriptions/${encodeURIComponent(channel)}`),
-  subscribe: (channel: string, agent: string, mentionOnly = false) =>
-    request<{ status: string }>("/notify/subscriptions", {
+  getChannelSubscriptions: (channel: string) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<NotifySubscription[]>(`/gateways/${gw}/channels/${ch}/agents`);
+    }
+    return request<NotifySubscription[]>(`/notify/subscriptions/${encodeURIComponent(channel)}`);
+  },
+  subscribe: (channel: string, agent: string, mentionOnly = false) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<{ status: string }>(`/gateways/${gw}/channels/${ch}/agents`, {
+        method: "POST",
+        body: JSON.stringify({ agent, mention_only: mentionOnly }),
+      });
+    }
+    return request<{ status: string }>("/notify/subscriptions", {
       method: "POST",
       body: JSON.stringify({ channel, agent, mention_only: mentionOnly }),
-    }),
-  unsubscribe: (channel: string, agent: string) =>
-    request<{ status: string }>(
+    });
+  },
+  unsubscribe: (channel: string, agent: string) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<{ status: string }>(`/gateways/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+        method: "DELETE",
+      });
+    }
+    return request<{ status: string }>(
       `/notify/subscriptions/${encodeURIComponent(channel)}?agent=${encodeURIComponent(agent)}`,
       { method: "DELETE" },
-    ),
-  setMentionOnly: (channel: string, agent: string, mentionOnly: boolean) =>
-    request<{ status: string }>(`/notify/subscriptions/${encodeURIComponent(channel)}`, {
+    );
+  },
+  setMentionOnly: (channel: string, agent: string, mentionOnly: boolean) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<{ status: string }>(`/gateways/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ mention_only: mentionOnly }),
+      });
+    }
+    return request<{ status: string }>(`/notify/subscriptions/${encodeURIComponent(channel)}`, {
       method: "PATCH",
       body: JSON.stringify({ agent, mention_only: mentionOnly }),
-    }),
-  getChannelActivity: (channel: string, limit = 50) =>
-    request<DeliveryEntry[]>(`/notify/activity/${encodeURIComponent(channel)}?limit=${limit}`),
+    });
+  },
+  getChannelActivity: (channel: string, limit = 50) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<DeliveryEntry[]>(`/gateways/${gw}/channels/${ch}/activity?limit=${limit}`);
+    }
+    return request<DeliveryEntry[]>(`/notify/activity/${encodeURIComponent(channel)}?limit=${limit}`);
+  },
   listGateways: () =>
     request<GatewayStatus[]>("/gateways"),
 

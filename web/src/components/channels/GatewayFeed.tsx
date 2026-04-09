@@ -47,10 +47,14 @@ export function GatewayFeed({
   channel?: Channel;
   onPeekAgent: (name: string) => void;
 }) {
+  const PAGE_SIZE = 30;
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryEntry[]>([]);
   const [subscriptions, setSubscriptions] = useState<NotifySubscription[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
 
   const platform = gatewayPlatform(channelName);
@@ -61,14 +65,16 @@ export function GatewayFeed({
 
   /* ── Data fetching ─────────────────────────────────────────── */
 
-  const fetchAll = useCallback(async () => {
+  const fetchInitial = useCallback(async () => {
     try {
       const [msgs, activity, subs] = await Promise.all([
-        api.getChannelHistory(channelName, 200),
+        api.getChannelHistory(channelName, PAGE_SIZE),
         api.getChannelActivity(channelName, 100).catch(() => []),
         api.getChannelSubscriptions(channelName).catch(() => []),
       ]);
-      setMessages(msgs ?? []);
+      const m = msgs ?? [];
+      setMessages(m);
+      setHasMore(m.length >= PAGE_SIZE);
       setDeliveries(activity ?? []);
       setSubscriptions(subs ?? []);
     } catch {
@@ -77,8 +83,45 @@ export function GatewayFeed({
   }, [channelName]);
 
   useEffect(() => {
-    void fetchAll();
-  }, [fetchAll]);
+    void fetchInitial();
+  }, [fetchInitial]);
+
+  // Load more older messages when scrolling to bottom
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || messages.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const oldestId = messages[messages.length - 1]?.id;
+      const older = await api.getChannelHistory(channelName, PAGE_SIZE, oldestId);
+      if (!older || older.length === 0) {
+        setHasMore(false);
+      } else {
+        setMessages((prev) => {
+          const ids = new Set(prev.map((m) => m.id));
+          const newMsgs = older.filter((m) => !ids.has(m.id));
+          return [...prev, ...newMsgs];
+        });
+        setHasMore(older.length >= PAGE_SIZE);
+      }
+    } catch { /* */ }
+    setLoadingMore(false);
+  }, [channelName, messages, loadingMore, hasMore]);
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void loadMore();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   /* ── Live WebSocket updates ────────────────────────────────── */
 
@@ -328,6 +371,22 @@ export function GatewayFeed({
                 );
               })}
             </AnimatePresence>
+
+            {/* Load more sentinel */}
+            {hasMore && (
+              <div ref={sentinelRef} className="py-4 text-center">
+                {loadingMore ? (
+                  <span className="text-[10px] text-bc-muted/30">Loading older messages...</span>
+                ) : (
+                  <span className="text-[10px] text-bc-muted/20">Scroll for more</span>
+                )}
+              </div>
+            )}
+            {!hasMore && messages.length > 0 && (
+              <div className="py-4 text-center text-[10px] text-bc-muted/15">
+                Beginning of channel history
+              </div>
+            )}
           </div>
         </div>
       </div>
