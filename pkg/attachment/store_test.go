@@ -141,8 +141,8 @@ func TestIsValidID(t *testing.T) {
 		{"abcdef012345", true},
 		{"", false},
 		{"../etc/passwd", false},
-		{"DEADBEEF", false},        // uppercase not allowed
-		{"hello world", false},     // spaces
+		{"DEADBEEF", false},              // uppercase not allowed
+		{"hello world", false},           // spaces
 		{strings.Repeat("a", 65), false}, // too long
 	}
 	for _, tt := range tests {

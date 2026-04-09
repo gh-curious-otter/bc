@@ -7,12 +7,12 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/channel"
-	"github.com/gh-curious-otter/bc/pkg/cost"
-	"github.com/gh-curious-otter/bc/pkg/stats"
-	"github.com/gh-curious-otter/bc/pkg/tool"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // systemMetrics holds platform-dependent system resource metrics.

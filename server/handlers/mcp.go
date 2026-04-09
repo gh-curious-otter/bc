@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/mcp"
 )
 
 // MCPHandler handles /api/mcp routes.

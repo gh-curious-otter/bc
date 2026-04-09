@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/gh-curious-otter/bc/pkg/client"
-	"github.com/gh-curious-otter/bc/pkg/stats"
-	"github.com/gh-curious-otter/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 var workspaceStatsCmd = &cobra.Command{

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/db"
 )
 
 // ToolType classifies a tool.
@@ -23,9 +23,9 @@ const (
 type Tool struct {
 	CreatedAt    time.Time         `json:"created_at"`
 	Config       map[string]any    `json:"config,omitempty"`
-	Env          map[string]string `json:"env,omitempty"`           // env vars, supports ${secret:NAME}
+	Env          map[string]string `json:"env,omitempty"` // env vars, supports ${secret:NAME}
 	Name         string            `json:"name"`
-	Type         string            `json:"type"`                    // "cli", "mcp", "provider"
+	Type         string            `json:"type"` // "cli", "mcp", "provider"
 	Command      string            `json:"command"`
 	InstallCmd   string            `json:"install_cmd,omitempty"`
 	UpgradeCmd   string            `json:"upgrade_cmd,omitempty"`
@@ -35,8 +35,8 @@ type Tool struct {
 	HealthStatus string            `json:"health_status,omitempty"` // connected/installed/not_installed/error
 	LastChecked  string            `json:"last_checked,omitempty"`  // ISO timestamp
 	SlashCmds    []string          `json:"slash_cmds,omitempty"`
-	Args         []string          `json:"args,omitempty"`          // stdio args (MCP only)
-	MCPServers   []string          `json:"mcp_servers,omitempty"`   // associated MCP server names
+	Args         []string          `json:"args,omitempty"`        // stdio args (MCP only)
+	MCPServers   []string          `json:"mcp_servers,omitempty"` // associated MCP server names
 	Builtin      bool              `json:"builtin,omitempty"`
 	Enabled      bool              `json:"enabled"`
 }

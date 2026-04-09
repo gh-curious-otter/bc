@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/channel"
-	"github.com/gh-curious-otter/bc/pkg/gateway"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // GatewayHandler handles /api/gateways routes.

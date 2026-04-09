@@ -1,9 +1,11 @@
 package workspace
+
 import (
 	"os"
 	"path/filepath"
 	"testing"
 )
+
 func TestUserRCConfigPath(t *testing.T) {
 	path := UserRCConfigPath()
 	if path == "" {
@@ -160,9 +162,8 @@ func TestHasProviderDefinedAllTypes(t *testing.T) {
 		{
 			name:         "custom provider not in map",
 			providerName: "my-provider",
-			cfg: Config{
-			},
-			want: false,
+			cfg:          Config{},
+			want:         false,
 		},
 		{
 			name:         "nil providers",

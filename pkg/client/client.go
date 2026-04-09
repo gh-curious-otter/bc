@@ -35,7 +35,7 @@ type Client struct {
 	HTTPClient *http.Client
 	Agents     *AgentsClient
 	Channels   *ChannelsClient
-	Events *EventsClient
+	Events     *EventsClient
 	Costs      *CostsClient
 	Cron       *CronClient
 	MCP        *MCPClient

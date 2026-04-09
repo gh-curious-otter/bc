@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/channel"
-	"github.com/gh-curious-otter/bc/pkg/cost"
-	"github.com/gh-curious-otter/bc/pkg/gateway"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // ctxKeyAgent is the context key for the agent ID extracted from the SSE connection.
@@ -30,16 +30,16 @@ func AgentFromContext(ctx context.Context) string {
 // Server is a bc MCP server. It owns handles to workspace state and dispatches
 // JSON-RPC 2.0 requests from either stdio or SSE transports.
 type Server struct {
-	ws         *workspace.Workspace
-	agents     *agent.Manager
-	chans      *channel.Store
-	chanSvc    *channel.ChannelService
-	costs      *cost.Store
-	gateway    *gateway.Manager
-	broker  *SSEBroker
-	version string
-	ownChans   bool
-	ownCosts   bool
+	ws       *workspace.Workspace
+	agents   *agent.Manager
+	chans    *channel.Store
+	chanSvc  *channel.ChannelService
+	costs    *cost.Store
+	gateway  *gateway.Manager
+	broker   *SSEBroker
+	version  string
+	ownChans bool
+	ownCosts bool
 }
 
 // Config holds the dependencies needed to build a Server.
@@ -156,7 +156,6 @@ func NewChannelNotification(ch, sender, message string, t time.Time) Notificatio
 		},
 	}
 }
-
 
 // Handle processes a single JSON-RPC request and returns the response.
 // For notifications (no ID), the returned Response has a nil ID and no result/error set.

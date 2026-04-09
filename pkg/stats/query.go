@@ -260,8 +260,8 @@ type AgentSummary struct {
 	Net    NetSummary    `json:"network"`
 
 	// Token and cost totals (over period)
-	Tokens TokenSummary        `json:"tokens"`
-	Cost   CostSummary         `json:"cost"`
+	Tokens TokenSummary         `json:"tokens"`
+	Cost   CostSummary          `json:"cost"`
 	Models []ModelCostBreakdown `json:"models,omitempty"`
 }
 

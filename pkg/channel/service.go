@@ -68,7 +68,7 @@ type UpdateChannelReq struct {
 type HistoryOpts struct {
 	Since  *time.Time `json:"since,omitempty"`
 	Agent  string     `json:"agent,omitempty"`
-	Order  string     `json:"order,omitempty"`  // "asc" (default) or "desc"
+	Order  string     `json:"order,omitempty"` // "asc" (default) or "desc"
 	Limit  int        `json:"limit,omitempty"`
 	Offset int        `json:"offset,omitempty"`
 	Before int        `json:"before,omitempty"` // cursor: messages before this ID

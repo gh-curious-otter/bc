@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // CheckToolHealth verifies that the tool binary for the named agent is still

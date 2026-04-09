@@ -10,10 +10,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/cost"
-	"github.com/gh-curious-otter/bc/pkg/provider"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // ProviderInfo represents a provider with usage stats.
@@ -358,8 +358,8 @@ func (h *ProviderHandler) hintResponse(w http.ResponseWriter, name, action strin
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"status":         action + "_hint",
-		"provider":       name,
+		"status":        action + "_hint",
+		"provider":      name,
 		action + "_cmd": hint,
 	})
 }

@@ -21,23 +21,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/attachment"
-	"github.com/gh-curious-otter/bc/pkg/channel"
-	"github.com/gh-curious-otter/bc/pkg/cost"
-	"github.com/gh-curious-otter/bc/pkg/cron"
-	"github.com/gh-curious-otter/bc/pkg/events"
-	"github.com/gh-curious-otter/bc/pkg/gateway"
-	"github.com/gh-curious-otter/bc/pkg/log"
-	"github.com/gh-curious-otter/bc/pkg/mcp"
-	"github.com/gh-curious-otter/bc/pkg/provider"
-	"github.com/gh-curious-otter/bc/pkg/secret"
-	"github.com/gh-curious-otter/bc/pkg/stats"
-	"github.com/gh-curious-otter/bc/pkg/tool"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
-	"github.com/gh-curious-otter/bc/server/handlers"
-	servermcp "github.com/gh-curious-otter/bc/server/mcp"
-	"github.com/gh-curious-otter/bc/server/ws"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/attachment"
+	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/secret"
+	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/server/handlers"
+	servermcp "github.com/rpuneet/bc/server/mcp"
+	"github.com/rpuneet/bc/server/ws"
 )
 
 const defaultAddr = "127.0.0.1:9374"
@@ -64,20 +64,20 @@ func DefaultConfig() Config {
 
 // Services bundles all service/store dependencies for the handlers.
 type Services struct {
-	Agents       *agent.AgentService
-	Channels     *channel.ChannelService
-	Costs        *cost.Store
-	CostImporter *cost.Importer
+	Agents        *agent.AgentService
+	Channels      *channel.ChannelService
+	Costs         *cost.Store
+	CostImporter  *cost.Importer
 	Cron          *cron.Store
 	CronScheduler *cron.Scheduler
 	Secrets       *secret.Store
-	MCP          *mcp.Store
-	Tools        *tool.Store
-	Stats        *stats.Store
-	EventLog     events.EventStore
-	EventWriter  *events.JSONLWriter
-	WS           *workspace.Workspace
-	Gateway      *gateway.Manager
+	MCP           *mcp.Store
+	Tools         *tool.Store
+	Stats         *stats.Store
+	EventLog      events.EventStore
+	EventWriter   *events.JSONLWriter
+	WS            *workspace.Workspace
+	Gateway       *gateway.Manager
 }
 
 // Server is the bcd HTTP server.

@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/gh-curious-otter/bc/pkg/client"
-	"github.com/gh-curious-otter/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 // nowDate returns today's date as YYYY-MM-DD.

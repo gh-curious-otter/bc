@@ -6,10 +6,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/mcp"
-	"github.com/gh-curious-otter/bc/pkg/tool"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // maxVersionLen is the maximum length for version strings in tool responses.
@@ -18,13 +18,13 @@ const maxVersionLen = 80
 // UnifiedTool represents a tool (MCP or CLI) with its status.
 type UnifiedTool struct {
 	Name       string `json:"name"`
-	Type       string `json:"type"`                 // "mcp" or "cli"
-	Status     string `json:"status"`               // "connected", "installed", "not_installed", "error", "unknown"
-	Transport  string `json:"transport,omitempty"`   // for MCP: "sse" or "stdio"
-	Command    string `json:"command,omitempty"`     // for CLI or stdio MCP
-	URL        string `json:"url,omitempty"`         // for SSE MCP
-	Version    string `json:"version,omitempty"`     // for CLI tools
-	Error      string `json:"error,omitempty"`       // if status is "error"
+	Type       string `json:"type"`                // "mcp" or "cli"
+	Status     string `json:"status"`              // "connected", "installed", "not_installed", "error", "unknown"
+	Transport  string `json:"transport,omitempty"` // for MCP: "sse" or "stdio"
+	Command    string `json:"command,omitempty"`   // for CLI or stdio MCP
+	URL        string `json:"url,omitempty"`       // for SSE MCP
+	Version    string `json:"version,omitempty"`   // for CLI tools
+	Error      string `json:"error,omitempty"`     // if status is "error"
 	Required   bool   `json:"required"`
 	InstallCmd string `json:"install_cmd,omitempty"` // install command
 	UpgradeCmd string `json:"upgrade_cmd,omitempty"` // upgrade command

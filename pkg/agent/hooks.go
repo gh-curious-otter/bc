@@ -52,9 +52,9 @@ const (
 // and do NOT change agent state — the agent stays "working" from
 // UserPromptSubmit until Stop/SessionEnd.
 var hookEventStateMap = map[HookEvent]State{
-	HookSessionStart:     StateIdle,
-	HookSessionEnd:       StateStopped,
-	HookUserPromptSubmit: StateWorking,
+	HookSessionStart:      StateIdle,
+	HookSessionEnd:        StateStopped,
+	HookUserPromptSubmit:  StateWorking,
 	HookPermissionRequest: StateStuck,
 	HookElicitation:       StateStuck,
 	HookElicitationResult: StateWorking,

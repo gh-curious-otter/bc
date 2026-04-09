@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gh-curious-otter/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/channel"
 )
 
 // --- Input Validation Tests ---

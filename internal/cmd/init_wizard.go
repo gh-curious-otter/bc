@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/channel"
-	"github.com/gh-curious-otter/bc/pkg/log"
-	"github.com/gh-curious-otter/bc/pkg/ui"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // WizardPreset represents a preconfigured workspace setup.

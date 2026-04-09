@@ -11,11 +11,11 @@ import (
 // Cursor uses .cursorrules for prompts and .cursor/mcp.json for MCP config.
 type CursorConfigAdapter struct{}
 
-func (a *CursorConfigAdapter) PromptFile() string      { return ".cursorrules" }
-func (a *CursorConfigAdapter) ConfigDir() string       { return ".cursor" }
-func (a *CursorConfigAdapter) SupportsRules() bool     { return true }
-func (a *CursorConfigAdapter) SupportsCommands() bool  { return false }
-func (a *CursorConfigAdapter) SupportsSkills() bool    { return false }
+func (a *CursorConfigAdapter) PromptFile() string     { return ".cursorrules" }
+func (a *CursorConfigAdapter) ConfigDir() string      { return ".cursor" }
+func (a *CursorConfigAdapter) SupportsRules() bool    { return true }
+func (a *CursorConfigAdapter) SupportsCommands() bool { return false }
+func (a *CursorConfigAdapter) SupportsSkills() bool   { return false }
 
 // SetupMCP writes .cursor/mcp.json for Cursor's MCP support.
 func (a *CursorConfigAdapter) SetupMCP(targetDir, _ string, servers map[string]MCPEntry) error {

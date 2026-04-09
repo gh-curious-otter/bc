@@ -4,7 +4,7 @@ import (
 	"context"
 	"os/exec"
 
-	"github.com/gh-curious-otter/bc/pkg/tmux"
+	"github.com/rpuneet/bc/pkg/tmux"
 )
 
 // TmuxBackend wraps a tmux.Manager to implement the Backend interface.

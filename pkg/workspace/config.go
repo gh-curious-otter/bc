@@ -16,16 +16,16 @@ const ConfigVersion = 2
 
 // Config represents the JSON-based workspace configuration for bc.
 type Config struct {
-	User      UserConfig                `json:"user"`
-	Server    ServerConfig              `json:"server"`
-	Providers ProvidersConfig           `json:"providers"`
-	Gateways  GatewaysConfig            `json:"gateways"`
-	Runtime   RuntimeConfig             `json:"runtime"`
-	Cron      CronConfig                `json:"cron"`
-	Storage   StorageConfig             `json:"storage"`
-	Logs      LogsConfig                `json:"logs"`
-	UI        UIConfig                  `json:"ui"`
-	Version   int                       `json:"version"`
+	User      UserConfig      `json:"user"`
+	Server    ServerConfig    `json:"server"`
+	Providers ProvidersConfig `json:"providers"`
+	Gateways  GatewaysConfig  `json:"gateways"`
+	Runtime   RuntimeConfig   `json:"runtime"`
+	Cron      CronConfig      `json:"cron"`
+	Storage   StorageConfig   `json:"storage"`
+	Logs      LogsConfig      `json:"logs"`
+	UI        UIConfig        `json:"ui"`
+	Version   int             `json:"version"`
 }
 
 // UserConfig holds user identity settings.
@@ -117,9 +117,9 @@ type CronConfig struct {
 
 // StorageConfig configures persistent storage.
 type StorageConfig struct {
-	Default   string                  `json:"default"` // "sqlite" or "timescale"
-	SQLite    SQLiteStorageConfig     `json:"sqlite"`
-	Timescale TimescaleStorageConfig  `json:"timescale"`
+	Default   string                 `json:"default"` // "sqlite" or "timescale"
+	SQLite    SQLiteStorageConfig    `json:"sqlite"`
+	Timescale TimescaleStorageConfig `json:"timescale"`
 }
 
 // SQLiteStorageConfig configures SQLite storage.

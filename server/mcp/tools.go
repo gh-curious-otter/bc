@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/channel"
 )
 
 // definedTools returns the static list of tools this server exposes.

@@ -14,13 +14,13 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/client"
-	"github.com/gh-curious-otter/bc/pkg/container"
-	"github.com/gh-curious-otter/bc/pkg/log"
-	"github.com/gh-curious-otter/bc/pkg/provider"
-	"github.com/gh-curious-otter/bc/pkg/ui"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/bc/pkg/container"
+	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // newAgentManager creates an agent manager with the appropriate runtime backend.

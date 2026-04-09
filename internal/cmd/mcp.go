@@ -10,10 +10,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/gh-curious-otter/bc/pkg/client"
-	"github.com/gh-curious-otter/bc/pkg/log"
-	"github.com/gh-curious-otter/bc/pkg/ui"
-	srvmcp "github.com/gh-curious-otter/bc/server/mcp"
+	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/ui"
+	srvmcp "github.com/rpuneet/bc/server/mcp"
 )
 
 var mcpCmd = &cobra.Command{
