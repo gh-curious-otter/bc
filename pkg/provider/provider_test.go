@@ -812,7 +812,7 @@ func TestProviderBuildCommand(t *testing.T) {
 		{"claude with agent", "claude --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
 		{"gemini no opts", "gemini --yolo", NewGeminiProvider(), CommandOpts{}},
 		{"gemini with agent", "gemini --yolo", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}},
-		{"codex no opts", "NO_UPDATE_NOTIFIER=1 codex --full-auto </dev/null", NewCodexProvider(), CommandOpts{}},
+		{"codex no opts", "codex --full-auto", NewCodexProvider(), CommandOpts{}},
 		{"aider no opts", "aider --yes", NewAiderProvider(), CommandOpts{}},
 	}
 
@@ -981,12 +981,12 @@ func TestClaudeBuildCommandSessionID(t *testing.T) {
 			want: "claude --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
 		},
 		{
-			name: "resume flag without session ID uses --continue",
+			name: "resume flag without session ID — no special flag",
 			opts: CommandOpts{
 				AgentName: "eng-01",
 				Resume:    true,
 			},
-			want: "claude --dangerously-skip-permissions --continue",
+			want: "claude --dangerously-skip-permissions",
 		},
 		{
 			name: "no resume flags — fresh session",

@@ -252,12 +252,12 @@ describe("Secrets", () => {
 describe("Workspace", () => {
   it("renders skeleton loading then workspace status", async () => {
     fetchMock.mockReturnValue(
-      jsonResponse({ root_dir: "/home/project", version: "2" }),
+      jsonResponse({ root_dir: "/home/project", version: "2", name: "my-workspace", is_healthy: true }),
     );
     const { container } = wrap(<Workspace />);
     expectSkeletonLoading(container);
     await waitFor(() => {
-      expect(screen.getByText("Workspace")).toBeInTheDocument();
+      expect(screen.getByText("my-workspace")).toBeInTheDocument();
     });
   });
 });

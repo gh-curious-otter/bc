@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { describe, it, expect, vi, beforeEach } from 'bun:test';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'bun:test';
 import { ThemeProvider } from '../../theme/ThemeContext';
 import { ActivityFeed } from '../../components/ActivityFeed';
 
@@ -53,6 +53,10 @@ vi.mock('../../hooks/useLogs', () => ({
 describe('ActivityFeed', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('renders activity entries', () => {

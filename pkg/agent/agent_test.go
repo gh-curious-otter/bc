@@ -106,6 +106,7 @@ func newTestManager(t *testing.T) *Manager {
 		agentCmd:       "/bin/true",
 		workspacePath:  dir,
 		worktreeMgr:    worktree.NewManager(dir),
+		roleManager:    rm,
 	}
 }
 
