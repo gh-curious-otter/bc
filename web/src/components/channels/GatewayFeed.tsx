@@ -70,6 +70,7 @@ export function GatewayFeed({
   const [showAgents, setShowAgents] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const agentsPopoverRef = useRef<HTMLDivElement>(null);
@@ -84,6 +85,7 @@ export function GatewayFeed({
   /* ── Data fetching ─────────────────────────────────────────── */
 
   const fetchInitial = useCallback(async () => {
+    setInitialLoading(true);
     try {
       const [msgs, activity, subs] = await Promise.all([
         api.getChannelHistory(channelName, PAGE_SIZE),
@@ -97,6 +99,8 @@ export function GatewayFeed({
       setSubscriptions(subs ?? []);
     } catch {
       setMessages([]);
+    } finally {
+      setInitialLoading(false);
     }
   }, [channelName]);
 
@@ -476,7 +480,23 @@ export function GatewayFeed({
           }}
         >
           <div className="px-5 py-3">
-            {messages.length === 0 && (
+            {initialLoading && messages.length === 0 && (
+              <div className="space-y-4 py-4 animate-pulse">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-md bg-bc-surface/40 flex-shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-20 rounded bg-bc-surface/30" />
+                        <div className="h-2 w-12 rounded bg-bc-surface/20" />
+                      </div>
+                      <div className="h-3 rounded bg-bc-surface/20" style={{ width: `${60 + (i * 7) % 30}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!initialLoading && messages.length === 0 && (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-bc-muted/20 mb-4">
                   <path d="M4 16h6m12 0h6M16 4v6m0 12v6" strokeLinecap="round" />

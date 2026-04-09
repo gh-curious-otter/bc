@@ -50,9 +50,9 @@ func NewStatsHandler(
 	statsStore *stats.Store,
 ) *StatsHandler {
 	return &StatsHandler{
-		agents: agents,
-		costs:  costs,
-		tools:  tools,
+		agents:     agents,
+		costs:      costs,
+		tools:      tools,
 		ws:         ws,
 		statsStore: statsStore,
 	}

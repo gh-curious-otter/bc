@@ -76,20 +76,20 @@ mcp_servers:
 prompt_create: |
   You have been created as a new agent in a bc workspace.
   Use the report_status MCP tool to set your initial task.
-  Check #all and #engineering channels for context.
+  Check #all and #engineering for context.
 prompt_start: |
   You are online. Use report_status to update your current task.
-  Check channels for any messages sent while you were offline.
+  Check for any messages sent while you were offline.
 prompt_stop: |
   You are being stopped. Save any important state.
   Post a status update to #engineering if you have work in progress.
 commands:
   status: |
-    Check all channels for recent messages addressed to you.
+    Check for recent messages addressed to you.
     Report your current task using the report_status MCP tool.
     Query workspace costs using query_costs.
-  channels: |
-    Read recent messages from all channels: all, engineering, general, merge, ops.
+  notify: |
+    Check recent notifications across all subscribed channels.
     Summarize any messages that are relevant to your current work.
   announce: |
     Send an announcement to the #all channel using send_message.
@@ -136,7 +136,7 @@ All workspace operations use bc MCP tools (never CLI commands):
 - Report your status when starting or finishing work
 - Post to the appropriate channel, not #all, for routine updates
 - Use #merge when a PR is ready for review
-- Check channels for messages before starting new work
+- Check for messages before starting new work
 `
 
 // DefaultRootRole returns the default content for root.md.
@@ -150,7 +150,7 @@ mcp_servers:
 secrets:
   - GITHUB_PERSONAL_ACCESS_TOKEN
 prompt_start: |
-  You are back online. Check #all channel for any messages you missed.
+  You are back online. Check #all for any messages you missed.
   Report your status using the report_status MCP tool.
 ---
 
@@ -181,7 +181,7 @@ mcp_servers:
 secrets:
   - GITHUB_PERSONAL_ACCESS_TOKEN
 prompt_start: |
-  Check #engineering channel for any new assignments or updates.
+  Check #engineering for any new assignments or updates.
 ---
 
 # Feature Developer
