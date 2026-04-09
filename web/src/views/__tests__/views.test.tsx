@@ -73,7 +73,7 @@ describe("Dashboard", () => {
     });
     wrap(<Dashboard />);
     await waitFor(() => {
-      expect(screen.getByText("No agents running")).toBeInTheDocument();
+      expect(screen.getByText("No agents detected")).toBeInTheDocument();
     });
   });
 });
@@ -148,23 +148,18 @@ describe("Roles", () => {
 
 describe("Tools", () => {
   it("renders skeleton loading then tool list", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse([
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes("/providers")) return jsonResponse([]);
+      if (url.includes("/tools/check")) return jsonResponse({});
+      return jsonResponse([
         {
           name: "my-tool",
           type: "cli",
           status: "installed",
           command: "/usr/bin/tool",
         },
-        {
-          name: "test-server",
-          type: "mcp",
-          status: "connected",
-          transport: "stdio",
-          command: "node",
-        },
-      ]),
-    );
+      ]);
+    });
     const { container } = wrap(<Tools />);
     expectSkeletonLoading(container);
     await waitFor(() => {
@@ -174,7 +169,7 @@ describe("Tools", () => {
 });
 
 describe("Live", () => {
-  it("renders skeleton loading then event log", async () => {
+  it("renders skeleton loading then event feed", async () => {
     fetchMock.mockReturnValue(
       jsonResponse([
         {
@@ -189,7 +184,7 @@ describe("Live", () => {
     const { container } = wrap(<Live />);
     expectSkeletonLoading(container);
     await waitFor(() => {
-      expect(screen.getByText("Event Log")).toBeInTheDocument();
+      expect(screen.getByText("bot")).toBeInTheDocument();
     });
   });
 
@@ -197,7 +192,7 @@ describe("Live", () => {
     fetchMock.mockReturnValue(jsonResponse([]));
     wrap(<Live />);
     await waitFor(() => {
-      expect(screen.getByText("No events recorded yet")).toBeInTheDocument();
+      expect(screen.getByText("No activity yet")).toBeInTheDocument();
     });
   });
 });

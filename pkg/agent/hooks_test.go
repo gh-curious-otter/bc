@@ -13,12 +13,15 @@ func TestStateForHookEvent(t *testing.T) {
 		want  State
 		ok    bool
 	}{
-		{HookPreToolUse, StateWorking, true},
-		{HookPostToolUse, StateIdle, true},
 		{HookSessionStart, StateIdle, true},
 		{HookSessionEnd, StateStopped, true},
+		{HookUserPromptSubmit, StateWorking, true},
 		{HookTaskCompleted, StateDone, true},
 		{HookPermissionRequest, StateStuck, true},
+		{HookStop, StateIdle, true},
+		// Tool-level events are informational, not state-changing
+		{HookPreToolUse, "", false},
+		{HookPostToolUse, "", false},
 		{HookEvent("unknown"), "", false},
 		{HookEvent(""), "", false},
 	}

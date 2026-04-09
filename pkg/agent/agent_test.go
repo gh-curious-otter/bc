@@ -82,20 +82,21 @@ func newTestManager(t *testing.T) *Manager {
 	t.Cleanup(func() { _ = store.Close() })
 	be := runtime.NewTmuxBackend(tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())))
 
-	// Create role files for test roles so role existence validation passes.
-	rm := workspace.NewRoleManager(dir)
-	if mkErr := rm.EnsureRolesDir(); mkErr != nil {
-		t.Fatalf("EnsureRolesDir: %v", mkErr)
+	// Create role files BEFORE the RoleManager so migration picks them up.
+	rolesDir := filepath.Join(dir, "roles")
+	if mkErr := os.MkdirAll(rolesDir, 0750); mkErr != nil {
+		t.Fatalf("MkdirAll roles: %v", mkErr)
 	}
 	for _, roleName := range []string{"engineer", "manager", "qa", "worker", "product-manager"} {
 		if writeErr := os.WriteFile(
-			filepath.Join(rm.RolesDir(), roleName+".md"),
+			filepath.Join(rolesDir, roleName+".md"),
 			[]byte("---\nname: "+roleName+"\n---\n"),
 			0600,
 		); writeErr != nil {
 			t.Fatalf("write role %s: %v", roleName, writeErr)
 		}
 	}
+	rm := workspace.NewRoleManager(dir)
 
 	return &Manager{
 		agents:         make(map[string]*Agent),
