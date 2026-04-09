@@ -57,6 +57,7 @@ GO ?= go
 
 REGISTRY ?= bc
 IMAGE_TAG ?= latest
+# TODO: re-evaluate after provider redesign (#2920) — aider, opencode, openclaw pending removal (#2921)
 AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
 
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
@@ -201,8 +202,8 @@ test-web: ## Run web UI tests
 test-web-e2e: ## Run web e2e tests (needs running bcd)
 	cd web && bunx playwright test --config=e2e/playwright.config.ts
 
-test-landing: ## Run landing tests
-	cd landing && bun run test
+test-landing: ## Run landing tests (no-op: no tests configured yet)
+	@echo "⚠ landing: no tests configured (skipping)"
 
 coverage-go: ## Go test coverage
 	$(GO) test -race -coverprofile=coverage.out ./...
