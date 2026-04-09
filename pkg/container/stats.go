@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // ContainerStats holds resource usage metrics for a single Docker container.

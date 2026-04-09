@@ -20,10 +20,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
-	"github.com/gh-curious-otter/bc/pkg/provider"
-	"github.com/gh-curious-otter/bc/pkg/runtime"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/runtime"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // validEnvVarName matches valid POSIX environment variable names:

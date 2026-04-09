@@ -55,7 +55,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // validEnvVarName matches valid POSIX environment variable names:

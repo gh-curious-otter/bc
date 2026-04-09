@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/cron"
 )
 
 // CronHandler handles /api/cron routes.

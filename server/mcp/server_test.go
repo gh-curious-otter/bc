@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/workspace"
-	"github.com/gh-curious-otter/bc/server/mcp"
+	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/server/mcp"
 )
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/db"
 )
 
 func TestNew(t *testing.T) {

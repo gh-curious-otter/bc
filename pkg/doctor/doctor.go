@@ -32,10 +32,10 @@ import (
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/provider"
-	"github.com/gh-curious-otter/bc/pkg/tool"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // Severity indicates the outcome of a single health check item.

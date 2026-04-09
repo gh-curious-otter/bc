@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/db"
 )
 
 // Store is the SQLite/Postgres-backed persistence layer for subscriptions

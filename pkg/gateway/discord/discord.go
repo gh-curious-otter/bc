@@ -9,8 +9,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
-	"github.com/gh-curious-otter/bc/pkg/gateway"
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Adapter implements gateway.Adapter for Discord.

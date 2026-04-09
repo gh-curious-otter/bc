@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
-	pkgmcp "github.com/gh-curious-otter/bc/pkg/mcp"
-	"github.com/gh-curious-otter/bc/pkg/provider"
-	"github.com/gh-curious-otter/bc/pkg/secret"
-	pkgtool "github.com/gh-curious-otter/bc/pkg/tool"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/log"
+	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/secret"
+	pkgtool "github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // SetupAgentFromRole resolves a role via BFS inheritance and writes all

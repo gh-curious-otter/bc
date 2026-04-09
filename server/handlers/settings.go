@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // SettingsHandler handles /api/settings routes.

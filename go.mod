@@ -1,4 +1,4 @@
-module github.com/gh-curious-otter/bc
+module github.com/rpuneet/bc
 
 go 1.25.4
 

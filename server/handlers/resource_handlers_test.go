@@ -9,17 +9,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/cost"
-	"github.com/gh-curious-otter/bc/pkg/cron"
-	"github.com/gh-curious-otter/bc/pkg/db"
-	"github.com/gh-curious-otter/bc/pkg/events"
-	"github.com/gh-curious-otter/bc/pkg/mcp"
-	"github.com/gh-curious-otter/bc/pkg/secret"
-	"github.com/gh-curious-otter/bc/pkg/tool"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
-	"github.com/gh-curious-otter/bc/server"
-	"github.com/gh-curious-otter/bc/server/ws"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/secret"
+	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/server"
+	"github.com/rpuneet/bc/server/ws"
 )
 
 // --- helpers for building test servers with real services ---

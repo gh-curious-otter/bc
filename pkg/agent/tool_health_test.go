@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gh-curious-otter/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/provider"
 )
 
 // stubProvider is a minimal provider for testing tool health checks.

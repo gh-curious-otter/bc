@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // AgentSender is the interface for sending a message to an agent's tmux session.

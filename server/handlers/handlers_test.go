@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gh-curious-otter/bc/server"
-	"github.com/gh-curious-otter/bc/server/ws"
+	"github.com/rpuneet/bc/server"
+	"github.com/rpuneet/bc/server/ws"
 )
 
 // --- test helpers (mirrors server_test.go pattern) ---

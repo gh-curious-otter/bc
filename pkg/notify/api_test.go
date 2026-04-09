@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/db"
-	"github.com/gh-curious-otter/bc/pkg/notify"
-	"github.com/gh-curious-otter/bc/server/handlers"
+	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/notify"
+	"github.com/rpuneet/bc/server/handlers"
 )
 
 // ---------------------------------------------------------------------------

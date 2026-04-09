@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/db"
 )
 
 func setupTestStore(t *testing.T) *Store {

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // MigrateToGlobalState moves workspace state from <project>/.bc/ to

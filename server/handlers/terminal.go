@@ -11,8 +11,8 @@ import (
 	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 
-	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // TerminalHandler handles /api/agents/:name/terminal WebSocket connections.

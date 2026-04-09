@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 // bootstrapServerDaemons starts bc-db (unified TimescaleDB) during bc init.

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // statusRecorder wraps http.ResponseWriter to capture the status code.

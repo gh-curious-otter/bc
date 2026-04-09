@@ -11,8 +11,8 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/gh-curious-otter/bc/pkg/gateway"
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Adapter implements gateway.Adapter for Telegram.

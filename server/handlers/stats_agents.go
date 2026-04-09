@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/stats"
 )
 
 // RegisterAgentStats mounts agent stats routes on the mux.

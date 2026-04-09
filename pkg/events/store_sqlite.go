@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/rpuneet/bc/pkg/db"
 )
 
 // SQLiteLog stores events in a SQLite database.

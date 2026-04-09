@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // DefaultToolHealthInterval is the default interval between tool health checks.

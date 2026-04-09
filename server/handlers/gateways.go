@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/gateway"
-	"github.com/gh-curious-otter/bc/pkg/notify"
-	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/bc/pkg/notify"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // GatewayHandler handles /api/gateways routes.

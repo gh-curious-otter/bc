@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // PersistedChannel is a saved bc_channel → platform_id mapping.

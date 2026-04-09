@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gh-curious-otter/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 func TestToolList_OutputFormat(t *testing.T) {
