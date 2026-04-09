@@ -170,9 +170,7 @@ func (s *Server) readTools() (string, error) {
 		{Name: "claude", Description: "Claude Code (Anthropic)", Configured: commandExists("claude")},
 		{Name: "gemini", Description: "Gemini CLI (Google)", Configured: commandExists("gemini")},
 		{Name: "cursor", Description: "Cursor (terminal mode)", Configured: commandExists("cursor")},
-		{Name: "aider", Description: "Aider (open-source pair programmer)", Configured: commandExists("aider")},
 		{Name: "codex", Description: "Codex CLI (OpenAI)", Configured: commandExists("codex")},
-		{Name: "opencode", Description: "OpenCode terminal agent", Configured: commandExists("opencode")},
 	}
 	return marshalJSON(tools)
 }

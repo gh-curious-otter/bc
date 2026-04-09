@@ -53,11 +53,11 @@ linters:
         linters:
           - gochecknoglobals
 
-      # Allow importing deprecated queue/beads packages during migration
-      # TODO: Remove this exclusion once migration to channels is complete
-      - linters:
-          - staticcheck
-        text: "SA1019.*pkg/(queue|beads)"
+      # TODO: re-evaluate after redesign — queue/beads packages have been removed;
+      # keep this exclusion pattern in case channels revamp (#2947) introduces new deprecations
+      # - linters:
+      #     - staticcheck
+      #   text: "SA1019.*pkg/(queue|beads)"
 
 formatters:
   enable:
@@ -70,7 +70,7 @@ formatters:
 
     goimports:
       local-prefixes:
-        - github.com/rpuneet/bc
+        - github.com/gh-curious-otter/bc
 
 issues:
   max-issues-per-linter: 0

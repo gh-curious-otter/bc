@@ -231,7 +231,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			Name    string `json:"name"`
 			Role    string `json:"role"`
 			Tool    string `json:"tool"`
-			Runtime string `json:"runtime"`
+			Runtime string `json:"runtime_backend"`
 			Parent  string `json:"parent"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

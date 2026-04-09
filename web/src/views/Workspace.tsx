@@ -253,11 +253,11 @@ export function Workspace() {
             <InfoCard
               label="Channels"
               value={String(stats.channels_total)}
-              sub={`${stats.messages_total.toLocaleString()} messages`}
+              sub={`${(stats.messages_total ?? 0).toLocaleString()} messages`}
             />
             <InfoCard
               label="Cost"
-              value={`$${stats.total_cost_usd.toFixed(2)}`}
+              value={`$${(stats.total_cost_usd ?? 0).toFixed(2)}`}
             />
             <InfoCard
               label="Roles"
@@ -280,38 +280,38 @@ export function Workspace() {
         <>
           <Section title="Server">
             <div className="rounded border border-bc-border bg-bc-surface p-4">
-              <ConfigRow label="Host" value={settings.server.host} />
-              <ConfigRow label="Port" value={settings.server.port} />
+              <ConfigRow label="Host" value={settings.server?.host} />
+              <ConfigRow label="Port" value={settings.server?.port} />
               <ConfigRow label="Config Version" value={settings.version} />
-              <ConfigRow label="CORS Origin" value={settings.server.cors_origin} />
+              <ConfigRow label="CORS Origin" value={settings.server?.cors_origin} />
             </div>
           </Section>
 
           <Section title="Runtime">
             <div className="rounded border border-bc-border bg-bc-surface p-4">
-              <ConfigRow label="Default Runtime" value={settings.runtime.default} />
-              <ConfigRow label="Docker Image" value={settings.runtime.docker.image} />
-              <ConfigRow label="Docker Network" value={settings.runtime.docker.network} />
-              <ConfigRow label="CPU Limit" value={`${settings.runtime.docker.cpus} cores`} />
-              <ConfigRow label="Memory Limit" value={`${settings.runtime.docker.memory_mb} MB`} />
-              <ConfigRow label="Default Provider" value={settings.providers.default} />
+              <ConfigRow label="Default Runtime" value={settings.runtime?.default} />
+              <ConfigRow label="Docker Image" value={settings.runtime?.docker?.image} />
+              <ConfigRow label="Docker Network" value={settings.runtime?.docker?.network} />
+              <ConfigRow label="CPU Limit" value={settings.runtime?.docker?.cpus ? `${settings.runtime.docker.cpus} cores` : undefined} />
+              <ConfigRow label="Memory Limit" value={settings.runtime?.docker?.memory_mb ? `${settings.runtime.docker.memory_mb} MB` : undefined} />
+              <ConfigRow label="Default Provider" value={settings.providers?.default} />
             </div>
           </Section>
 
           <Section title="Storage">
             <div className="rounded border border-bc-border bg-bc-surface p-4">
-              <ConfigRow label="Backend" value={settings.storage.default} />
-              {settings.storage.default === "sqlite" && (
-                <ConfigRow label="SQLite Path" value={settings.storage.sqlite.path} />
+              <ConfigRow label="Backend" value={settings.storage?.default} />
+              {settings.storage?.default === "sqlite" && (
+                <ConfigRow label="SQLite Path" value={settings.storage?.sqlite?.path} />
               )}
-              {(settings.storage.default === "timescale" || settings.storage.default === "sql") && (
+              {(settings.storage?.default === "timescale" || settings.storage?.default === "sql") && (
                 <>
-                  <ConfigRow label="Host" value={(settings.storage.timescale ?? settings.storage.sql)?.host ?? ""} />
-                  <ConfigRow label="Port" value={(settings.storage.timescale ?? settings.storage.sql)?.port ?? ""} />
-                  <ConfigRow label="Database" value={(settings.storage.timescale ?? settings.storage.sql)?.database ?? ""} />
+                  <ConfigRow label="Host" value={(settings.storage?.timescale ?? settings.storage?.sql)?.host ?? ""} />
+                  <ConfigRow label="Port" value={(settings.storage?.timescale ?? settings.storage?.sql)?.port ?? ""} />
+                  <ConfigRow label="Database" value={(settings.storage?.timescale ?? settings.storage?.sql)?.database ?? ""} />
                 </>
               )}
-              <ConfigRow label="Log Path" value={settings.logs.path} />
+              <ConfigRow label="Log Path" value={settings.logs?.path} />
             </div>
           </Section>
 
@@ -319,15 +319,15 @@ export function Workspace() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <GatewayBadge
                 name="Slack"
-                enabled={settings.gateways.slack?.enabled ?? false}
+                enabled={settings.gateways?.slack?.enabled ?? false}
               />
               <GatewayBadge
                 name="Telegram"
-                enabled={settings.gateways.telegram?.enabled ?? false}
+                enabled={settings.gateways?.telegram?.enabled ?? false}
               />
               <GatewayBadge
                 name="Discord"
-                enabled={settings.gateways.discord?.enabled ?? false}
+                enabled={settings.gateways?.discord?.enabled ?? false}
               />
             </div>
           </Section>

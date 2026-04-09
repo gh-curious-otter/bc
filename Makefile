@@ -57,7 +57,7 @@ GO ?= go
 
 REGISTRY ?= bc
 IMAGE_TAG ?= latest
-AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
+AGENT_PROVIDERS := claude gemini codex cursor
 
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)
@@ -188,7 +188,7 @@ test-go: ## Run Go tests with race detector
 
 test-go-fast: ## Run Go tests excluding slow packages
 	# NOTE: Keep SLOW list in sync with .github/workflows/ci.yml "Run fast tests" step
-	$(GO) test -race $$($(GO) list ./... | grep -v -F "$$(printf 'github.com/rpuneet/bc/pkg/tmux\ngithub.com/rpuneet/bc/pkg/secret\ngithub.com/rpuneet/bc/pkg/doctor\ngithub.com/rpuneet/bc/internal/cmd')")
+	$(GO) test -race $$($(GO) list ./... | grep -v -F "$$(printf 'github.com/gh-curious-otter/bc/pkg/tmux\ngithub.com/gh-curious-otter/bc/pkg/secret\ngithub.com/gh-curious-otter/bc/pkg/doctor\ngithub.com/gh-curious-otter/bc/internal/cmd')")
 
 test-ts: test-tui test-web test-landing ## Run all TS tests
 
@@ -201,8 +201,8 @@ test-web: ## Run web UI tests
 test-web-e2e: ## Run web e2e tests (needs running bcd)
 	cd web && bunx playwright test --config=e2e/playwright.config.ts
 
-test-landing: ## Run landing tests
-	cd landing && bun run test
+test-landing: ## Run landing tests (no-op: no tests configured yet)
+	@echo "⚠ landing: no tests configured (skipping)"
 
 coverage-go: ## Go test coverage
 	$(GO) test -race -coverprofile=coverage.out ./...

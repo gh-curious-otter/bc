@@ -10,7 +10,6 @@ project_name: bc
 before:
   hooks:
     - go mod tidy
-    - go generate ./...
 
 builds:
   - id: bc
@@ -37,6 +36,7 @@ builds:
         goarch: arm64
 
   # Windows build without CGO (limited functionality)
+  # TODO: re-evaluate after redesign — nosqlite build tag is a no-op (no //go:build nosqlite directives exist)
   - id: bc-windows
     main: ./cmd/bc
     binary: bc
@@ -106,11 +106,11 @@ changelog:
 
 release:
   github:
-    owner: rpuneet
+    owner: gh-curious-otter
     name: bc
   draft: false
   prerelease: auto
-  mode: replace
+  mode: append
   header: |
     ## bc {{ .Tag }}
 
@@ -118,16 +118,16 @@ release:
   footer: |
     ---
 
-    **Full Changelog**: https://github.com/rpuneet/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/gh-curious-otter/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 brews:
   - name: bc
     repository:
-      owner: rpuneet
+      owner: gh-curious-otter
       name: homebrew-bc
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
-    homepage: https://github.com/rpuneet/bc
+    homepage: https://github.com/gh-curious-otter/bc
     description: Orchestration for AI agents
     license: MIT
     skip_upload: auto

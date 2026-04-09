@@ -11,13 +11,10 @@ import (
 
 // expectedProviders is the canonical list of providers that must be in DefaultRegistry.
 var expectedProviders = []string{
-	"aider",
 	"claude",
 	"codex",
 	"cursor",
 	"gemini",
-	"openclaw",
-	"opencode",
 }
 
 func TestRegistryCompleteness(t *testing.T) {
@@ -60,10 +57,7 @@ func TestProviderConfigRoundtrip(t *testing.T) {
 				"claude": {Command: "claude --skip"},
 				"gemini": {Command: "gemini --yolo"},
 				"cursor": {Command: "cursor --force"},
-				"codex": {Command: "codex --auto"},
-				"opencode": {Command: "crush"},
-				"openclaw": {Command: "openclaw --auto"},
-				"aider": {Command: "aider --yes"},
+				"codex":  {Command: "codex --auto"},
 			},
 		},
 	}

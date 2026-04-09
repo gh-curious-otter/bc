@@ -27,8 +27,8 @@ func BenchmarkRegistryRegister(b *testing.B) {
 func BenchmarkRegistryGet(b *testing.B) {
 	r := NewRegistry()
 	r.Register(NewClaudeProvider())
-	r.Register(NewOpenCodeProvider())
 	r.Register(NewCodexProvider())
+	r.Register(NewGeminiProvider())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -51,10 +51,9 @@ func BenchmarkRegistryGetMiss(b *testing.B) {
 func BenchmarkRegistryList(b *testing.B) {
 	r := NewRegistry()
 	r.Register(NewClaudeProvider())
-	r.Register(NewOpenCodeProvider())
 	r.Register(NewCodexProvider())
-	r.Register(NewOpenClawProvider())
-	r.Register(NewAiderProvider())
+	r.Register(NewGeminiProvider())
+	r.Register(NewCursorProvider())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -132,7 +131,6 @@ func BenchmarkDetectStateUnknown(b *testing.B) {
 // BenchmarkDetectStateLongOutput measures state detection with long output.
 func BenchmarkDetectStateLongOutput(b *testing.B) {
 	p := NewClaudeProvider()
-	// Simulate 100 lines of output
 	output := ""
 	for range 100 {
 		output += "Some log line with content\n"
@@ -149,10 +147,9 @@ func BenchmarkDetectStateLongOutput(b *testing.B) {
 func BenchmarkAllProvidersDetectState(b *testing.B) {
 	providers := []Provider{
 		NewClaudeProvider(),
-		NewOpenCodeProvider(),
 		NewCodexProvider(),
-		NewOpenClawProvider(),
-		NewAiderProvider(),
+		NewGeminiProvider(),
+		NewCursorProvider(),
 	}
 	output := "Processing...\n✻ Working"
 
@@ -171,24 +168,10 @@ func BenchmarkNewClaudeProvider(b *testing.B) {
 	}
 }
 
-// BenchmarkNewOpenCodeProvider measures provider creation.
-func BenchmarkNewOpenCodeProvider(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = NewOpenCodeProvider()
-	}
-}
-
 // BenchmarkNewCodexProvider measures provider creation.
 func BenchmarkNewCodexProvider(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = NewCodexProvider()
-	}
-}
-
-// BenchmarkNewAiderProvider measures provider creation.
-func BenchmarkNewAiderProvider(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = NewAiderProvider()
 	}
 }
 
@@ -207,8 +190,8 @@ func BenchmarkIsInstalled(b *testing.B) {
 func BenchmarkRegistryGetConcurrent(b *testing.B) {
 	r := NewRegistry()
 	r.Register(NewClaudeProvider())
-	r.Register(NewOpenCodeProvider())
 	r.Register(NewCodexProvider())
+	r.Register(NewGeminiProvider())
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
