@@ -355,7 +355,47 @@ export async function execBcJsonCached<T>(args: string[], ttl?: number): Promise
   return data;
 }
 
+// ============================================================================
+// bcd HTTP API helpers
+// ============================================================================
+
+/**
+ * Get the bcd daemon base URL.
+ * Reads BC_DAEMON_ADDR env var or defaults to http://127.0.0.1:9374.
+ */
+export function getBcdUrl(): string {
+  const addr = process.env.BC_DAEMON_ADDR;
+  if (addr) {
+    // Normalise: strip trailing slash
+    return addr.replace(/\/$/, '');
+  }
+  return 'http://127.0.0.1:9374';
+}
+
+/**
+ * Injectable fetch function — defaults to global fetch.
+ * Tests can override via _setFetchForTesting() to control HTTP responses.
+ */
+type FetchFn = typeof fetch;
+let _fetch: FetchFn = fetch;
+
+/**
+ * Set a custom fetch function for testing.
+ * @param mockFetch - Mock fetch function to use
+ * @returns Function to restore original fetch
+ * @internal
+ */
+export function _setFetchForTesting(mockFetch: FetchFn): () => void {
+  const originalFetch = _fetch;
+  _fetch = mockFetch;
+  return () => {
+    _fetch = originalFetch;
+  };
+}
+
+// ============================================================================
 // Convenience methods for common commands
+// ============================================================================
 
 /**
  * Get current agent status
@@ -366,31 +406,75 @@ export async function getStatus(): Promise<StatusResponse> {
 }
 
 /**
- * Get list of channels
- * Note: bc channel list --json now returns {channels: [...]} format (PR #589)
+ * Get list of channels via bcd HTTP API, falling back to CLI on failure.
+ *
+ * The bcd endpoint GET /api/channels returns an array of channel objects.
+ * We normalise the response to the {channels: [...]} shape expected by the TUI.
  */
 export async function getChannels(): Promise<ChannelsResponse> {
-  // #1005: Use cached version to reduce polling overhead
-  return execBcJsonCached<ChannelsResponse>(['channel', 'list']);
+  try {
+    const res = await _fetch(`${getBcdUrl()}/api/channels`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${String(res.status)}`);
+    }
+    // bcd returns Array<{name, description, members, member_count}>
+    const raw = (await res.json()) as Array<{
+      name: string;
+      description?: string;
+      members?: string[];
+    }>;
+    const channels = raw.map((ch) => ({
+      name: ch.name,
+      description: ch.description,
+      members: ch.members ?? [],
+    }));
+    return { channels };
+  } catch {
+    // Fallback to CLI subprocess
+    return execBcJsonCached<ChannelsResponse>(['channel', 'list']);
+  }
 }
 
 /**
- * Get channel message history
+ * Get channel message history via bcd HTTP API, falling back to CLI on failure.
+ *
+ * The bcd endpoint GET /api/channels/{name}/history?limit=N returns an array
+ * of message objects.  We normalise to the {channel, messages} shape the TUI expects.
+ *
  * @param channelName - Name of channel
  * @param limit - Maximum number of messages to return (default: 50)
- *
- * #1595: Uses caching with short TTL for real-time feel while reducing overhead
  */
 export async function getChannelHistory(
   channelName: string,
   limit?: number
 ): Promise<ChannelHistory> {
-  const args = ['channel', 'history', channelName];
-  if (limit !== undefined && limit > 0) {
-    args.push('--limit', String(limit));
+  try {
+    const limitParam = limit !== undefined && limit > 0 ? limit : 50;
+    const url = `${getBcdUrl()}/api/channels/${encodeURIComponent(channelName)}/history?limit=${String(limitParam)}`;
+    const res = await _fetch(url);
+    if (!res.ok) {
+      throw new Error(`HTTP ${String(res.status)}`);
+    }
+    // bcd returns Array<{id, sender, content, created_at}>
+    const raw = (await res.json()) as Array<{
+      sender: string;
+      content: string;
+      created_at: string;
+    }>;
+    const messages = raw.map((m) => ({
+      sender: m.sender,
+      message: m.content,
+      time: m.created_at,
+    }));
+    return { channel: channelName, messages };
+  } catch {
+    // Fallback to CLI subprocess
+    const args = ['channel', 'history', channelName];
+    if (limit !== undefined && limit > 0) {
+      args.push('--limit', String(limit));
+    }
+    return execBcJsonCached<ChannelHistory>(args, 2000);
   }
-  // #1595: Use cached version with 2s TTL for real-time feel
-  return execBcJsonCached<ChannelHistory>(args, 2000);
 }
 
 /**

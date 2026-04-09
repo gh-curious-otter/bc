@@ -25,6 +25,7 @@ const {
   getDemons,
   clearCache,
   _setSpawnForTesting,
+  _setFetchForTesting,
 } = bc;
 
 // Mock process factory - creates a mock ChildProcess-like object
@@ -216,18 +217,26 @@ describe('execBcJson - JSON parsing', () => {
 });
 
 describe('Command wrapper functions - Status and channels', () => {
+  let restoreFetch: (() => void) | null = null;
+
   beforeEach(() => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
     restoreSpawn = _setSpawnForTesting(
       mockSpawnImpl as unknown
     );
+    // Make HTTP fetch fail so channel functions fall back to CLI subprocess
+    restoreFetch = _setFetchForTesting(() => Promise.reject(new Error('fetch disabled in tests')));
   });
 
   afterEach(() => {
     if (restoreSpawn) {
       restoreSpawn();
       restoreSpawn = null;
+    }
+    if (restoreFetch) {
+      restoreFetch();
+      restoreFetch = null;
     }
   });
 
@@ -253,7 +262,7 @@ describe('Command wrapper functions - Status and channels', () => {
     expect(result.agents).toEqual(statusData.agents);
   });
 
-  it('getChannels fetches channel list', async () => {
+  it('getChannels fetches channel list (via CLI fallback)', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
     _setSpawnForTesting(mockSpawnImpl as unknown);
@@ -275,7 +284,7 @@ describe('Command wrapper functions - Status and channels', () => {
     expect(result).toEqual(channelsData);
   });
 
-  it('getChannelHistory fetches message history', async () => {
+  it('getChannelHistory fetches message history (via CLI fallback)', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
     _setSpawnForTesting(mockSpawnImpl as unknown);
