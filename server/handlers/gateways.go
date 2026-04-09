@@ -4,12 +4,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/gateway"
 	"github.com/gh-curious-otter/bc/pkg/notify"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
@@ -19,18 +16,12 @@ import (
 type GatewayHandler struct {
 	gw        *gateway.Manager
 	ws        *workspace.Workspace
-	chanSvc   *channel.ChannelService
 	notifySvc *notify.Service
 }
 
 // NewGatewayHandler creates a GatewayHandler.
 func NewGatewayHandler(gw *gateway.Manager, ws *workspace.Workspace) *GatewayHandler {
 	return &GatewayHandler{gw: gw, ws: ws}
-}
-
-// SetChannelService sets the channel service for activity queries.
-func (h *GatewayHandler) SetChannelService(svc *channel.ChannelService) {
-	h.chanSvc = svc
 }
 
 // SetNotifyService sets the notification service for subscription management.
@@ -388,19 +379,15 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "platform": platform})
 }
 
-// activityEntry is a message from a gateway channel in the unified activity feed.
-type activityEntry struct {
-	Time     time.Time `json:"time"`
-	Channel  string    `json:"channel"`
-	Platform string    `json:"platform"`
-	Sender   string    `json:"sender"`
-	Content  string    `json:"content"`
-}
-
-// activity returns recent messages across all gateway channels as a unified feed.
+// activity returns recent activity from notify delivery log.
 // GET /api/gateways/activity?limit=50
 func (h *GatewayHandler) activity(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+
+	if h.notifySvc == nil {
+		writeJSON(w, http.StatusOK, []notify.DeliveryEntry{})
 		return
 	}
 
@@ -412,54 +399,30 @@ func (h *GatewayHandler) activity(w http.ResponseWriter, r *http.Request) {
 	}
 	limit = clampInt(limit, 1, 200)
 
-	if h.chanSvc == nil {
-		writeJSON(w, http.StatusOK, []activityEntry{})
-		return
-	}
-
-	// Get all gateway channels
+	// Aggregate activity across all gateway channels
 	var gwChannelNames []string
 	if h.gw != nil {
 		gwChannelNames = h.gw.ExternalChannels()
 	}
 	if len(gwChannelNames) == 0 {
-		writeJSON(w, http.StatusOK, []activityEntry{})
+		writeJSON(w, http.StatusOK, []notify.DeliveryEntry{})
 		return
 	}
 
-	// Collect recent messages from all gateway channels
-	var entries []activityEntry
-	for _, chName := range gwChannelNames {
-		msgs, err := h.chanSvc.History(r.Context(), chName, channel.HistoryOpts{Limit: limit})
+	var allEntries []notify.DeliveryEntry
+	for _, ch := range gwChannelNames {
+		entries, err := h.notifySvc.ChannelActivity(r.Context(), ch, limit)
 		if err != nil {
 			continue
 		}
-		platform := "unknown"
-		if idx := strings.Index(chName, ":"); idx > 0 {
-			platform = chName[:idx]
-		}
-		for _, msg := range msgs {
-			entries = append(entries, activityEntry{
-				Time:     msg.CreatedAt,
-				Channel:  chName,
-				Platform: platform,
-				Sender:   msg.Sender,
-				Content:  msg.Content,
-			})
-		}
+		allEntries = append(allEntries, entries...)
 	}
 
-	// Sort by time descending (newest first)
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Time.After(entries[j].Time)
-	})
-
-	// Apply limit
-	if len(entries) > limit {
-		entries = entries[:limit]
+	if len(allEntries) > limit {
+		allEntries = allEntries[:limit]
 	}
 
-	writeJSON(w, http.StatusOK, entries)
+	writeJSON(w, http.StatusOK, allEntries)
 }
 
 // --- Notify-powered subscription endpoints ---

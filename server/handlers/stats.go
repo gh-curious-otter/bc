@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/stats"
 	"github.com/gh-curious-otter/bc/pkg/tool"
@@ -32,7 +31,6 @@ var serverStartTime = time.Now() //nolint:gochecknoglobals // intentional: track
 // StatsHandler handles /api/stats routes.
 type StatsHandler struct {
 	agents     *agent.AgentService
-	channels   *channel.ChannelService
 	costs      *cost.Store
 	tools      *tool.Store
 	ws         *workspace.Workspace
@@ -42,7 +40,6 @@ type StatsHandler struct {
 // NewStatsHandler creates a StatsHandler.
 func NewStatsHandler(
 	agents *agent.AgentService,
-	channels *channel.ChannelService,
 	costs *cost.Store,
 	tools *tool.Store,
 	ws *workspace.Workspace,
@@ -50,7 +47,6 @@ func NewStatsHandler(
 ) *StatsHandler {
 	return &StatsHandler{
 		agents:     agents,
-		channels:   channels,
 		costs:      costs,
 		tools:      tools,
 		ws:         ws,
@@ -126,19 +122,6 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var channelsTotal, messagesTotal int
-	if h.channels != nil {
-		channels, err := h.channels.List(ctx)
-		if err != nil {
-			httpInternalError(w, "list channels", err)
-			return
-		}
-		channelsTotal = len(channels)
-		for _, ch := range channels {
-			messagesTotal += ch.MessageCount
-		}
-	}
-
 	var totalCostUSD float64
 	if h.costs != nil {
 		summary, err := h.costs.WorkspaceSummary(ctx)
@@ -171,8 +154,6 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 		"agents_total":   agentsTotal,
 		"agents_running": agentsRunning,
 		"agents_stopped": agentsStopped,
-		"channels_total": channelsTotal,
-		"messages_total": messagesTotal,
 		"total_cost_usd": totalCostUSD,
 		"roles_total":    rolesTotal,
 		"tools_total":    toolsTotal,

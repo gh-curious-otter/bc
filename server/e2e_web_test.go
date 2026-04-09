@@ -18,7 +18,6 @@ import (
 	"testing/fstest"
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/cron"
 	"github.com/gh-curious-otter/bc/pkg/events"
@@ -69,12 +68,6 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	_ = mgr.LoadState()
 	agentSvc := agent.NewAgentService(mgr, hub, nil)
 
-	var channelSvc *channel.ChannelService
-	if chStore, err := channel.OpenStore(ws.RootDir); err == nil {
-		channelSvc = channel.NewChannelService(chStore)
-		t.Cleanup(func() { _ = chStore.Close() })
-	}
-
 	var costStore *cost.Store
 	cs := cost.NewStore(ws.RootDir)
 	if err := cs.Open(); err == nil {
@@ -109,7 +102,6 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 
 	svc := server.Services{
 		Agents:   agentSvc,
-		Channels: channelSvc,
 		Costs:    costStore,
 		Cron:     cronStore,
 		MCP:      mcpStore,
@@ -191,7 +183,7 @@ func TestE2E_WebUI_ServesIndex(t *testing.T) {
 func TestE2E_WebUI_SPAFallback(t *testing.T) {
 	s := newE2EServerWithWebUI(t)
 
-	routes := []string{"/dashboard", "/agents", "/settings", "/channels/general"}
+	routes := []string{"/dashboard", "/agents", "/settings"}
 
 	for _, route := range routes {
 		t.Run(route, func(t *testing.T) {
@@ -264,7 +256,6 @@ func TestE2E_WebUI_APIEndpointsReturnJSON(t *testing.T) {
 		wantCT string
 	}{
 		{"/api/agents", "application/json"},
-		{"/api/channels", "application/json"},
 		{"/api/costs", "application/json"},
 		{"/api/workspace", "application/json"},
 		{"/api/doctor", "application/json"},
@@ -341,7 +332,7 @@ func TestE2E_WebUI_CORSHeaders(t *testing.T) {
 // ─── Full Web Workflow ───────────────────────────────────────────────────────
 
 // TestE2E_WebUI_FullWorkflow exercises a complete web UI workflow:
-// workspace status → create channel → send message → read history → verify list.
+// workspace status → verify agents → verify workspace healthy.
 func TestE2E_WebUI_FullWorkflow(t *testing.T) {
 	s := newE2EServer(t)
 
@@ -354,60 +345,13 @@ func TestE2E_WebUI_FullWorkflow(t *testing.T) {
 		t.Fatalf("workspace name: want non-empty, got %v", wsBody["name"])
 	}
 
-	// 2. POST /api/channels → create "web-test" channel
-	code, chBody := s.postJSON(t, "/api/channels", map[string]string{
-		"name":        "web-test",
-		"description": "Web UI smoke test channel",
-	})
-	if code != http.StatusCreated {
-		t.Fatalf("create channel: want 201, got %d: %v", code, chBody)
-	}
-
-	// 3. POST /api/channels/web-test/messages → send a message
-	code, msgBody := s.postJSON(t, "/api/channels/web-test/messages", map[string]string{
-		"sender":  "web-ui",
-		"content": "smoke test message",
-	})
-	if code != http.StatusCreated {
-		t.Fatalf("send message: want 201, got %d: %v", code, msgBody)
-	}
-
-	// 4. GET /api/channels/web-test/history → verify message appears
-	code, history := s.getList(t, "/api/channels/web-test/history")
+	// 2. GET /api/agents → verify agents endpoint works
+	code, _ = s.get(t, "/api/agents")
 	if code != http.StatusOK {
-		t.Fatalf("get history: want 200, got %d", code)
-	}
-	if len(history) == 0 {
-		t.Fatal("expected at least 1 message in history")
-	}
-	lastMsg, ok := history[len(history)-1].(map[string]any)
-	if !ok {
-		t.Fatalf("history entry: expected object, got %T", history[len(history)-1])
-	}
-	if lastMsg["content"] != "smoke test message" {
-		t.Fatalf("message content: want %q, got %v", "smoke test message", lastMsg["content"])
-	}
-	if lastMsg["sender"] != "web-ui" {
-		t.Fatalf("message sender: want %q, got %v", "web-ui", lastMsg["sender"])
+		t.Fatalf("agents list: want 200, got %d", code)
 	}
 
-	// 5. GET /api/channels → verify "web-test" in list
-	code, channels := s.getList(t, "/api/channels")
-	if code != http.StatusOK {
-		t.Fatalf("list channels: want 200, got %d", code)
-	}
-	found := false
-	for _, ch := range channels {
-		if chMap, ok := ch.(map[string]any); ok && chMap["name"] == "web-test" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatal("channel 'web-test' not found in channel list")
-	}
-
-	// 6. GET /api/workspace → verify workspace still healthy
+	// 3. GET /api/workspace → verify workspace still healthy
 	code, wsBody = s.get(t, "/api/workspace")
 	if code != http.StatusOK {
 		t.Fatalf("workspace status (final): want 200, got %d", code)

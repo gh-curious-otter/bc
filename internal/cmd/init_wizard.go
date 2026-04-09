@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	"github.com/gh-curious-otter/bc/pkg/ui"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
@@ -227,13 +226,6 @@ func createWorkspaceFromWizard(state *WizardState) error {
 	if err != nil {
 		return fmt.Errorf("failed to create role files: %w", err)
 	}
-
-	// Initialize channel database
-	channelStore := channel.NewSQLiteStore(state.Dir)
-	if openErr := channelStore.Open(); openErr != nil {
-		return fmt.Errorf("failed to initialize channel database: %w", openErr)
-	}
-	_ = channelStore.Close()
 
 	// Register in global registry
 	reg, regErr := workspace.LoadRegistry()

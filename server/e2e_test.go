@@ -17,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/cron"
 	bcdb "github.com/gh-curious-otter/bc/pkg/db"
@@ -80,13 +79,6 @@ func newE2EServer(t *testing.T) *e2eServer {
 	_ = mgr.LoadState()
 	agentSvc := agent.NewAgentService(mgr, hub, nil)
 
-	// Channel service
-	var channelSvc *channel.ChannelService
-	if chStore, err := channel.OpenStore(ws.RootDir); err == nil {
-		channelSvc = channel.NewChannelService(chStore)
-		t.Cleanup(func() { _ = chStore.Close() })
-	}
-
 	// Cost store
 	var costStore *cost.Store
 	cs := cost.NewStore(ws.RootDir)
@@ -126,7 +118,6 @@ func newE2EServer(t *testing.T) *e2eServer {
 
 	svc := server.Services{
 		Agents:   agentSvc,
-		Channels: channelSvc,
 		Costs:    costStore,
 		Cron:     cronStore,
 		MCP:      mcpStore,
@@ -298,79 +289,6 @@ func TestE2E_Agents_StopAll(t *testing.T) {
 	}
 }
 
-// ─── Channels ────────────────────────────────────────────────────────────────
-
-func TestE2E_Channels_ListDefault(t *testing.T) {
-	s := newE2EServer(t)
-
-	code, channels := s.getList(t, "/api/channels")
-	if code != 200 {
-		t.Fatalf("want 200, got %d", code)
-	}
-	// No default channels — starts empty
-	if len(channels) != 0 {
-		t.Fatalf("want 0 channels (no defaults), got %d", len(channels))
-	}
-}
-
-func TestE2E_Channels_CreateAndGet(t *testing.T) {
-	s := newE2EServer(t)
-
-	// Create
-	code, body := s.postJSON(t, "/api/channels", map[string]string{
-		"name":        "test-channel",
-		"description": "E2E test channel",
-	})
-	if code != 201 {
-		t.Fatalf("want 201, got %d: %v", code, body)
-	}
-
-	// Get
-	code, body = s.get(t, "/api/channels/test-channel")
-	if code != 200 {
-		t.Fatalf("want 200, got %d", code)
-	}
-	if body["name"] != "test-channel" {
-		t.Fatalf("want name=test-channel, got %v", body["name"])
-	}
-}
-
-func TestE2E_Channels_SendMessage(t *testing.T) {
-	s := newE2EServer(t)
-
-	// Create channel first (no defaults exist)
-	s.postJSON(t, "/api/channels", map[string]string{"name": "general"})
-
-	// Send to channel
-	code, _ := s.postJSON(t, "/api/channels/general/messages", map[string]string{
-		"sender":  "test-agent",
-		"content": "hello from e2e",
-	})
-	if code != 201 {
-		t.Fatalf("want 201, got %d", code)
-	}
-
-	// Verify in history
-	code, history := s.getList(t, "/api/channels/general/history")
-	if code != 200 {
-		t.Fatalf("want 200, got %d", code)
-	}
-	if len(history) == 0 {
-		t.Fatal("expected at least 1 message in history")
-	}
-}
-
-func TestE2E_Channels_Delete(t *testing.T) {
-	s := newE2EServer(t)
-
-	// Create then delete
-	s.postJSON(t, "/api/channels", map[string]string{"name": "to-delete"})
-
-	code := s.delete(t, "/api/channels/to-delete")
-	if code != 204 {
-		t.Fatalf("want 204, got %d", code)
-	}
-}
 
 // ─── Costs ───────────────────────────────────────────────────────────────────
 

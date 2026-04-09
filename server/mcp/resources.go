@@ -60,25 +60,9 @@ func (s *Server) readAgents() (string, error) {
 
 // ─── bc://channels ────────────────────────────────────────────────────────────
 
-type channelPayload struct {
-	Name         string   `json:"name"`
-	Description  string   `json:"description,omitempty"`
-	Members      []string `json:"members"`
-	MessageCount int      `json:"message_count"`
-}
-
 func (s *Server) readChannels() (string, error) {
-	chans := s.chans.List()
-	payload := make([]channelPayload, 0, len(chans))
-	for _, ch := range chans {
-		payload = append(payload, channelPayload{
-			Name:         ch.Name,
-			Description:  ch.Description,
-			Members:      ch.Members,
-			MessageCount: len(ch.History),
-		})
-	}
-	return marshalJSON(payload)
+	// Channels are now managed by pkg/notify — return empty list.
+	return marshalJSON([]struct{}{})
 }
 
 // ─── bc://costs ───────────────────────────────────────────────────────────────

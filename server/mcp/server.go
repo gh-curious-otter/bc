@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/gateway"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
@@ -30,29 +29,24 @@ func AgentFromContext(ctx context.Context) string {
 // Server is a bc MCP server. It owns handles to workspace state and dispatches
 // JSON-RPC 2.0 requests from either stdio or SSE transports.
 type Server struct {
-	ws         *workspace.Workspace
-	agents     *agent.Manager
-	chans      *channel.Store
-	chanSvc    *channel.ChannelService
-	costs      *cost.Store
-	gateway    *gateway.Manager
-	broker  *SSEBroker
-	version string
-	ownChans   bool
-	ownCosts   bool
+	ws       *workspace.Workspace
+	agents   *agent.Manager
+	costs    *cost.Store
+	gateway  *gateway.Manager
+	broker   *SSEBroker
+	version  string
+	ownCosts bool
 }
 
 // Config holds the dependencies needed to build a Server.
 // When Channels or Costs are provided, the server reuses them (e.g. from bcd)
 // instead of opening its own connections.
 type Config struct {
-	Workspace      *workspace.Workspace
-	Agents         *agent.Manager          // optional: pre-built agent manager
-	Channels       *channel.Store          // optional: pre-built channel store (SQLite/Postgres)
-	ChannelService *channel.ChannelService // optional: service with OnMessage hook for delivery
-	Costs          *cost.Store             // optional: pre-built cost store
-	Gateway        *gateway.Manager        // optional: gateway manager for file uploads
-	Version        string                  // bc binary version, e.g. "1.2.3"
+	Workspace *workspace.Workspace
+	Agents    *agent.Manager   // optional: pre-built agent manager
+	Costs     *cost.Store      // optional: pre-built cost store
+	Gateway   *gateway.Manager // optional: gateway manager for file uploads
+	Version   string           // bc binary version, e.g. "1.2.3"
 }
 
 // New creates a Server. Call Close when done.
@@ -64,7 +58,7 @@ func New(cfg Config) (*Server, error) {
 	}
 
 	// Track whether we created stores ourselves (so Close knows what to clean up).
-	var ownChans, ownCosts bool
+	var ownCosts bool
 
 	// Agent manager
 	mgr := cfg.Agents
@@ -73,17 +67,6 @@ func New(cfg Config) (*Server, error) {
 		if err := mgr.LoadState(); err != nil {
 			_ = err // Non-fatal
 		}
-	}
-
-	// Channel store
-	cs := cfg.Channels
-	if cs == nil {
-		var err error
-		cs, err = channel.OpenStore(cfg.Workspace.RootDir)
-		if err != nil {
-			cs = channel.NewStore(cfg.Workspace.RootDir)
-		}
-		ownChans = true
 	}
 
 	// Cost store
@@ -104,12 +87,9 @@ func New(cfg Config) (*Server, error) {
 	return &Server{
 		ws:       cfg.Workspace,
 		agents:   mgr,
-		chans:    cs,
-		chanSvc:  cfg.ChannelService,
 		costs:    costStore,
 		gateway:  cfg.Gateway,
 		version:  v,
-		ownChans: ownChans,
 		ownCosts: ownCosts,
 	}, nil
 }
@@ -117,11 +97,6 @@ func New(cfg Config) (*Server, error) {
 // Close releases resources held by the server.
 // Only closes stores that the server created itself (not injected ones).
 func (s *Server) Close() error {
-	if s.ownChans && s.chans != nil {
-		if err := s.chans.Close(); err != nil {
-			return err
-		}
-	}
 	if s.ownCosts && s.costs != nil {
 		return s.costs.Close()
 	}
@@ -309,16 +284,10 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) Response {
 	)
 
 	switch p.Name {
-	case "send_message":
-		result, err = s.toolSendMessage(ctx, p.Arguments)
 	case "send_file":
 		result, err = s.toolSendFile(ctx, p.Arguments)
 	case "whoami":
 		result, err = s.toolWhoami(ctx)
-	case "list_channels":
-		result, err = s.toolListChannels(p.Arguments)
-	case "read_channel":
-		result, err = s.toolReadChannel(p.Arguments)
 	case "list_agents":
 		result, err = s.toolListAgents(p.Arguments)
 	default:

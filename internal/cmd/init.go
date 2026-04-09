@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
-	"github.com/gh-curious-otter/bc/pkg/channel"
 	"github.com/gh-curious-otter/bc/pkg/client"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	"github.com/gh-curious-otter/bc/pkg/ui"
@@ -154,13 +153,6 @@ func initV2Workspace(rootDir string) error {
 		return fmt.Errorf("failed to create role files: %w", err)
 	}
 
-	// Initialize channel database
-	channelStore := channel.NewSQLiteStore(rootDir)
-	if openErr := channelStore.Open(); openErr != nil {
-		return fmt.Errorf("failed to initialize channel database: %w", openErr)
-	}
-	_ = channelStore.Close()
-
 	// Register in global registry
 	reg, err := workspace.LoadRegistry()
 	if err == nil {
@@ -187,28 +179,6 @@ func initV2Workspace(rootDir string) error {
 	fmt.Printf("  bc status   # Check agent status\n")
 
 	return nil
-}
-
-// createDefaultChannels creates the "all" channel and one channel per agent.
-// rootDir is the workspace root directory; agentNames is the list of agent names.
-func createDefaultChannels(rootDir string, agentNames []string) {
-	store := channel.NewSQLiteStore(rootDir)
-	if err := store.Open(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not open channel store: %v\n", err)
-		return
-	}
-	defer func() { _ = store.Close() }()
-
-	names := append([]string{"all"}, agentNames...)
-	for _, name := range names {
-		existing, getErr := store.GetChannel(name)
-		if getErr != nil || existing != nil {
-			continue
-		}
-		if _, createErr := store.CreateChannel(name, channel.ChannelTypeGroup, ""); createErr != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not create channel %q: %v\n", name, createErr)
-		}
-	}
 }
 
 // getWorkspace finds the current workspace.
@@ -372,13 +342,6 @@ func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create role files: %w", err)
 	}
-
-	// Initialize channel database
-	channelStore := channel.NewSQLiteStore(rootDir)
-	if openErr := channelStore.Open(); openErr != nil {
-		return fmt.Errorf("failed to initialize channel database: %w", openErr)
-	}
-	_ = channelStore.Close()
 
 	// Register in global registry
 	reg, regErr := workspace.LoadRegistry()
