@@ -412,27 +412,23 @@ export async function getStatus(): Promise<StatusResponse> {
  * We normalise the response to the {channels: [...]} shape expected by the TUI.
  */
 export async function getChannels(): Promise<ChannelsResponse> {
-  try {
-    const res = await _fetch(`${getBcdUrl()}/api/channels`);
-    if (!res.ok) {
-      throw new Error(`HTTP ${String(res.status)}`);
-    }
-    // bcd returns Array<{name, description, members, member_count}>
-    const raw = (await res.json()) as Array<{
-      name: string;
-      description?: string;
-      members?: string[];
-    }>;
-    const channels = raw.map((ch) => ({
-      name: ch.name,
-      description: ch.description,
-      members: ch.members ?? [],
-    }));
-    return { channels };
-  } catch {
-    // Fallback to CLI subprocess
-    return execBcJsonCached<ChannelsResponse>(['channel', 'list']);
+  const url = `${getBcdUrl()}/api/channels`;
+  const res = await _fetch(url).catch((err: Error) => {
+    throw new Error(`Failed to connect to bcd at ${getBcdUrl()}: ${err.message}. Is bcd running?`);
+  });
+  if (!res.ok) {
+    throw new Error(`bcd returned HTTP ${String(res.status)} for GET /api/channels`);
   }
+  const raw = (await res.json()) as Array<{
+    name: string;
+    description?: string;
+    members?: string[];
+  }>;
+  return { channels: raw.map((ch) => ({
+    name: ch.name,
+    description: ch.description,
+    members: ch.members ?? [],
+  })) };
 }
 
 /**
@@ -448,33 +444,27 @@ export async function getChannelHistory(
   channelName: string,
   limit?: number
 ): Promise<ChannelHistory> {
-  try {
-    const limitParam = limit !== undefined && limit > 0 ? limit : 50;
-    const url = `${getBcdUrl()}/api/channels/${encodeURIComponent(channelName)}/history?limit=${String(limitParam)}`;
-    const res = await _fetch(url);
-    if (!res.ok) {
-      throw new Error(`HTTP ${String(res.status)}`);
-    }
-    // bcd returns Array<{id, sender, content, created_at}>
-    const raw = (await res.json()) as Array<{
-      sender: string;
-      content: string;
-      created_at: string;
-    }>;
-    const messages = raw.map((m) => ({
+  const limitParam = limit !== undefined && limit > 0 ? limit : 50;
+  const url = `${getBcdUrl()}/api/channels/${encodeURIComponent(channelName)}/history?limit=${String(limitParam)}`;
+  const res = await _fetch(url).catch((err: Error) => {
+    throw new Error(`Failed to connect to bcd at ${getBcdUrl()}: ${err.message}. Is bcd running?`);
+  });
+  if (!res.ok) {
+    throw new Error(`bcd returned HTTP ${String(res.status)} for GET /api/channels/${channelName}/history`);
+  }
+  const raw = (await res.json()) as Array<{
+    sender: string;
+    content: string;
+    created_at: string;
+  }>;
+  return {
+    channel: channelName,
+    messages: raw.map((m) => ({
       sender: m.sender,
       message: m.content,
       time: m.created_at,
-    }));
-    return { channel: channelName, messages };
-  } catch {
-    // Fallback to CLI subprocess
-    const args = ['channel', 'history', channelName];
-    if (limit !== undefined && limit > 0) {
-      args.push('--limit', String(limit));
-    }
-    return execBcJsonCached<ChannelHistory>(args, 2000);
-  }
+    })),
+  };
 }
 
 /**
