@@ -207,7 +207,7 @@ func (w *JSONLWriter) rotate() error {
 	keep := lines[len(lines)-rotationTrimLines:]
 
 	tmp := w.path + ".tmp"
-	f, err := os.Create(tmp)
+	f, err := os.Create(tmp) //nolint:gosec // tmp file in same dir as JSONL
 	if err != nil {
 		return fmt.Errorf("create tmp for rotation: %w", err)
 	}

@@ -334,14 +334,14 @@ func (s *Store) QueryAgentSummary(ctx context.Context, agentName string, tr Time
 	}
 
 	// Query token totals (aggregated over period)
-	tokenQuery := `SELECT
+	tkQuery := `SELECT
 		COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0),
 		COALESCE(SUM(cache_read), 0), COALESCE(SUM(cache_create), 0),
 		COALESCE(SUM(cost_usd), 0)
 	FROM token_metrics
 	WHERE agent_name = $1 AND time >= $2 AND time < $3`
 
-	err = s.db.QueryRowContext(ctx, tokenQuery, agentName, tr.From, tr.To).Scan(
+	err = s.db.QueryRowContext(ctx, tkQuery, agentName, tr.From, tr.To).Scan(
 		&summary.Tokens.Input, &summary.Tokens.Output,
 		&summary.Tokens.CacheRead, &summary.Tokens.CacheCreate,
 		&summary.Cost.TotalUSD,
