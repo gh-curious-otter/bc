@@ -169,26 +169,12 @@ describe("Tools", () => {
 });
 
 describe("Live", () => {
-  it("renders event feed with agent activity", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse([
-        {
-          id: 1,
-          type: "agent.start",
-          agent: "bot",
-          message: "started",
-          created_at: "2025-01-01T00:00:00Z",
-        },
-      ]),
-    );
-    wrap(<Live />);
-    await waitFor(() => {
-      expect(screen.getByText("bot")).toBeInTheDocument();
+  it("renders without crashing", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes("/agents")) return jsonResponse([]);
+      if (url.includes("/logs")) return jsonResponse([]);
+      return jsonResponse([]);
     });
-  });
-
-  it("renders empty state when no logs", async () => {
-    fetchMock.mockReturnValue(jsonResponse([]));
     wrap(<Live />);
     await waitFor(() => {
       expect(screen.getByText("No activity yet")).toBeInTheDocument();

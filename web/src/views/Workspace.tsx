@@ -319,15 +319,15 @@ export function Workspace() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <GatewayBadge
                 name="Slack"
-                enabled={settings.gateways.slack?.enabled ?? false}
+                enabled={settings.gateways?.slack?.enabled ?? false}
               />
               <GatewayBadge
                 name="Telegram"
-                enabled={settings.gateways.telegram?.enabled ?? false}
+                enabled={settings.gateways?.telegram?.enabled ?? false}
               />
               <GatewayBadge
                 name="Discord"
-                enabled={settings.gateways.discord?.enabled ?? false}
+                enabled={settings.gateways?.discord?.enabled ?? false}
               />
             </div>
           </Section>
