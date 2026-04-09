@@ -39,7 +39,7 @@ func (h *GatewayHandler) Register(mux *http.ServeMux) {
 }
 
 // gatewayStatus represents a gateway platform's config and runtime state.
-type gatewayStatus struct {
+type gatewayStatus struct { //nolint:govet // field order matches JSON/API contract
 	Platform string   `json:"platform"`
 	Enabled  bool     `json:"enabled"`
 	Channels []string `json:"channels"`

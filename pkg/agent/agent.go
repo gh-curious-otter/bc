@@ -433,9 +433,9 @@ const DefaultBootstrapDelay = 3 * time.Second
 // Manager handles agent lifecycle.
 type Manager struct {
 	agents           map[string]*Agent
-	store            *SQLiteStore               // SQLite-backed agent persistence
 	backends         map[string]runtime.Backend // keyed by "tmux", "docker"
 	agentLocks       map[string]*sync.Mutex     // per-agent locks for slow I/O operations
+	store            *SQLiteStore               // SQLite-backed agent persistence
 	providerRegistry *provider.Registry
 
 	// worktreeMgr manages per-agent git worktrees for isolation.
@@ -444,6 +444,12 @@ type Manager struct {
 	// onStateChange is called when an agent's state changes.
 	// Set by AgentService to publish SSE events.
 	onStateChange func(name string, state State, task string)
+
+	// toolHealthCancel stops the background tool health check loop.
+	toolHealthCancel context.CancelFunc
+
+	// roleManager validates role existence (shared with workspace)
+	roleManager *workspace.RoleManager
 
 	defaultBackend string // "tmux" or "docker"
 	stateDir       string
@@ -457,22 +463,16 @@ type Manager struct {
 	// Workspace path for env vars
 	workspacePath string
 
-	// roleManager validates role existence (shared with workspace)
-	roleManager *workspace.RoleManager
+	// BootstrapDelay is the time to wait before sending bootstrap prompts.
+	// If zero, DefaultBootstrapDelay is used.
+	BootstrapDelay time.Duration
 
 	// maxLogBytes is the maximum log file size before truncation.
 	// Defaults to DefaultMaxLogBytes; overridden by ApplyWorkspaceConfig.
 	maxLogBytes int64
 
-	// BootstrapDelay is the time to wait before sending bootstrap prompts.
-	// If zero, DefaultBootstrapDelay is used.
-	BootstrapDelay time.Duration
-
-	mu sync.RWMutex // protects maps (agents, agentLocks) only
-
-	// toolHealthCancel stops the background tool health check loop.
-	toolHealthCancel context.CancelFunc
-	toolHealthMu     sync.Mutex // protects toolHealthCancel
+	mu           sync.RWMutex // protects maps (agents, agentLocks) only
+	toolHealthMu sync.Mutex   // protects toolHealthCancel
 }
 
 // SetOnStateChange registers a callback invoked whenever an agent's state

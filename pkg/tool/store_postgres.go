@@ -108,7 +108,7 @@ func (p *PostgresStore) add(ctx context.Context, t *Tool) error {
 	_, err = p.db.ExecContext(ctx,
 		`INSERT INTO tools (name, type, command, install_cmd, upgrade_cmd, version_cmd, transport, url, slash_cmds, mcp_servers, config, builtin, enabled)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-		t.Name, string(t.Type), t.Command, t.InstallCmd, t.UpgradeCmd, t.VersionCmd,
+		t.Name, t.Type, t.Command, t.InstallCmd, t.UpgradeCmd, t.VersionCmd,
 		t.Transport, t.URL,
 		slashCmds, mcpServers, config, builtin, enabled,
 	)
@@ -216,7 +216,7 @@ func (p *PostgresStore) Update(ctx context.Context, t *Tool) error {
 	res, err := p.db.ExecContext(ctx,
 		`UPDATE tools SET type=$1, command=$2, install_cmd=$3, upgrade_cmd=$4, version_cmd=$5, transport=$6, url=$7, slash_cmds=$8, mcp_servers=$9, config=$10, enabled=$11
 		 WHERE name=$12`,
-		string(t.Type), t.Command, t.InstallCmd, t.UpgradeCmd, t.VersionCmd,
+		t.Type, t.Command, t.InstallCmd, t.UpgradeCmd, t.VersionCmd,
 		t.Transport, t.URL,
 		slashCmds, mcpServers, config, enabledInt,
 		t.Name,

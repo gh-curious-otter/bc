@@ -61,7 +61,7 @@ func (w *JSONLWriter) Write(eventType string, data any) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	f, err := os.OpenFile(w.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(w.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open JSONL file: %w", err)
 	}
@@ -207,7 +207,7 @@ func (w *JSONLWriter) rotate() error {
 	keep := lines[len(lines)-rotationTrimLines:]
 
 	tmp := w.path + ".tmp"
-	f, err := os.Create(tmp)
+	f, err := os.Create(tmp) //nolint:gosec // controlled workspace path
 	if err != nil {
 		return fmt.Errorf("create tmp for rotation: %w", err)
 	}
@@ -408,7 +408,7 @@ func extractTaskUpdate(data map[string]any) (string, string, []string) {
 		"completed":   "completed",
 		"done":        "completed",
 		"deleted":     "deleted",
-		"cancelled":   "deleted",
+		"cancelled":   "deleted", //nolint:misspell // intentional alias for British spelling
 		"canceled":    "deleted",
 	}
 

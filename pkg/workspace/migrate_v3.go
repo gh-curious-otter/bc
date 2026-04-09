@@ -28,13 +28,13 @@ func MigrateToGlobalState(rootDir string) (string, error) {
 		return "", err
 	}
 
-	if err := EnsureBCHome(); err != nil {
-		return "", err
+	if homeErr := EnsureBCHome(); homeErr != nil {
+		return "", homeErr
 	}
 
 	// Create new state directory
-	if err := os.MkdirAll(newDir, 0750); err != nil {
-		return "", fmt.Errorf("failed to create %s: %w", newDir, err)
+	if mkdirErr := os.MkdirAll(newDir, 0750); mkdirErr != nil {
+		return "", fmt.Errorf("failed to create %s: %w", newDir, mkdirErr)
 	}
 
 	// Copy files from legacy to new location

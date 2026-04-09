@@ -6,7 +6,7 @@ import (
 )
 
 func TestRedactSecrets_GitHubPAT(t *testing.T) {
-	input := `GH_TOKEN="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" gh pr create`
+	input := `GH_TOKEN="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" gh pr create` //nolint:gosec // test fixture data
 	result := RedactSecrets(input)
 	if strings.Contains(result, "github_pat_") {
 		t.Errorf("GitHub PAT not redacted: %s", result)
@@ -25,7 +25,7 @@ func TestRedactSecrets_GHP(t *testing.T) {
 }
 
 func TestRedactSecrets_AWSKey(t *testing.T) {
-	input := "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE"
+	input := "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE" //nolint:gosec // test fixture data
 	result := RedactSecrets(input)
 	if strings.Contains(result, "AKIAIOSFODNN7EXAMPLE") {
 		t.Errorf("AWS key not redacted: %s", result)

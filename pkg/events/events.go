@@ -59,8 +59,5 @@ type EventStore interface {
 }
 
 // Log manages the append-only event log file.
-type Log struct {
-	path            string
-	maxFileSize     int64
-	maxRotatedFiles int
-}
+// Deprecated: Log is retained for reference; use JSONLWriter or SQLiteLog instead.
+type Log struct{}

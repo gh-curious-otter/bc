@@ -16,7 +16,7 @@ import (
 const maxVersionLen = 80
 
 // UnifiedTool represents a tool (MCP or CLI) with its status.
-type UnifiedTool struct {
+type UnifiedTool struct { //nolint:govet // field order matches JSON/API contract
 	Name       string `json:"name"`
 	Type       string `json:"type"`                // "mcp" or "cli"
 	Status     string `json:"status"`              // "connected", "installed", "not_installed", "error", "unknown"

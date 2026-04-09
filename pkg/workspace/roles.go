@@ -536,7 +536,7 @@ func FormatRoleFile(role *Role) (string, error) {
 }
 
 // ResolvedRole contains the fully resolved role after BFS inheritance merge.
-type ResolvedRole struct {
+type ResolvedRole struct { //nolint:govet // field order matches API contract
 	Settings     map[string]any    // Merged settings (child overrides parent)
 	Rules        map[string]string // Merged rule files (child overrides parent)
 	Agents       map[string]string // Merged agent templates

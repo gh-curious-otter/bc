@@ -4,13 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -212,42 +210,4 @@ func dockerRun(ctx context.Context, name string, args []string) error {
 	}
 	fmt.Println(ui.GreenText("started"))
 	return nil
-}
-
-// waitPG polls pg_isready inside a container.
-func waitPG(ctx context.Context, name string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		//nolint:gosec // trusted
-		if exec.CommandContext(ctx, "docker", "exec", name, "pg_isready", "-U", "bc").Run() == nil {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Second):
-		}
-	}
-	return fmt.Errorf("timeout waiting for %s", name)
-}
-
-// waitHTTP polls a health endpoint.
-func waitHTTP(ctx context.Context, addr string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	url := fmt.Sprintf("http://%s/health", addr)
-	for time.Now().Before(deadline) {
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if resp, err := http.DefaultClient.Do(req); err == nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode == 200 {
-				return nil
-			}
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Second):
-		}
-	}
-	return fmt.Errorf("timeout")
 }

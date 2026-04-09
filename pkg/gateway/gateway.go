@@ -40,9 +40,9 @@ type Attachment struct {
 	URL      string `json:"url"`
 	Name     string `json:"name"`
 	MimeType string `json:"mime_type"`
-	Size     int64  `json:"size,omitempty"`
 	Source   string `json:"source"` // "slack", "telegram", "discord", "local"
 	FileID   string `json:"file_id,omitempty"`
+	Size     int64  `json:"size,omitempty"`
 }
 
 // InboundMessage is a normalized message from an external platform.

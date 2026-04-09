@@ -174,10 +174,10 @@ func handleResize(ptmx *os.File, msg []byte) {
 	if err := json.Unmarshal(msg, &rm); err != nil {
 		return
 	}
-	if rm.Cols > 0 && rm.Rows > 0 {
+	if rm.Cols > 0 && rm.Rows > 0 && rm.Cols <= 65535 && rm.Rows <= 65535 { //nolint:gosec // bounds checked
 		_ = pty.Setsize(ptmx, &pty.Winsize{ //nolint:errcheck
-			Rows: uint16(rm.Rows),
-			Cols: uint16(rm.Cols),
+			Rows: uint16(rm.Rows), //nolint:gosec // bounds checked above
+			Cols: uint16(rm.Cols), //nolint:gosec // bounds checked above
 		})
 	}
 }

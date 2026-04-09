@@ -137,8 +137,8 @@ func TestStorageCrossStoreIntegration(t *testing.T) {
 	t.Cleanup(func() { _ = mcpStore.Close() })
 
 	toolStore := tool.NewStore(dir)
-	if err := toolStore.Open(); err != nil {
-		t.Fatalf("tool.Open: %v", err)
+	if openErr := toolStore.Open(); openErr != nil {
+		t.Fatalf("tool.Open: %v", openErr)
 	}
 	t.Cleanup(func() { _ = toolStore.Close() })
 
@@ -423,7 +423,7 @@ func TestStorageConfigValidation(t *testing.T) {
 	})
 
 	t.Run("TimescaleSettings DSN builds correct string", func(t *testing.T) {
-		tests := []struct {
+		tests := []struct { //nolint:govet // field order matches test readability
 			name     string
 			settings db.TimescaleSettings
 			want     string
@@ -515,8 +515,8 @@ func TestStorageCronSmoke(t *testing.T) {
 	}
 
 	// SetEnabled (disable)
-	if err := store.SetEnabled(ctx, "smoke-job", false); err != nil {
-		t.Fatalf("SetEnabled(false): %v", err)
+	if setErr := store.SetEnabled(ctx, "smoke-job", false); setErr != nil {
+		t.Fatalf("SetEnabled(false): %v", setErr)
 	}
 	job, _ = store.GetJob(ctx, "smoke-job")
 	if job.Enabled {
@@ -524,8 +524,8 @@ func TestStorageCronSmoke(t *testing.T) {
 	}
 
 	// SetEnabled (re-enable)
-	if err := store.SetEnabled(ctx, "smoke-job", true); err != nil {
-		t.Fatalf("SetEnabled(true): %v", err)
+	if setErr := store.SetEnabled(ctx, "smoke-job", true); setErr != nil {
+		t.Fatalf("SetEnabled(true): %v", setErr)
 	}
 	job, _ = store.GetJob(ctx, "smoke-job")
 	if !job.Enabled {
