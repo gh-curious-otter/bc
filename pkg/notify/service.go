@@ -203,3 +203,18 @@ func (s *Service) AllSubscriptions(ctx context.Context) ([]Subscription, error) 
 func (s *Service) ChannelMessages(ctx context.Context, channel string, limit int, before int64) ([]MessageRecord, error) {
 	return s.store.GetMessages(ctx, channel, limit, before)
 }
+
+// PruneOldActivity removes old delivery log entries for every channel,
+// keeping the most recent keepPerChannel entries in each.
+func (s *Service) PruneOldActivity(ctx context.Context, keepPerChannel int) error {
+	channels, err := s.store.DeliveryChannels(ctx)
+	if err != nil {
+		return err
+	}
+	for _, ch := range channels {
+		if err := s.store.PruneActivity(ctx, ch, keepPerChannel); err != nil {
+			log.Warn("notify: prune failed", "channel", ch, "error", err)
+		}
+	}
+	return nil
+}

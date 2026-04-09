@@ -181,39 +181,37 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 	}
 }
 
-// discoverChannels lists channels the bot is a member of.
+// discoverChannels lists channels the bot is a member of using conversations.list.
+// This populates the channelMap so the gateway manager can persist all mappings.
 func (a *Adapter) discoverChannels(ctx context.Context) error {
-	// Use GetConversationsForUser to list channels the bot is in
-	params := &slack.GetConversationsForUserParameters{
-		UserID:          a.botUserID,
-		Types:           []string{"public_channel"},
+	params := &slack.GetConversationsParameters{
+		Types:           []string{"public_channel", "private_channel"},
 		ExcludeArchived: true,
 		Limit:           200,
 	}
 
-	channels, _, err := a.api.GetConversationsForUserContext(ctx, params)
-	if err != nil {
-		// Fallback: try listing all public channels
-		log.Warn("slack: GetConversationsForUser failed, trying GetConversations", "error", err)
-		listParams := &slack.GetConversationsParameters{
-			Types:           []string{"public_channel"},
-			ExcludeArchived: true,
-			Limit:           200,
-		}
-		channels, _, err = a.api.GetConversationsContext(ctx, listParams)
+	var allChannels []slack.Channel
+	for {
+		channels, nextCursor, err := a.api.GetConversationsContext(ctx, params)
 		if err != nil {
 			return fmt.Errorf("list conversations: %w", err)
 		}
+		allChannels = append(allChannels, channels...)
+		if nextCursor == "" {
+			break
+		}
+		params.Cursor = nextCursor
 	}
 
 	a.chatMu.Lock()
 	defer a.chatMu.Unlock()
-	for _, ch := range channels {
+	for _, ch := range allChannels {
 		if ch.IsMember {
 			a.channelMap[ch.ID] = ch.Name
 			log.Info("slack: discovered channel", "channel", ch.Name, "id", ch.ID)
 		}
 	}
+	log.Info("slack: channel discovery complete", "count", len(a.channelMap))
 	return nil
 }
 

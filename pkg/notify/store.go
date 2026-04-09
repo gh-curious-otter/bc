@@ -294,6 +294,26 @@ func (s *Store) PruneActivity(ctx context.Context, channel string, keepLast int)
 	return err
 }
 
+// DeliveryChannels returns the distinct channel names in the delivery log.
+func (s *Store) DeliveryChannels(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT DISTINCT channel FROM notify_delivery_log`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var channels []string
+	for rows.Next() {
+		var ch string
+		if err := rows.Scan(&ch); err != nil {
+			return nil, err
+		}
+		channels = append(channels, ch)
+	}
+	return channels, rows.Err()
+}
+
 // TotalMessageCount returns the total number of stored messages across all channels.
 func (s *Store) TotalMessageCount(ctx context.Context) (int, error) {
 	var count int

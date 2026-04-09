@@ -226,6 +226,24 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		notifyService = bcnotify.NewService(ns, agentSvc, hub)
 	}
 
+	// Periodic delivery log pruning — keep last 1000 entries per channel.
+	if notifyService != nil {
+		go func() {
+			ticker := time.NewTicker(1 * time.Hour)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					if err := notifyService.PruneOldActivity(ctx, 1000); err != nil {
+						log.Warn("notify: periodic prune failed", "error", err)
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+
 	// Gateway manager for external messaging platforms (Telegram, Discord, Slack).
 	var gwManager *bcgateway.Manager
 	{
