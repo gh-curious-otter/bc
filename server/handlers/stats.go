@@ -9,6 +9,8 @@ import (
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
 	"github.com/gh-curious-otter/bc/pkg/cost"
+	"github.com/gh-curious-otter/bc/pkg/gateway"
+	"github.com/gh-curious-otter/bc/pkg/notify"
 	"github.com/gh-curious-otter/bc/pkg/stats"
 	"github.com/gh-curious-otter/bc/pkg/tool"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
@@ -35,6 +37,8 @@ type StatsHandler struct {
 	tools      *tool.Store
 	ws         *workspace.Workspace
 	statsStore *stats.Store
+	gw         *gateway.Manager
+	notifySvc  *notify.Service
 }
 
 // NewStatsHandler creates a StatsHandler.
@@ -46,15 +50,21 @@ func NewStatsHandler(
 	statsStore *stats.Store,
 ) *StatsHandler {
 	return &StatsHandler{
-		agents:     agents,
-		costs:      costs,
-		tools:      tools,
+		agents: agents,
+		costs:  costs,
+		tools:  tools,
 		ws:         ws,
 		statsStore: statsStore,
 	}
 }
 
 // Register mounts stats routes on mux.
+// SetGateway sets the gateway manager for channel count.
+func (h *StatsHandler) SetGateway(gw *gateway.Manager) { h.gw = gw }
+
+// SetNotify sets the notify service for subscription count.
+func (h *StatsHandler) SetNotify(svc *notify.Service) { h.notifySvc = svc }
+
 func (h *StatsHandler) Register(mux *http.ServeMux) {
 	// Legacy summary endpoints
 	mux.HandleFunc("/api/stats/system", h.system)
@@ -150,12 +160,29 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Channel stats from gateway + notify subscriptions
+	var channelsTotal, messagesTotal int
+	if h.gw != nil {
+		channelsTotal = len(h.gw.ExternalChannels())
+	}
+	if h.notifySvc != nil {
+		if subs, err := h.notifySvc.AllSubscriptions(ctx); err == nil {
+			chSet := make(map[string]bool)
+			for _, s := range subs {
+				chSet[s.Channel] = true
+			}
+			if len(chSet) > channelsTotal {
+				channelsTotal = len(chSet)
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agents_total":   agentsTotal,
 		"agents_running": agentsRunning,
 		"agents_stopped": agentsStopped,
-		"channels_total": 0, // channels are now gateway-backed; no SQLite channel store
-		"messages_total": 0, // message counts tracked per channel in notify delivery log
+		"channels_total": channelsTotal,
+		"messages_total": messagesTotal,
 		"total_cost_usd": totalCostUSD,
 		"roles_total":    rolesTotal,
 		"tools_total":    toolsTotal,

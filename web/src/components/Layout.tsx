@@ -151,14 +151,14 @@ function ChannelNavTree() {
                   key={ch.name}
                   to={"/channels/" + ch.name}
                   className={({ isActive }) =>
-                    `flex items-center gap-1 pl-7 pr-2 py-[3px] text-[11px] transition-all duration-75 ${
+                    `flex items-center gap-1 pl-7 pr-2 py-[4px] text-[11px] transition-all duration-100 rounded-r ${
                       isActive
-                        ? "text-bc-text bg-bc-surface/40 font-medium"
-                        : "text-bc-muted/40 hover:text-bc-muted/80 hover:bg-bc-bg/30"
+                        ? "text-bc-text bg-bc-surface/50 font-medium"
+                        : "text-bc-muted/40 hover:text-bc-text/70 hover:bg-bc-surface/25"
                     }`
                   }
                   style={({ isActive }) => ({
-                    borderLeft: isActive ? `2px solid ${meta.color}` : "2px solid transparent",
+                    borderLeft: isActive ? `3px solid ${meta.color}` : "3px solid transparent",
                     marginLeft: "-1px",
                   })}
                 >

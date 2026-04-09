@@ -260,7 +260,14 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Stats endpoints (always registered; nil-safe internally)
-	handlers.NewStatsHandler(svc.Agents, svc.Costs, svc.Tools, svc.WS, svc.Stats).Register(mux)
+	sh := handlers.NewStatsHandler(svc.Agents, svc.Costs, svc.Tools, svc.WS, svc.Stats)
+	if svc.Gateway != nil {
+		sh.SetGateway(svc.Gateway)
+	}
+	if svc.Notify != nil {
+		sh.SetNotify(svc.Notify)
+	}
+	sh.Register(mux)
 
 	// MCP protocol server (SSE transport) at /mcp/
 	if svc.WS != nil {
