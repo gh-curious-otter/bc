@@ -136,7 +136,12 @@ function ChannelNavTree() {
               <span className="font-semibold uppercase tracking-[0.06em]" style={{ color: meta.color }}>
                 {meta.label}
               </span>
-              <span className="text-[8px] text-bc-muted/15 ml-auto tabular-nums">{chs.length || ""}</span>
+              <span className="ml-auto flex items-center gap-1">
+                {isConnected && (
+                  <span className="text-[7px] text-bc-success/40 font-medium">live</span>
+                )}
+                <span className="text-[8px] text-bc-muted/20 tabular-nums">{chs.length || ""}</span>
+              </span>
             </button>
 
             {isExpanded && chs.map((ch) => {
