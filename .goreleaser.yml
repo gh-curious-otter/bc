@@ -92,7 +92,7 @@ release:
     **Full Changelog**: https://github.com/rpuneet/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 brews:
-  - name: bc-infra
+  - name: bc
     repository:
       owner: rpuneet
       name: homebrew-bc
