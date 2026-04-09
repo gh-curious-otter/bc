@@ -396,15 +396,36 @@ func (h *GatewayHandler) legacyChannelList(w http.ResponseWriter, r *http.Reques
 		MemberCount int      `json:"member_count"`
 	}
 
+	seen := make(map[string]bool)
 	var channels []legacyChannel
+
+	// From gateway manager (discovered channels)
 	if h.gw != nil {
 		for _, ch := range h.gw.ExternalChannels() {
+			seen[ch] = true
 			channels = append(channels, legacyChannel{
 				Name:        ch,
 				Description: "Gateway channel",
 			})
 		}
 	}
+
+	// Also include channels that have notify subscriptions
+	if h.notifySvc != nil {
+		subs, err := h.notifySvc.AllSubscriptions(r.Context())
+		if err == nil {
+			for _, sub := range subs {
+				if !seen[sub.Channel] {
+					seen[sub.Channel] = true
+					channels = append(channels, legacyChannel{
+						Name:        sub.Channel,
+						Description: "Gateway channel",
+					})
+				}
+			}
+		}
+	}
+
 	if channels == nil {
 		channels = []legacyChannel{}
 	}
