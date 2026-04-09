@@ -44,6 +44,10 @@ func NewService(store *Store, agents AgentSender, hub Broadcaster) *Service {
 // Store returns the underlying store for direct access by handlers.
 func (s *Service) Store() *Store { return s.store }
 
+// platformPrefixRe strips "[platform] " prefix added by gateway inbound handlers,
+// e.g. "[slack] jolly-vulture" → "jolly-vulture".
+var platformPrefixRe = regexp.MustCompile(`^\[[\w-]+\]\s+`)
+
 var mentionRe = regexp.MustCompile(`@([a-zA-Z][a-zA-Z0-9_-]*)`)
 
 // extractMentions parses @agent-name mentions from message content.
@@ -108,10 +112,15 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			mentionSet[m] = true
 		}
 
+		// Strip platform prefix from sender for self-skip comparison.
+		// Gateway inbound messages arrive as "[slack] agent-name" but
+		// subscriptions store bare agent names like "agent-name".
+		rawSender := platformPrefixRe.ReplaceAllString(sender, "")
+
 		// Deliver to each subscriber
 		for _, sub := range subs {
 			// Self-skip: don't echo agent's own message back
-			if strings.EqualFold(sub.Agent, sender) {
+			if strings.EqualFold(sub.Agent, rawSender) {
 				continue
 			}
 
