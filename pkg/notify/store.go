@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/db"
@@ -12,7 +13,8 @@ import (
 // Store is the SQLite/Postgres-backed persistence layer for subscriptions
 // and the delivery log. Uses the shared workspace database.
 type Store struct {
-	db *db.DB
+	db     *db.DB
+	driver string // "sqlite" or "timescale"
 }
 
 // OpenStore opens the notify store using the shared workspace database.
@@ -21,7 +23,8 @@ func OpenStore(workspacePath string) (*Store, error) {
 	if shared == nil {
 		return nil, fmt.Errorf("notify store requires shared database (none available for workspace %s)", workspacePath)
 	}
-	s := &Store{db: shared}
+	driver := db.SharedDriver()
+	s := &Store{db: shared, driver: driver}
 	if err := s.initSchema(); err != nil {
 		return nil, fmt.Errorf("init notify schema: %w", err)
 	}
@@ -31,8 +34,36 @@ func OpenStore(workspacePath string) (*Store, error) {
 // Close is a no-op — the shared DB is owned by the caller.
 func (s *Store) Close() error { return nil }
 
+// q converts ? placeholders to $1, $2, ... for Postgres. No-op for SQLite.
+func (s *Store) q(query string) string {
+	if s.driver != "timescale" {
+		return query
+	}
+	var b strings.Builder
+	n := 0
+	for i := range len(query) {
+		if query[i] == '?' {
+			n++
+			fmt.Fprintf(&b, "$%d", n)
+		} else {
+			b.WriteByte(query[i])
+		}
+	}
+	return b.String()
+}
+
 func (s *Store) initSchema() error {
-	const schema = `
+	var schema string
+	if s.driver == "timescale" {
+		schema = schemaPostgres
+	} else {
+		schema = schemaSQLite
+	}
+	_, err := s.db.ExecContext(context.TODO(), schema)
+	return err
+}
+
+const schemaSQLite = `
 CREATE TABLE IF NOT EXISTS notify_subscriptions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     channel      TEXT NOT NULL,
@@ -64,9 +95,39 @@ CREATE INDEX IF NOT EXISTS idx_notify_subs_channel ON notify_subscriptions(chann
 CREATE INDEX IF NOT EXISTS idx_notify_subs_agent ON notify_subscriptions(agent);
 CREATE INDEX IF NOT EXISTS idx_notify_delivery_channel ON notify_delivery_log(channel, id DESC);
 `
-	_, err := s.db.ExecContext(context.TODO(), schema)
-	return err
-}
+
+const schemaPostgres = `
+CREATE TABLE IF NOT EXISTS notify_subscriptions (
+    id           BIGSERIAL PRIMARY KEY,
+    channel      TEXT NOT NULL,
+    agent        TEXT NOT NULL,
+    mention_only INTEGER NOT NULL DEFAULT 0,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(channel, agent)
+);
+
+CREATE TABLE IF NOT EXISTS notify_delivery_log (
+    id        BIGSERIAL PRIMARY KEY,
+    logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    channel   TEXT NOT NULL,
+    agent     TEXT NOT NULL,
+    status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending')),
+    error     TEXT,
+    preview   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS notify_gateways (
+    name         TEXT PRIMARY KEY,
+    enabled      INTEGER NOT NULL DEFAULT 0,
+    connected    INTEGER NOT NULL DEFAULT 0,
+    last_seen_at TIMESTAMPTZ,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notify_subs_channel ON notify_subscriptions(channel);
+CREATE INDEX IF NOT EXISTS idx_notify_subs_agent ON notify_subscriptions(agent);
+CREATE INDEX IF NOT EXISTS idx_notify_delivery_channel ON notify_delivery_log(channel, id DESC);
+`
 
 // Subscribe adds an agent to a channel. If already subscribed, this is a no-op.
 func (s *Store) Subscribe(ctx context.Context, channel, agent string, mentionOnly bool) error {
@@ -74,18 +135,18 @@ func (s *Store) Subscribe(ctx context.Context, channel, agent string, mentionOnl
 	if mentionOnly {
 		mentionInt = 1
 	}
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.db.ExecContext(ctx, s.q(
 		`INSERT INTO notify_subscriptions (channel, agent, mention_only)
 		 VALUES (?, ?, ?)
-		 ON CONFLICT(channel, agent) DO UPDATE SET mention_only = excluded.mention_only`,
+		 ON CONFLICT(channel, agent) DO UPDATE SET mention_only = excluded.mention_only`),
 		channel, agent, mentionInt)
 	return err
 }
 
 // Unsubscribe removes an agent from a channel.
 func (s *Store) Unsubscribe(ctx context.Context, channel, agent string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM notify_subscriptions WHERE channel = ? AND agent = ?`,
+	_, err := s.db.ExecContext(ctx, s.q(
+		`DELETE FROM notify_subscriptions WHERE channel = ? AND agent = ?`),
 		channel, agent)
 	return err
 }
@@ -96,16 +157,16 @@ func (s *Store) SetMentionOnly(ctx context.Context, channel, agent string, menti
 	if mentionOnly {
 		mentionInt = 1
 	}
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE notify_subscriptions SET mention_only = ? WHERE channel = ? AND agent = ?`,
+	_, err := s.db.ExecContext(ctx, s.q(
+		`UPDATE notify_subscriptions SET mention_only = ? WHERE channel = ? AND agent = ?`),
 		mentionInt, channel, agent)
 	return err
 }
 
 // Subscribers returns all subscriptions for a channel.
 func (s *Store) Subscribers(ctx context.Context, channel string) ([]Subscription, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, channel, agent, mention_only, created_at FROM notify_subscriptions WHERE channel = ?`,
+	rows, err := s.db.QueryContext(ctx, s.q(
+		`SELECT id, channel, agent, mention_only, created_at FROM notify_subscriptions WHERE channel = ?`),
 		channel)
 	if err != nil {
 		return nil, err
@@ -153,9 +214,9 @@ func (s *Store) AllSubscriptions(ctx context.Context) ([]Subscription, error) {
 
 // LogDelivery records a delivery attempt.
 func (s *Store) LogDelivery(ctx context.Context, e DeliveryEntry) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.db.ExecContext(ctx, s.q(
 		`INSERT INTO notify_delivery_log (channel, agent, status, error, preview)
-		 VALUES (?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?)`),
 		e.Channel, e.Agent, string(e.Status), e.Error, e.Preview)
 	return err
 }
@@ -165,12 +226,12 @@ func (s *Store) RecentActivity(ctx context.Context, channel string, limit int) (
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.db.QueryContext(ctx, s.q(
 		`SELECT id, logged_at, channel, agent, status, COALESCE(error, ''), COALESCE(preview, '')
 		 FROM notify_delivery_log
 		 WHERE channel = ?
 		 ORDER BY id DESC
-		 LIMIT ?`,
+		 LIMIT ?`),
 		channel, limit)
 	if err != nil {
 		return nil, err
@@ -192,11 +253,11 @@ func (s *Store) RecentActivity(ctx context.Context, channel string, limit int) (
 
 // PruneActivity deletes old delivery log entries, keeping the most recent keepLast per channel.
 func (s *Store) PruneActivity(ctx context.Context, channel string, keepLast int) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.db.ExecContext(ctx, s.q(
 		`DELETE FROM notify_delivery_log
 		 WHERE channel = ? AND id NOT IN (
 		     SELECT id FROM notify_delivery_log WHERE channel = ? ORDER BY id DESC LIMIT ?
-		 )`,
+		 )`),
 		channel, channel, keepLast)
 	return err
 }
@@ -210,14 +271,15 @@ func (s *Store) UpsertGateway(ctx context.Context, name string, enabled, connect
 	if connected {
 		connectedInt = 1
 	}
-	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO notify_gateways (name, enabled, connected)
-		 VALUES (?, ?, ?)
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := s.db.ExecContext(ctx, s.q(
+		`INSERT INTO notify_gateways (name, enabled, connected, updated_at)
+		 VALUES (?, ?, ?, ?)
 		 ON CONFLICT(name) DO UPDATE SET
 		     enabled = excluded.enabled,
 		     connected = excluded.connected,
-		     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
-		name, enabledInt, connectedInt)
+		     updated_at = excluded.updated_at`),
+		name, enabledInt, connectedInt, now)
 	return err
 }
 
@@ -227,14 +289,15 @@ func (s *Store) SetGatewayConnected(ctx context.Context, name string, connected 
 	if connected {
 		connectedInt = 1
 	}
+	now := time.Now().UTC().Format(time.RFC3339)
 	var lastSeen sql.NullString
 	if connected {
-		lastSeen = sql.NullString{String: time.Now().UTC().Format(time.RFC3339), Valid: true}
+		lastSeen = sql.NullString{String: now, Valid: true}
 	}
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.db.ExecContext(ctx, s.q(
 		`UPDATE notify_gateways SET connected = ?, last_seen_at = COALESCE(?, last_seen_at),
-		 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE name = ?`,
-		connectedInt, lastSeen, name)
+		 updated_at = ? WHERE name = ?`),
+		connectedInt, lastSeen, now, name)
 	return err
 }
 
