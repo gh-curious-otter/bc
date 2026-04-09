@@ -1,10 +1,16 @@
-# Release workflow using GoReleaser
-# Triggered on version tags (v*)
-# Creates GitHub release with binaries and Homebrew formula
+# Release workflow for bc
+# Triggered manually via workflow_dispatch or on version tags
+# Runs full test suite, builds all platforms, creates GitHub release
 
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v0.1.0)'
+        required: true
+        type: string
   push:
     tags:
       - 'v*'
@@ -14,12 +20,27 @@ permissions:
 
 env:
   GO_VERSION: '1.25.8'
+  BUN_VERSION: '1.2.15'
 
 jobs:
-  # ── CI must pass first ───────────────────────────────────────────────
+  # ── Full test suite (blocks release) ─────────────────────────────────
   ci:
     name: CI
     uses: ./.github/workflows/ci.yml
+
+  # ── Create tag (workflow_dispatch only) ──────────────────────────────
+  create-tag:
+    name: Create Tag
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+        with:
+          fetch-depth: 0
+      - name: Create and push tag
+        run: |
+          git tag ${{ inputs.version }}
+          git push origin ${{ inputs.version }}
 
   # ── Linux release (GoReleaser) ──────────────────────────────────────
   release-linux:
@@ -30,15 +51,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
         with:
           fetch-depth: 0
+          ref: ${{ inputs.version || github.ref }}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      - name: Install cross-compilation tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@9ed2f89a662bf1735a48bc8557fd212fa902bebf # v7
@@ -59,34 +76,42 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
         with:
           fetch-depth: 0
+          ref: ${{ inputs.version || github.ref }}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+      - uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Build web UI for embed
+        run: |
+          cd web && bun install && bun run build
+          mkdir -p server/web/dist && cp -r web/dist/* server/web/dist/
 
       - name: Build macOS binaries
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
+          TAG=${{ inputs.version || github.ref_name }}
+          VERSION=${TAG#v}
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
 
-          # bc — both architectures
-          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/bc-darwin-amd64 ./cmd/bc
-          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/bc-darwin-arm64 ./cmd/bc
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/bc ./cmd/bc
+          tar -C dist -czvf "dist/bc_${VERSION}_darwin_amd64.tar.gz" bc
+          rm dist/bc
 
-      - name: Create archives and checksums
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          cd dist
-          for bin in bc-darwin-*; do
-            tar -czvf "${bin%%-darwin-*}_${VERSION}_darwin_${bin##*-}.tar.gz" "$bin"
-          done
-          shasum -a 256 *.tar.gz > checksums-macos.txt
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/bc ./cmd/bc
+          tar -C dist -czvf "dist/bc_${VERSION}_darwin_arm64.tar.gz" bc
+          rm dist/bc
+
+          cd dist && shasum -a 256 *.tar.gz > checksums-macos.txt
 
       - name: Upload to release
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2
         with:
+          tag_name: ${{ inputs.version || github.ref_name }}
           files: |
             dist/bc_*.tar.gz
             dist/checksums-macos.txt
@@ -101,6 +126,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
         with:
           fetch-depth: 0
+          ref: ${{ inputs.version || github.ref }}
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
@@ -111,4 +137,5 @@ jobs:
       - name: Upload SBOM to release
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2
         with:
+          tag_name: ${{ inputs.version || github.ref_name }}
           files: sbom.spdx.json

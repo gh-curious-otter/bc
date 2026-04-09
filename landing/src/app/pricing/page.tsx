@@ -195,17 +195,17 @@ export default function PricingPage() {
                 <InstallRow
                   icon={Apple}
                   title="macOS / Linux"
-                  command="go install github.com/rpuneet/bc/cmd/bc@latest"
+                  command="curl -fsSL https://raw.githubusercontent.com/gh-curious-otter/bc/main/scripts/install.sh | bash"
                 />
                 <InstallRow
                   icon={Container}
                   title="Docker"
-                  command="docker pull bcinfra/bc:latest"
+                  command="docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/gh-curious-otter/bc bc up --addr 0.0.0.0:9374"
                 />
                 <InstallRow
                   icon={GitBranch}
-                  title="Build from source"
-                  command="git clone https://github.com/rpuneet/bc.git && cd bc && make build"
+                  title="From source"
+                  command="go install github.com/gh-curious-otter/bc/cmd/bc@latest"
                 />
               </div>
 

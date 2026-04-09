@@ -46,9 +46,6 @@ detect_platform() {
         darwin)
             OS="darwin"
             ;;
-        mingw*|msys*|cygwin*)
-            OS="windows"
-            ;;
         *)
             error "Unsupported operating system: $OS"
             ;;
@@ -66,7 +63,6 @@ detect_platform() {
             ;;
     esac
 
-    PLATFORM="${OS}-${ARCH}"
     info "Detecting OS... ${OS} ${ARCH}"
 }
 
@@ -84,18 +80,9 @@ get_latest_version() {
 
 # Download and install binary
 download_and_install() {
-    BINARY_SUFFIX=""
-    if [ "$OS" = "windows" ]; then
-        BINARY_SUFFIX=".exe"
-    fi
-
-    # GoReleaser produces archives: bc_VERSION_OS_ARCH.tar.gz (or .zip for Windows)
-    if [ "$OS" = "windows" ]; then
-        ARCHIVE_EXT="zip"
-    else
-        ARCHIVE_EXT="tar.gz"
-    fi
-    ARCHIVE_NAME="bc_${VERSION#v}_${OS}_${ARCH}.${ARCHIVE_EXT}"
+    # Archive naming: bc_VERSION_OS_ARCH.tar.gz (version without leading v)
+    VERSION_NUM="${VERSION#v}"
+    ARCHIVE_NAME="bc_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
     DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE_NAME}"
     TMP_DIR=$(mktemp -d)
 
@@ -106,14 +93,15 @@ download_and_install() {
         error "Failed to download bc. Check if release exists for ${OS}/${ARCH}."
     fi
 
-    # Extract binary from archive
-    if [ "$ARCHIVE_EXT" = "zip" ]; then
-        unzip -q "${TMP_DIR}/${ARCHIVE_NAME}" -d "$TMP_DIR"
-    else
-        tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "$TMP_DIR"
+    info "Extracting archive..."
+    tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "$TMP_DIR"
+
+    TMP_FILE="${TMP_DIR}/bc"
+    if [ ! -f "$TMP_FILE" ]; then
+        rm -rf "$TMP_DIR"
+        error "Binary not found in archive."
     fi
 
-    TMP_FILE="${TMP_DIR}/bc${BINARY_SUFFIX}"
     chmod +x "$TMP_FILE"
 
     info "Installing to ${INSTALL_DIR}..."
@@ -133,18 +121,10 @@ download_and_install() {
 verify_installation() {
     info "Verifying installation..."
 
-    if ! command -v bc &> /dev/null; then
-        # bc might not be in PATH yet
-        if [ -x "${INSTALL_DIR}/${BINARY_NAME}" ]; then
-            success "bc installed successfully!"
-            echo ""
-            echo "Add ${INSTALL_DIR} to your PATH if not already:"
-            echo "  export PATH=\"\$PATH:${INSTALL_DIR}\""
-        else
-            error "Installation failed. Binary not found."
-        fi
-    else
+    if [ -x "${INSTALL_DIR}/${BINARY_NAME}" ]; then
         success "bc installed successfully!"
+    else
+        error "Installation failed. Binary not found."
     fi
 }
 
@@ -168,12 +148,12 @@ check_dependencies() {
 # Print next steps
 print_next_steps() {
     echo ""
-    echo "Run 'bc' to get started."
+    success "Run 'bc' to get started."
     echo ""
     echo "Quick start:"
-    echo "  bc init       # Initialize a new workspace"
-    echo "  bc up         # Start the root agent"
-    echo "  bc home       # Open the TUI dashboard"
+    echo "  bc init          # Initialize workspace"
+    echo "  bc up            # Start server"
+    echo "  bc up -d         # Start as daemon"
     echo ""
     echo "Documentation: https://github.com/${REPO}#readme"
 }

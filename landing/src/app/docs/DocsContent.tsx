@@ -913,7 +913,7 @@ function PlaceholderContent({ label }: { label: string }) {
       <p className="text-sm text-muted-foreground max-w-md">
         This page is under construction. Check back soon or contribute on{" "}
         <a
-          href="https://github.com/rpuneet/bc"
+          href="https://github.com/gh-curious-otter/bc"
           className="text-primary hover:underline"
           target="_blank"
           rel="noopener noreferrer"

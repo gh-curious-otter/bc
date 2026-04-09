@@ -17,52 +17,44 @@ Welcome to **bc** – the multi-agent orchestration system for coordinated softw
 
 ## Installation
 
-### macOS
+### macOS (Apple Silicon / Intel)
+
+**Install script:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/gh-curious-otter/bc/main/scripts/install.sh | bash
+```
 
 **Using Homebrew:**
 ```bash
-brew install bc-infra/bc/bc
-bc --version
-```
-
-**From Source:**
-```bash
-git clone https://github.com/bcinfra1/bc.git
-cd bc
-cargo install --path .
-bc --version
+brew install gh-curious-otter/bc-infra/bc-infra
 ```
 
 ### Linux
 
-**Ubuntu/Debian:**
+**Install script:**
 ```bash
-sudo apt-get update
-sudo apt-get install bc-cli
-bc --version
+curl -fsSL https://raw.githubusercontent.com/gh-curious-otter/bc/main/scripts/install.sh | bash
 ```
 
-**From Source:**
+### Docker
+
 ```bash
-git clone https://github.com/bcinfra1/bc.git
-cd bc
-cargo install --path .
-bc --version
+docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/gh-curious-otter/bc bc up --addr 0.0.0.0:9374
 ```
 
-### Windows
+### From Source
 
-**Using Chocolatey:**
 ```bash
-choco install bc-cli
-bc --version
+go install github.com/gh-curious-otter/bc/cmd/bc@latest
 ```
 
-**Manual Installation:**
-1. Download latest release from [bc-infra/releases](https://github.com/bcinfra1/bc/releases)
-2. Extract to `C:\Program Files\bc`
-3. Add to PATH: `C:\Program Files\bc\bin`
-4. Verify: Open PowerShell and run `bc --version`
+### After Install
+
+```bash
+bc init          # Initialize workspace
+bc up            # Start server
+bc up -d         # Start as daemon
+```
 
 ---
 
