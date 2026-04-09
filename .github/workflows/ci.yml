@@ -77,7 +77,7 @@ jobs:
         if: github.event_name == 'push' || github.repository == 'gh-curious-otter/bc'
         with:
           files: coverage.out
-          fail_ci_if_error: false
+          fail_ci_if_error: ${{ github.event_name == 'push' }}
 
   # ── Go: Full Tests (main only) ─────────────────────────────────────
   test-full:
@@ -136,11 +136,16 @@ jobs:
       - name: Lint
         run: cd tui && bun run lint
       - name: Test
-        # TODO: re-evaluate after redesign — Bun vi.mock has a known quirk where
-        # module-level mock factories cause "unhandled error between tests" (cosmetic,
-        # all 2703 tests pass). continue-on-error until Bun fixes this upstream.
-        continue-on-error: true
-        run: cd tui && bun test
+        # Bun vi.mock quirk: "unhandled error between tests" causes non-zero exit
+        # even when all 2703 tests pass. Verify no real failures by checking output.
+        run: |
+          cd tui && bun test 2>&1 | tee /tmp/tui-test.log; RC=${PIPESTATUS[0]}
+          if grep -q " 0 fail" /tmp/tui-test.log; then
+            echo "All tests passed (exit code $RC from Bun vi.mock quirk — ignored)"
+          else
+            echo "Real test failures detected"
+            exit 1
+          fi
 
   # ── Web UI ─────────────────────────────────────────────────────────
   web:

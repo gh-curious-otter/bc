@@ -14,20 +14,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	bcdb "github.com/gh-curious-otter/bc/pkg/db"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	"github.com/gh-curious-otter/bc/pkg/ui"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
-
-// dbPassword returns the database password from BC_DB_PASSWORD env var,
-// falling back to "bc" for local development. Production deployments
-// should always set BC_DB_PASSWORD.
-func dbPassword() string {
-	if pw := os.Getenv("BC_DB_PASSWORD"); pw != "" {
-		return pw
-	}
-	return "bc"
-}
 
 var upCmd = &cobra.Command{
 	Use:   "up",
@@ -87,7 +78,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	// 1. bc-db — unified database (TimescaleDB = Postgres + hypertables)
 	if err := dockerRun(ctx, "bc-db", []string{
 		"-p", "5432:5432",
-		"-e", "POSTGRES_PASSWORD=" + dbPassword(),
+		"-e", "POSTGRES_PASSWORD=" + bcdb.DefaultPassword(),
 		"-v", "bc-db-data:/var/lib/postgresql/data",
 		"--restart", "always",
 		"bc-bcdb:latest",
@@ -109,8 +100,8 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		"-v", ws.RootDir + ":/workspace",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
 		"-v", sharedVolume + ":/tmp/bc-shared",
-		"-e", "DATABASE_URL=postgres://bc:" + dbPassword() + "@host.docker.internal:5432/bc",
-		"-e", "STATS_DATABASE_URL=postgres://bc:" + dbPassword() + "@host.docker.internal:5432/bc",
+		"-e", "DATABASE_URL=postgres://bc:" + bcdb.DefaultPassword() + "@host.docker.internal:5432/bc",
+		"-e", "STATS_DATABASE_URL=postgres://bc:" + bcdb.DefaultPassword() + "@host.docker.internal:5432/bc",
 		"-e", "BC_HOST_WORKSPACE=" + ws.RootDir,
 		"--restart", "always",
 	}
@@ -302,7 +293,7 @@ func runUpDaemon(ws *workspace.Workspace) error {
 		}
 		dbPass := ts.Password
 		if dbPass == "" {
-			dbPass = dbPassword()
+			dbPass = bcdb.DefaultPassword()
 		}
 		dbName := ts.Database
 		if dbName == "" {

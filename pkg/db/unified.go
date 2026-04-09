@@ -3,10 +3,24 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
+
+// DefaultPassword returns the database password from BC_DB_PASSWORD env var,
+// falling back to "bc" for local development with a warning log.
+// Production deployments should always set BC_DB_PASSWORD.
+func DefaultPassword() string {
+	if pw := os.Getenv("BC_DB_PASSWORD"); pw != "" {
+		return pw
+	}
+	log.Warn("BC_DB_PASSWORD not set — using default password (not suitable for production)")
+	return "bc"
+}
 
 // BCDBPath returns the path to the unified bc database for a workspace.
 func BCDBPath(workspaceRoot string) string {
@@ -94,17 +108,13 @@ func (p TimescaleSettings) DSN() string {
 	}
 	pw := p.Password
 	if pw == "" {
-		if envPw := os.Getenv("BC_DB_PASSWORD"); envPw != "" {
-			pw = envPw
-		} else {
-			pw = "bc" // local dev fallback; production should set BC_DB_PASSWORD
-		}
+		pw = DefaultPassword()
 	}
 	db := p.Database
 	if db == "" {
 		db = "bc"
 	}
-	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", user, pw, host, port, db)
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", user, url.PathEscape(pw), host, port, db)
 }
 
 // OpenWorkspaceDB opens the workspace database based on configuration.
