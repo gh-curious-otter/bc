@@ -25,6 +25,7 @@ const {
   getDemons,
   clearCache,
   _setSpawnForTesting,
+  _setFetchForTesting,
 } = bc;
 
 // Mock process factory - creates a mock ChildProcess-like object
@@ -216,18 +217,26 @@ describe('execBcJson - JSON parsing', () => {
 });
 
 describe('Command wrapper functions - Status and channels', () => {
+  let restoreFetch: (() => void) | null = null;
+
   beforeEach(() => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
     restoreSpawn = _setSpawnForTesting(
       mockSpawnImpl as unknown
     );
+    // Disable fetch by default; individual tests override as needed.
+    restoreFetch = _setFetchForTesting(() => Promise.reject(new Error('fetch disabled in tests')));
   });
 
   afterEach(() => {
     if (restoreSpawn) {
       restoreSpawn();
       restoreSpawn = null;
+    }
+    if (restoreFetch) {
+      restoreFetch();
+      restoreFetch = null;
     }
   });
 
@@ -253,48 +262,56 @@ describe('Command wrapper functions - Status and channels', () => {
     expect(result.agents).toEqual(statusData.agents);
   });
 
-  it('getChannels fetches channel list', async () => {
-    const mockProc = mockProcessorFactory();
-    mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown);
+  // getChannels and getChannelHistory now use HTTP only (no CLI fallback).
+  // Tests mock the fetch function to return channel data.
 
-    const channelsData = { channels: [{ name: 'eng', members: ['eng-01'] }] };
-
-    setTimeout(() => {
-      const stdoutCalls = (mockProc.stdout.on as ReturnType<typeof mock>).mock.calls;
-      stdoutCalls.forEach(([event, handler]: [string, (data: Buffer) => void]) => {
-        if (event === 'data') handler(Buffer.from(JSON.stringify(channelsData)));
-      });
-      const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
-      onCalls.forEach(([event, handler]: [string, (code: number) => void]) => {
-        if (event === 'close') handler(0);
-      });
-    }, 5);
+  it('getChannels fetches channel list via HTTP', async () => {
+    const rawChannels = [{ name: 'eng', description: '', members: ['eng-01'] }];
+    _setFetchForTesting(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(rawChannels),
+      } as Response)
+    );
 
     const result = await getChannels();
-    expect(result).toEqual(channelsData);
+    expect(result.channels).toEqual([{ name: 'eng', description: '', members: ['eng-01'] }]);
   });
 
-  it('getChannelHistory fetches message history', async () => {
-    const mockProc = mockProcessorFactory();
-    mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown);
+  it('getChannels throws when bcd is unavailable', async () => {
+    // fetch already set to reject in beforeEach — error should propagate.
+    await getChannels().catch((err: unknown) => {
+      expect(String(err)).toMatch(/Failed to connect to bcd/);
+    });
+  });
 
-    const historyData = { messages: [{ sender: 'eng-01', text: 'Hello', timestamp: 123456 }] };
-
-    setTimeout(() => {
-      const stdoutCalls = (mockProc.stdout.on as ReturnType<typeof mock>).mock.calls;
-      stdoutCalls.forEach(([event, handler]: [string, (data: Buffer) => void]) => {
-        if (event === 'data') handler(Buffer.from(JSON.stringify(historyData)));
-      });
-      const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
-      onCalls.forEach(([event, handler]: [string, (code: number) => void]) => {
-        if (event === 'close') handler(0);
-      });
-    }, 5);
+  it('getChannelHistory fetches message history via HTTP', async () => {
+    const rawMessages = [
+      { sender: 'eng-01', content: 'Hello', created_at: '2025-01-01T00:00:00Z' },
+    ];
+    _setFetchForTesting(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(rawMessages),
+      } as Response)
+    );
 
     const result = await getChannelHistory('eng');
-    expect(result).toEqual(historyData);
+    expect(result.channel).toBe('eng');
+    expect(result.messages.length).toBe(1);
+    expect(result.messages[0].sender).toBe('eng-01');
+    // The HTTP response maps content → message and created_at → time
+    expect(result.messages[0].message).toBe('Hello');
+    expect(result.messages[0].time).toBe('2025-01-01T00:00:00Z');
+  });
+
+  it('getChannelHistory throws when bcd is unavailable', async () => {
+    // fetch already set to reject in beforeEach — error should propagate.
+    await getChannelHistory('eng').catch((err: unknown) => {
+      expect(String(err)).toMatch(/Failed to connect to bcd/);
+    });
   });
 });
 

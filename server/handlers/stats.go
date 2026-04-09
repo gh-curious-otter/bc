@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/bc/pkg/notify"
 	"github.com/rpuneet/bc/pkg/stats"
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -32,17 +33,17 @@ var serverStartTime = time.Now() //nolint:gochecknoglobals // intentional: track
 // StatsHandler handles /api/stats routes.
 type StatsHandler struct {
 	agents     *agent.AgentService
-	channels   *channel.ChannelService
 	costs      *cost.Store
 	tools      *tool.Store
 	ws         *workspace.Workspace
 	statsStore *stats.Store
+	gw         *gateway.Manager
+	notifySvc  *notify.Service
 }
 
 // NewStatsHandler creates a StatsHandler.
 func NewStatsHandler(
 	agents *agent.AgentService,
-	channels *channel.ChannelService,
 	costs *cost.Store,
 	tools *tool.Store,
 	ws *workspace.Workspace,
@@ -50,7 +51,6 @@ func NewStatsHandler(
 ) *StatsHandler {
 	return &StatsHandler{
 		agents:     agents,
-		channels:   channels,
 		costs:      costs,
 		tools:      tools,
 		ws:         ws,
@@ -59,6 +59,12 @@ func NewStatsHandler(
 }
 
 // Register mounts stats routes on mux.
+// SetGateway sets the gateway manager for channel count.
+func (h *StatsHandler) SetGateway(gw *gateway.Manager) { h.gw = gw }
+
+// SetNotify sets the notify service for subscription count.
+func (h *StatsHandler) SetNotify(svc *notify.Service) { h.notifySvc = svc }
+
 func (h *StatsHandler) Register(mux *http.ServeMux) {
 	// Legacy summary endpoints
 	mux.HandleFunc("/api/stats/system", h.system)
@@ -126,19 +132,6 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var channelsTotal, messagesTotal int
-	if h.channels != nil {
-		channels, err := h.channels.List(ctx)
-		if err != nil {
-			httpInternalError(w, "list channels", err)
-			return
-		}
-		channelsTotal = len(channels)
-		for _, ch := range channels {
-			messagesTotal += ch.MessageCount
-		}
-	}
-
 	var totalCostUSD float64
 	if h.costs != nil {
 		summary, err := h.costs.WorkspaceSummary(ctx)
@@ -164,6 +157,26 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 		tools, err := h.tools.List(ctx)
 		if err == nil {
 			toolsTotal = len(tools)
+		}
+	}
+
+	// Channel stats from gateway + notify subscriptions
+	var channelsTotal, messagesTotal int
+	if h.gw != nil {
+		channelsTotal = len(h.gw.ExternalChannels())
+	}
+	if h.notifySvc != nil {
+		if subs, err := h.notifySvc.AllSubscriptions(ctx); err == nil {
+			chSet := make(map[string]bool)
+			for _, s := range subs {
+				chSet[s.Channel] = true
+			}
+			if len(chSet) > channelsTotal {
+				channelsTotal = len(chSet)
+			}
+		}
+		if count, err := h.notifySvc.Store().TotalMessageCount(ctx); err == nil {
+			messagesTotal = count
 		}
 	}
 

@@ -13,7 +13,7 @@ import (
 )
 
 // DefaultStatsDSN is the connection string for the unified bc-db TimescaleDB container.
-const DefaultStatsDSN = "postgres://bc:bc@localhost:5432/bc"
+const DefaultStatsDSN = "postgres://bc:bc@localhost:5432/bc" //nolint:gosec // not a credential, it's a default DSN
 
 // StatsDSN returns the TimescaleDB connection string.
 func StatsDSN() string {

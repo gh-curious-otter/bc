@@ -23,13 +23,13 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/attachment"
-	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/cron"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/gateway"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/notify"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/stats"
@@ -65,7 +65,6 @@ func DefaultConfig() Config {
 // Services bundles all service/store dependencies for the handlers.
 type Services struct {
 	Agents        *agent.AgentService
-	Channels      *channel.ChannelService
 	Costs         *cost.Store
 	CostImporter  *cost.Importer
 	Cron          *cron.Store
@@ -78,6 +77,7 @@ type Services struct {
 	EventWriter   *events.JSONLWriter
 	WS            *workspace.Workspace
 	Gateway       *gateway.Manager
+	Notify        *notify.Service
 }
 
 // Server is the bcd HTTP server.
@@ -161,23 +161,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		ah.SetTerminalHandler(handlers.NewTerminalHandler(svc.Agents, cfg.CORSOrigin))
 		ah.Register(mux)
 	}
-	if svc.Channels != nil {
-		svc.Channels.OnMessage = func(ch, sender, content string) {
-			// Route outbound to gateway asynchronously — don't block the
-			// MCP tool response on Slack/Telegram API latency.
-			if svc.Gateway != nil && svc.Gateway.IsGatewayChannel(ch) {
-				if !strings.HasPrefix(sender, "[telegram]") &&
-					!strings.HasPrefix(sender, "[discord]") &&
-					!strings.HasPrefix(sender, "[slack]") {
-					go func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-						defer cancel()
-						if _, err := svc.Gateway.Send(ctx, ch, sender, content); err != nil {
-							log.Warn("gateway outbound failed", "channel", ch, "error", err)
-						}
-					}()
-				}
-			}
+	// Wire gateway inbound callback for notify dispatch and SSE publish.
+	if svc.Gateway != nil {
+		svc.Gateway.SetInboundHandler(func(ch, sender, content string) {
 			// Publish SSE event for web UI (non-blocking)
 			if hub != nil {
 				hub.Publish("channel.message", map[string]any{
@@ -189,53 +175,16 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 					},
 				})
 			}
-			// Deliver to agent sessions via tmux send-keys.
-			// JSON format gives agents structured context about the message.
-			if svc.Agents != nil {
-				go func() {
-					mentionedAgents, _ := channel.ExtractMentionedAgents(content)
-					payload, marshalErr := json.Marshal(map[string]any{
-						"timestamp": time.Now().UTC().Format(time.RFC3339),
-						"channel":   ch,
-						"sender":    sender,
-						"content":   content,
-						"mentions":  mentionedAgents,
-					})
-					if marshalErr != nil {
-						log.Warn("channel send: failed to marshal message", "channel", ch, "error", marshalErr)
-						return
-					}
-					msg := string(payload)
-
-					chDTO, err := svc.Channels.Get(context.Background(), ch)
-					if err != nil {
-						log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
-						return
-					}
-					// Build mention set for O(1) lookup
-					hasMentions := len(mentionedAgents) > 0
-					mentionSet := make(map[string]bool, len(mentionedAgents))
-					for _, m := range mentionedAgents {
-						mentionSet[m] = true
-					}
-
-					for _, member := range chDTO.Members {
-						if member == "" || member == sender {
-							continue
-						}
-						// If @mentions exist, only deliver to mentioned agents
-						if hasMentions && !mentionSet[member] {
-							continue
-						}
-						if sendErr := svc.Agents.Send(context.Background(), member, msg); sendErr != nil {
-							log.Debug("channel send: delivery failed", "channel", ch, "agent", member, "error", sendErr)
-						}
-					}
-				}()
+			// Dispatch to notify subscribers (new subscription system).
+			// Handles @mention filtering and delivery logging.
+			if svc.Notify != nil {
+				platform := ""
+				if idx := strings.Index(ch, ":"); idx > 0 {
+					platform = ch[:idx]
+				}
+				svc.Notify.Dispatch(ch, platform, sender, "", content, "", nil)
 			}
-		}
-		handlers.NewChannelHandler(svc.Channels).Register(mux)
-		handlers.NewChannelStatsHandler(svc.Channels).Register(mux)
+		})
 	}
 	if svc.Costs != nil {
 		handlers.NewCostHandler(svc.Costs, svc.CostImporter).Register(mux)
@@ -288,10 +237,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		eh.Register(mux)
 	}
-	if svc.Gateway != nil {
+	// Register gateway handler when a gateway manager is present OR when notify
+	// service is available — notify subscription routes must be accessible even
+	// in workspaces without an active gateway adapter.
+	if svc.Gateway != nil || svc.Notify != nil {
 		gh := handlers.NewGatewayHandler(svc.Gateway, svc.WS)
-		if svc.Channels != nil {
-			gh.SetChannelService(svc.Channels)
+		if svc.Notify != nil {
+			gh.SetNotifyService(svc.Notify)
 		}
 		gh.Register(mux)
 	}
@@ -308,7 +260,14 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Stats endpoints (always registered; nil-safe internally)
-	handlers.NewStatsHandler(svc.Agents, svc.Channels, svc.Costs, svc.Tools, svc.WS, svc.Stats).Register(mux)
+	sh := handlers.NewStatsHandler(svc.Agents, svc.Costs, svc.Tools, svc.WS, svc.Stats)
+	if svc.Gateway != nil {
+		sh.SetGateway(svc.Gateway)
+	}
+	if svc.Notify != nil {
+		sh.SetNotify(svc.Notify)
+	}
+	sh.Register(mux)
 
 	// MCP protocol server (SSE transport) at /mcp/
 	if svc.WS != nil {
@@ -316,12 +275,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if svc.Agents != nil {
 			mcpCfg.Agents = svc.Agents.Manager()
 		}
-		if svc.Channels != nil {
-			mcpCfg.Channels = svc.Channels.Store()
-			mcpCfg.ChannelService = svc.Channels
-		}
 		if svc.Gateway != nil {
 			mcpCfg.Gateway = svc.Gateway
+		}
+		if svc.Notify != nil {
+			mcpCfg.Notify = svc.Notify
 		}
 		mcpSrv, mcpErr := servermcp.New(mcpCfg)
 		if mcpErr != nil {

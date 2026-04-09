@@ -65,3 +65,4 @@ node_modules/
 .mcp.json
 *.tsbuildinfo
 .bc/tmp/
+.playwright-mcp/

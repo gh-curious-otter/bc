@@ -16,7 +16,6 @@ import (
 	"time"
 
 	bcagent "github.com/rpuneet/bc/pkg/agent"
-	bcchannel "github.com/rpuneet/bc/pkg/channel"
 	bccontainer "github.com/rpuneet/bc/pkg/container"
 	bccost "github.com/rpuneet/bc/pkg/cost"
 	bccron "github.com/rpuneet/bc/pkg/cron"
@@ -28,6 +27,7 @@ import (
 	bctelegram "github.com/rpuneet/bc/pkg/gateway/telegram"
 	"github.com/rpuneet/bc/pkg/log"
 	bcmcp "github.com/rpuneet/bc/pkg/mcp"
+	bcnotify "github.com/rpuneet/bc/pkg/notify"
 	"github.com/rpuneet/bc/pkg/provider"
 	bcsecret "github.com/rpuneet/bc/pkg/secret"
 	bcstats "github.com/rpuneet/bc/pkg/stats"
@@ -118,14 +118,6 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	// their tool disappears. Runs every 30s.
 	agentMgr.StartToolHealthLoop(ctx, bcagent.DefaultToolHealthInterval)
 	defer agentMgr.StopToolHealthLoop()
-
-	var channelSvc *bcchannel.ChannelService
-	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {
-		log.Warn("channel store unavailable", "error", err)
-	} else {
-		channelSvc = bcchannel.NewChannelService(chStore)
-		defer chStore.Close() //nolint:errcheck // best-effort
-	}
 
 	var costStore *bccost.Store
 	var costImporter *bccost.Importer
@@ -223,8 +215,33 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 			log.Info("stats store: using TimescaleDB", "dsn", dsn)
 
 			// Background system metrics collector
-			go runStatsCollector(ctx, ss, agentSvc, channelSvc, ws)
+			go runStatsCollector(ctx, ss, agentSvc, ws)
 		}
+	}
+
+	var notifyService *bcnotify.Service
+	if ns, err := bcnotify.OpenStore(ws.RootDir); err != nil {
+		log.Warn("notify store unavailable", "error", err)
+	} else {
+		notifyService = bcnotify.NewService(ns, agentSvc, hub)
+	}
+
+	// Periodic delivery log pruning — keep last 1000 entries per channel.
+	if notifyService != nil {
+		go func() {
+			ticker := time.NewTicker(1 * time.Hour)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					if err := notifyService.PruneOldActivity(ctx, 1000); err != nil {
+						log.Warn("notify: periodic prune failed", "error", err)
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 	}
 
 	// Gateway manager for external messaging platforms (Telegram, Discord, Slack).
@@ -238,6 +255,10 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 			(gw.Discord != nil && gw.Discord.Enabled && gw.Discord.BotToken != "") ||
 			(gw.Slack != nil && gw.Slack.Enabled && gw.Slack.BotToken != "") {
 			gwManager = bcgateway.NewManager()
+			// Wire channel persistence before Start so channels survive restarts.
+			if notifyService != nil {
+				gwManager.SetChannelStore(&channelPersister{store: notifyService.Store()})
+			}
 		}
 
 		// Telegram adapter
@@ -268,52 +289,18 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 
 		// Wire inbound handler and start
-		if gwManager != nil && hasAdapters && channelSvc != nil {
-			gwManager.SetInboundHandler(func(bcChannel, sender, content string) {
-				reqCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				// Auto-create the channel if it doesn't exist
-				if _, err := channelSvc.Get(reqCtx, bcChannel); err != nil {
-					if _, createErr := channelSvc.Create(reqCtx, bcchannel.CreateChannelReq{
-						Name:        bcChannel,
-						Description: "Gateway channel",
-					}); createErr != nil {
-						log.Warn("gateway: failed to auto-create channel", "channel", bcChannel, "error", createErr)
-					}
-				}
-				if _, err := channelSvc.Send(reqCtx, bcChannel, sender, content); err != nil {
-					log.Warn("gateway: failed to store inbound message", "channel", bcChannel, "error", err)
-				}
-			})
-
+		if gwManager != nil && hasAdapters {
 			go func() {
 				if err := gwManager.Start(ctx); err != nil && ctx.Err() == nil {
 					log.Error("gateway manager stopped", "error", err)
 				}
 			}()
-
-			// Seed gateway channel map from existing channels in the store.
-			// On restart, dynamically-mapped channels (slack:all-bc, etc.) lose
-			// their channelMap entries. This restores them so send_file works.
-			if channels, listErr := channelSvc.List(ctx); listErr == nil {
-				for _, ch := range channels {
-					if strings.Contains(ch.Name, ":") {
-						gwManager.SeedChannel(ch.Name)
-					}
-				}
-			}
-
-			// Restore gateway channel members after startup.
-			// When bcd restarts, gateway channels exist in the DB but may
-			// have lost their members (e.g., channel was auto-created fresh).
-			// This adds all known agents to any gateway channel with 0 members.
-			go restoreGatewayMembers(ctx, channelSvc, agentSvc)
 		}
 	}
 
 	svc := server.Services{
 		Agents:        agentSvc,
-		Channels:      channelSvc,
+		Notify:        notifyService,
 		Costs:         costStore,
 		CostImporter:  costImporter,
 		Cron:          cronStore,
@@ -344,59 +331,6 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 
 	srv := server.New(cfg, svc, hub, server.WebDist())
 	return srv.Start(ctx)
-}
-
-// gatewayPrefixes are the channel name prefixes that identify gateway channels.
-var gatewayPrefixes = []string{"slack:", "telegram:", "discord:"}
-
-// isGatewayChannel returns true if the channel name starts with a known gateway prefix.
-func isGatewayChannel(name string) bool {
-	for _, p := range gatewayPrefixes {
-		if strings.HasPrefix(name, p) {
-			return true
-		}
-	}
-	return false
-}
-
-// restoreGatewayMembers ensures gateway channels have members after server restart.
-// If a gateway channel has zero members, all known agents are added as members
-// so that inbound messages are visible to the team.
-func restoreGatewayMembers(ctx context.Context, channelSvc *bcchannel.ChannelService, agentSvc *bcagent.AgentService) {
-	if channelSvc == nil || agentSvc == nil {
-		return
-	}
-
-	channels, err := channelSvc.List(ctx)
-	if err != nil {
-		log.Warn("gateway member restore: failed to list channels", "error", err)
-		return
-	}
-
-	agents, err := agentSvc.List(ctx, bcagent.ListOptions{})
-	if err != nil {
-		log.Warn("gateway member restore: failed to list agents", "error", err)
-		return
-	}
-	if len(agents) == 0 {
-		return
-	}
-
-	for _, ch := range channels {
-		if !isGatewayChannel(ch.Name) {
-			continue
-		}
-		if ch.MemberCount > 0 {
-			continue
-		}
-
-		log.Info("gateway member restore: adding agents to empty gateway channel", "channel", ch.Name, "agents", len(agents))
-		for _, a := range agents {
-			if addErr := channelSvc.AddMember(ctx, ch.Name, a.Name); addErr != nil {
-				log.Warn("gateway member restore: failed to add member", "channel", ch.Name, "agent", a.Name, "error", addErr)
-			}
-		}
-	}
 }
 
 func newServerAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, error) {
@@ -434,9 +368,8 @@ type dockerStatsEntry struct {
 
 // runStatsCollector periodically samples system and agent metrics into TimescaleDB.
 // It shells out to `docker stats --no-stream` every 30s, classifies containers as
-// system (bc-db, *-daemon) or agent (bc-*-agent-*), and records resource
-// usage. Channel metrics come from the channel service.
-func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService, channels *bcchannel.ChannelService, ws *bcworkspace.Workspace) {
+// system (bc-db, *-daemon) or agent (bc-*-agent-*), and records resource usage.
+func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService, ws *bcworkspace.Workspace) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
@@ -520,25 +453,6 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 						DiskWriteBytes: diskW,
 					}); err != nil {
 						log.Debug("stats: record agent metric", "agent", agentName, "error", err)
-					}
-				}
-			}
-
-			// -- channel metrics --
-			if channels != nil {
-				chList, err := channels.List(ctx)
-				if err != nil {
-					log.Debug("stats: channel list failed", "error", err)
-				} else {
-					for _, ch := range chList {
-						if err := ss.RecordChannel(ctx, bcstats.ChannelMetric{
-							Time:         now,
-							ChannelName:  ch.Name,
-							MessageCount: int64(ch.MessageCount),
-							MemberCount:  ch.MemberCount,
-						}); err != nil {
-							log.Debug("stats: record channel metric", "channel", ch.Name, "error", err)
-						}
 					}
 				}
 			}
@@ -749,4 +663,29 @@ func parseBytes(s string) int64 {
 	default:
 		return int64(val)
 	}
+}
+
+// channelPersister bridges notify.Store → gateway.ChannelStore.
+type channelPersister struct {
+	store *bcnotify.Store
+}
+
+func (p *channelPersister) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
+	return p.store.SaveChannel(ctx, bcChannel, platform, platformID)
+}
+
+func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.PersistedChannel, error) {
+	ncs, err := p.store.LoadChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]bcgateway.PersistedChannel, len(ncs))
+	for i, c := range ncs {
+		result[i] = bcgateway.PersistedChannel{
+			BCChannel:  c.BCChannel,
+			Platform:   c.Platform,
+			PlatformID: c.PlatformID,
+		}
+	}
+	return result, nil
 }

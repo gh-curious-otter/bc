@@ -112,6 +112,12 @@ export const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   engineer: { bg: "bg-blue-500/20", text: "text-blue-400" },
   manager: { bg: "bg-green-500/20", text: "text-green-400" },
   lead: { bg: "bg-amber-500/20", text: "text-amber-400" },
+  product_manager: { bg: "bg-rose-500/20", text: "text-rose-400" },
+  infra_lead: { bg: "bg-cyan-500/20", text: "text-cyan-400" },
+  ui_lead: { bg: "bg-pink-500/20", text: "text-pink-400" },
+  api_lead: { bg: "bg-teal-500/20", text: "text-teal-400" },
+  feature_dev: { bg: "bg-indigo-500/20", text: "text-indigo-400" },
+  base: { bg: "bg-slate-500/20", text: "text-slate-400" },
 };
 
 export const DEFAULT_ROLE_COLOR = { bg: "bg-bc-muted/20", text: "text-bc-muted" };
@@ -119,4 +125,35 @@ export const DEFAULT_ROLE_COLOR = { bg: "bg-bc-muted/20", text: "text-bc-muted" 
 export function getRoleColor(role: string | undefined): { bg: string; text: string } {
   if (!role) return DEFAULT_ROLE_COLOR;
   return ROLE_COLORS[role] ?? DEFAULT_ROLE_COLOR;
+}
+
+/**
+ * Generate a consistent HSL color for an agent name.
+ * Each agent gets a unique hue derived from their name hash.
+ */
+const AGENT_COLOR_CACHE = new Map<string, string>();
+
+const AGENT_HUES = [
+  28, 45, 160, 195, 210, 260, 280, 320, 340, 15, 50, 140, 175, 230, 300,
+];
+
+function hashString(s: string): number {
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+export function agentColor(name: string): string {
+  if (AGENT_COLOR_CACHE.has(name)) return AGENT_COLOR_CACHE.get(name)!;
+  const hue = AGENT_HUES[hashString(name) % AGENT_HUES.length];
+  const color = `hsl(${hue}, 65%, 65%)`;
+  AGENT_COLOR_CACHE.set(name, color);
+  return color;
+}
+
+export function agentColorMuted(name: string): string {
+  const hue = AGENT_HUES[hashString(name) % AGENT_HUES.length];
+  return `hsla(${hue}, 40%, 50%, 0.08)`;
 }

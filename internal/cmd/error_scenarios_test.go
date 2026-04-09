@@ -4,8 +4,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/rpuneet/bc/pkg/channel"
 )
 
 // --- Input Validation Tests ---
@@ -249,34 +247,6 @@ func TestNonExistentChannel(t *testing.T) {
 
 // --- State Violation Tests ---
 
-// TestDuplicateResources tests creating duplicate resources
-func TestDuplicateResources(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Create a channel first
-	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load store: %v", err)
-	}
-	if _, err := store.Create("duplicate-test"); err != nil {
-		t.Fatalf("failed to create channel: %v", err)
-	}
-	if err := store.Save(); err != nil {
-		t.Fatalf("failed to save: %v", err)
-	}
-
-	// Try to create the same channel again
-	_, _, err := executeIntegrationCmd("channel", "create", "duplicate-test")
-	if err == nil {
-		t.Error("expected error when creating duplicate channel, got nil")
-	}
-	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "exists") &&
-		!strings.Contains(strings.ToLower(err.Error()), "duplicate") {
-		t.Errorf("expected 'exists' or 'duplicate' error, got: %v", err)
-	}
-}
-
 // --- Empty List Tests ---
 
 // TestEmptyLists tests listing resources when none exist
@@ -359,47 +329,6 @@ func TestMissingRequiredArgs(t *testing.T) {
 }
 
 // --- Unicode and Special Data Tests ---
-
-// TestUnicodeInputs tests handling of unicode characters in inputs
-func TestUnicodeInputs(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Create a channel for sending messages
-	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load store: %v", err)
-	}
-	ch, err := store.Create("unicode-test")
-	if err != nil {
-		t.Fatalf("failed to create channel: %v", err)
-	}
-	ch.Members = []string{"test-agent"}
-	if err := store.Save(); err != nil {
-		t.Fatalf("failed to save: %v", err)
-	}
-
-	unicodeMessages := []string{
-		"Hello 中文",
-		"مرحبا العربية",
-		"こんにちは日本語",
-		"🎉 emoji test 🚀",
-		"Mixed: Hello 世界 🌍",
-	}
-
-	for _, msg := range unicodeMessages {
-		t.Run("unicode_message", func(t *testing.T) {
-			// Should not panic or crash
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf("panic on unicode input %q: %v", msg, r)
-				}
-			}()
-			// Note: message may fail to send (no agent), but should not panic
-			_, _, _ = executeIntegrationCmd("channel", "send", "unicode-test", msg)
-		})
-	}
-}
 
 // --- No Workspace Tests ---
 

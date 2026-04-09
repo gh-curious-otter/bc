@@ -28,10 +28,10 @@ const (
 //nolint:govet // JSON field order is more important than memory layout
 type StuckDetection struct {
 	LastEventTime time.Time     `json:"last_event_time,omitempty"`
-	IdleDuration  time.Duration `json:"idle_duration,omitempty"`
 	AgentName     string        `json:"agent_name"`
 	Reason        StuckReason   `json:"reason,omitempty"`
 	Details       string        `json:"details,omitempty"`
+	IdleDuration  time.Duration `json:"idle_duration,omitempty"`
 	FailureCount  int           `json:"failure_count,omitempty"`
 	IsStuck       bool          `json:"is_stuck"`
 }

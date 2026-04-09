@@ -55,6 +55,40 @@ export interface ChannelMessage {
   created_at: string;
 }
 
+export interface NotifySubscription {
+  id: number;
+  channel: string;
+  agent: string;
+  mention_only: boolean;
+  created_at: string;
+}
+
+export interface DeliveryEntry {
+  id: number;
+  logged_at: string;
+  channel: string;
+  agent: string;
+  status: "delivered" | "failed" | "pending";
+  error?: string;
+  preview?: string;
+}
+
+export interface GatewayStatus {
+  platform: string;
+  enabled: boolean;
+  channels: string[];
+  bot_name?: string;
+  config?: Record<string, unknown>;
+}
+
+export interface GatewayHealth {
+  platform: string;
+  connected: boolean;
+  status: string;
+  error?: string;
+  last_message_at?: string;
+}
+
 export interface CostSummary {
   input_tokens: number;
   output_tokens: number;
@@ -434,6 +468,17 @@ export interface SettingsConfig {
   ui: { theme: string; mode: string; default_view: string };
 }
 
+/** Split "slack:eng" into { gw: "slack", ch: "eng" }. Returns empty if not a gateway channel. */
+function splitChannel(channel: string): { gw: string; ch: string } {
+  const platforms = ["slack", "telegram", "discord", "github"];
+  for (const p of platforms) {
+    if (channel.startsWith(p + ":")) {
+      return { gw: p, ch: channel.slice(p.length + 1) };
+    }
+  }
+  return { gw: "", ch: "" };
+}
+
 export const api = {
   listAgents: () => request<Agent[]>("/agents"),
   getAgent: (name: string) =>
@@ -490,11 +535,65 @@ export const api = {
       `/channels/${encodeURIComponent(name)}/history?${params}`,
     );
   },
-  sendToChannel: (name: string, message: string, sender = "web") =>
-    request<ChannelMessage>(`/channels/${encodeURIComponent(name)}/messages`, {
+  // Gateway-scoped subscription API (proposal-aligned)
+  listSubscriptions: () =>
+    request<NotifySubscription[]>("/notify/subscriptions"),
+  getChannelSubscriptions: (channel: string) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<NotifySubscription[]>(`/gateways/${gw}/channels/${ch}/agents`);
+    }
+    return request<NotifySubscription[]>(`/notify/subscriptions/${encodeURIComponent(channel)}`);
+  },
+  subscribe: (channel: string, agent: string, mentionOnly = false) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<{ status: string }>(`/gateways/${gw}/channels/${ch}/agents`, {
+        method: "POST",
+        body: JSON.stringify({ agent, mention_only: mentionOnly }),
+      });
+    }
+    return request<{ status: string }>("/notify/subscriptions", {
       method: "POST",
-      body: JSON.stringify({ sender, content: message }),
-    }),
+      body: JSON.stringify({ channel, agent, mention_only: mentionOnly }),
+    });
+  },
+  unsubscribe: (channel: string, agent: string) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<{ status: string }>(`/gateways/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+        method: "DELETE",
+      });
+    }
+    return request<{ status: string }>(
+      `/notify/subscriptions/${encodeURIComponent(channel)}?agent=${encodeURIComponent(agent)}`,
+      { method: "DELETE" },
+    );
+  },
+  setMentionOnly: (channel: string, agent: string, mentionOnly: boolean) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<{ status: string }>(`/gateways/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ mention_only: mentionOnly }),
+      });
+    }
+    return request<{ status: string }>(`/notify/subscriptions/${encodeURIComponent(channel)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ agent, mention_only: mentionOnly }),
+    });
+  },
+  getChannelActivity: (channel: string, limit = 50) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<DeliveryEntry[]>(`/gateways/${gw}/channels/${ch}/activity?limit=${limit}`);
+    }
+    return request<DeliveryEntry[]>(`/notify/activity/${encodeURIComponent(channel)}?limit=${limit}`);
+  },
+  listGateways: () =>
+    request<GatewayStatus[]>("/gateways"),
+  getGatewayHealth: (platform: string) =>
+    request<GatewayHealth>(`/gateways/${encodeURIComponent(platform)}/health`),
 
   getCostSummary: () => request<CostSummary>("/costs"),
   getCostByAgent: () => request<AgentCostSummary[]>("/costs/agents"),
@@ -724,15 +823,4 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
-  addChannelMember: (channelName: string, agentName: string) =>
-    request<void>(`/channels/${encodeURIComponent(channelName)}/members`, {
-      method: "POST",
-      body: JSON.stringify({ agent_id: agentName }),
-    }),
-
-  updateChannel: (name: string, patch: { description?: string }) =>
-    request<Channel>(`/channels/${encodeURIComponent(name)}`, {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    }),
 };

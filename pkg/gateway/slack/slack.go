@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
@@ -17,21 +18,24 @@ import (
 
 // Adapter implements gateway.Adapter for Slack using Socket Mode.
 type Adapter struct {
-	api       *slack.Client
-	sm        *socketmode.Client
-	onMessage func(gateway.InboundMessage)
-	// channelMap maps channel_id → channel name
-	channelMap map[string]string
-	// userCache maps user_id → display name
-	userCache map[string]string
-	botToken  string
-	appToken  string
-	botUserID string
-	chatMu    sync.RWMutex
+	lastMessageAt time.Time
+	api           *slack.Client
+	sm            *socketmode.Client
+	onMessage     func(gateway.InboundMessage)
+	channelMap    map[string]string
+	userCache     map[string]string
+	botToken      string
+	appToken      string
+	botUserID     string
+	botName       string
+	lastError     string
+	chatMu        sync.RWMutex
+	connected     bool
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)
 var _ gateway.FileSender = (*Adapter)(nil)
+var _ gateway.StatusReporter = (*Adapter)(nil)
 
 // New creates a new Slack adapter using Socket Mode.
 func New(botToken, appToken string) *Adapter {
@@ -60,7 +64,14 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 		return fmt.Errorf("slack: auth test failed: %w", err)
 	}
 	a.botUserID = authResp.UserID
-	log.Info("slack: connected", "bot_user_id", a.botUserID, "team", authResp.Team)
+	a.botName = authResp.User
+	if a.botName == "" {
+		a.botName = authResp.Team
+	}
+	a.chatMu.Lock()
+	a.connected = true
+	a.chatMu.Unlock()
+	log.Info("slack: connected", "bot_user_id", a.botUserID, "bot_name", a.botName, "team", authResp.Team)
 
 	// Discover channels the bot is in
 	if err := a.discoverChannels(ctx); err != nil {
@@ -139,46 +150,68 @@ func (a *Adapter) Channels(_ context.Context) ([]gateway.ExternalChannel, error)
 	return channels, nil
 }
 
-func (a *Adapter) Health(_ context.Context) error {
+func (a *Adapter) Health(ctx context.Context) error {
 	if a.api == nil {
 		return fmt.Errorf("slack: not connected")
 	}
+	// Live probe: call auth.test to verify the connection
+	if _, err := a.api.AuthTestContext(ctx); err != nil {
+		a.chatMu.Lock()
+		a.connected = false
+		a.lastError = err.Error()
+		a.chatMu.Unlock()
+		return fmt.Errorf("slack: auth test failed: %w", err)
+	}
+	a.chatMu.Lock()
+	a.connected = true
+	a.lastError = ""
+	a.chatMu.Unlock()
 	return nil
 }
 
-// discoverChannels lists channels the bot is a member of.
+// Status returns the current connection state.
+func (a *Adapter) Status() gateway.AdapterStatus {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+	return gateway.AdapterStatus{
+		Connected:     a.connected,
+		LastMessageAt: a.lastMessageAt,
+		Error:         a.lastError,
+		BotName:       a.botName,
+	}
+}
+
+// discoverChannels lists channels the bot is a member of using conversations.list.
+// This populates the channelMap so the gateway manager can persist all mappings.
 func (a *Adapter) discoverChannels(ctx context.Context) error {
-	// Use GetConversationsForUser to list channels the bot is in
-	params := &slack.GetConversationsForUserParameters{
-		UserID:          a.botUserID,
-		Types:           []string{"public_channel"},
+	params := &slack.GetConversationsParameters{
+		Types:           []string{"public_channel", "private_channel"},
 		ExcludeArchived: true,
 		Limit:           200,
 	}
 
-	channels, _, err := a.api.GetConversationsForUserContext(ctx, params)
-	if err != nil {
-		// Fallback: try listing all public channels
-		log.Warn("slack: GetConversationsForUser failed, trying GetConversations", "error", err)
-		listParams := &slack.GetConversationsParameters{
-			Types:           []string{"public_channel"},
-			ExcludeArchived: true,
-			Limit:           200,
-		}
-		channels, _, err = a.api.GetConversationsContext(ctx, listParams)
+	var allChannels []slack.Channel
+	for {
+		channels, nextCursor, err := a.api.GetConversationsContext(ctx, params)
 		if err != nil {
 			return fmt.Errorf("list conversations: %w", err)
 		}
+		allChannels = append(allChannels, channels...)
+		if nextCursor == "" {
+			break
+		}
+		params.Cursor = nextCursor
 	}
 
 	a.chatMu.Lock()
 	defer a.chatMu.Unlock()
-	for _, ch := range channels {
+	for _, ch := range allChannels {
 		if ch.IsMember {
 			a.channelMap[ch.ID] = ch.Name
 			log.Info("slack: discovered channel", "channel", ch.Name, "id", ch.ID)
 		}
 	}
+	log.Info("slack: channel discovery complete", "count", len(a.channelMap))
 	return nil
 }
 
@@ -307,7 +340,9 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 		}
 	}
 
+	now := time.Now()
 	msg := gateway.InboundMessage{
+		Timestamp:   now,
 		ChannelID:   ev.Channel,
 		ChannelName: channelName,
 		Sender:      sender,
@@ -315,6 +350,10 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 		Content:     content,
 		MessageID:   ev.TimeStamp,
 	}
+
+	a.chatMu.Lock()
+	a.lastMessageAt = now
+	a.chatMu.Unlock()
 
 	log.Info("slack: received message",
 		"channel", channelName,

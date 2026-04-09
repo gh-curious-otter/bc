@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 
@@ -14,17 +15,18 @@ import (
 
 // Adapter implements gateway.Adapter for Discord.
 type Adapter struct {
-	session   *discordgo.Session
-	onMessage func(gateway.InboundMessage)
-	// guildChannels maps channel_id → channel name
+	lastMessageAt time.Time
+	session       *discordgo.Session
+	onMessage     func(gateway.InboundMessage)
 	guildChannels map[string]string
 	token         string
-	// guildIDs tracks guilds the bot is in
-	guildIDs []string
-	chatMu   sync.RWMutex
+	lastError     string
+	chatMu        sync.RWMutex
+	connected     bool
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)
+var _ gateway.StatusReporter = (*Adapter)(nil)
 
 // New creates a new Discord adapter.
 func New(token string) *Adapter {
@@ -108,7 +110,30 @@ func (a *Adapter) Health(_ context.Context) error {
 	if a.session == nil {
 		return fmt.Errorf("discord: not connected")
 	}
+	// Live probe: check session state
+	if a.session.State == nil || a.session.State.User == nil {
+		a.chatMu.Lock()
+		a.connected = false
+		a.lastError = "session not ready"
+		a.chatMu.Unlock()
+		return fmt.Errorf("discord: session not ready")
+	}
+	a.chatMu.Lock()
+	a.connected = true
+	a.lastError = ""
+	a.chatMu.Unlock()
 	return nil
+}
+
+// Status returns the current connection state.
+func (a *Adapter) Status() gateway.AdapterStatus {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+	return gateway.AdapterStatus{
+		Connected:     a.connected,
+		LastMessageAt: a.lastMessageAt,
+		Error:         a.lastError,
+	}
 }
 
 // handleReady processes the Ready event to discover guilds and channels.
@@ -116,8 +141,6 @@ func (a *Adapter) handleReady(_ *discordgo.Session, r *discordgo.Ready) {
 	log.Info("discord: ready", "guilds", len(r.Guilds))
 
 	for _, guild := range r.Guilds {
-		a.guildIDs = append(a.guildIDs, guild.ID)
-
 		channels, err := a.session.GuildChannels(guild.ID)
 		if err != nil {
 			log.Warn("discord: failed to list channels", "guild", guild.ID, "error", err)

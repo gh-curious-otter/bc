@@ -2199,10 +2199,10 @@ func TestDefaultPermissions_AllLevels(t *testing.T) {
 }
 
 func TestCheckPermission(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct alignment not critical
-		permissions []string
+	tests := []struct {
 		required    Permission
 		name        string
+		permissions []string
 		wantErr     bool
 	}{
 		{
@@ -2242,10 +2242,10 @@ func TestCheckPermission(t *testing.T) {
 }
 
 func TestHasPermissionStr(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct alignment not critical
-		permissions []string
+	tests := []struct {
 		name        string
 		required    string
+		permissions []string
 		expected    bool
 	}{
 		{
@@ -2915,15 +2915,15 @@ func TestTailFile(t *testing.T) {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
-	tests := []struct { //nolint:govet // test struct alignment not critical
+	tests := []struct {
 		name     string
-		lines    int
 		contains []string
+		lines    int
 	}{
-		{"last 2 lines", 2, []string{"line4", "line5"}},
-		{"last 5 lines", 5, []string{"line1", "line2", "line3", "line4", "line5"}},
-		{"more than available", 10, []string{"line1", "line2", "line3", "line4", "line5"}},
-		{"last 1 line", 1, []string{"line5"}},
+		{"last 2 lines", []string{"line4", "line5"}, 2},
+		{"last 5 lines", []string{"line1", "line2", "line3", "line4", "line5"}, 5},
+		{"more than available", []string{"line1", "line2", "line3", "line4", "line5"}, 10},
+		{"last 1 line", []string{"line5"}, 1},
 	}
 
 	for _, tt := range tests {

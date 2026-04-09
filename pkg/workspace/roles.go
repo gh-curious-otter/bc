@@ -88,8 +88,8 @@ commands:
     Check all channels for recent messages addressed to you.
     Report your current task using the report_status MCP tool.
     Query workspace costs using query_costs.
-  channels: |
-    Read recent messages from all channels: all, engineering, general, merge, ops.
+  notify: |
+    Check recent notifications across all subscribed channels.
     Summarize any messages that are relevant to your current work.
   announce: |
     Send an announcement to the #all channel using send_message.

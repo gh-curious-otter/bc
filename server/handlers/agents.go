@@ -71,20 +71,20 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	StartedAt    time.Time      `json:"started_at,omitempty"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	StoppedAt    *time.Time     `json:"stopped_at,omitempty"`
-	ID           string         `json:"id,omitempty"`
-	Name         string         `json:"name"`
-	Role         string         `json:"role"`
+	Stats        *agentStatsDTO `json:"stats,omitempty"`
+	Tool         string         `json:"tool,omitempty"`
+	Session      string         `json:"session,omitempty"`
 	State        string         `json:"state"`
 	Task         string         `json:"task,omitempty"`
 	Team         string         `json:"team,omitempty"`
-	Tool         string         `json:"tool,omitempty"`
+	Name         string         `json:"name"`
 	Runtime      string         `json:"runtime_backend,omitempty"`
-	Session      string         `json:"session,omitempty"`
+	Role         string         `json:"role"`
 	SessionID    string         `json:"session_id,omitempty"`
 	ParentID     string         `json:"parent_id,omitempty"`
-	Children     []string       `json:"children,omitempty"`
+	ID           string         `json:"id,omitempty"`
 	MCPServers   []string       `json:"mcp_servers,omitempty"`
-	Stats        *agentStatsDTO `json:"stats,omitempty"`
+	Children     []string       `json:"children,omitempty"`
 	TotalCostUSD float64        `json:"total_cost_usd"`
 	TotalTokens  int64          `json:"total_tokens"`
 }

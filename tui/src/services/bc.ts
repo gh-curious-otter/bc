@@ -355,7 +355,47 @@ export async function execBcJsonCached<T>(args: string[], ttl?: number): Promise
   return data;
 }
 
+// ============================================================================
+// bcd HTTP API helpers
+// ============================================================================
+
+/**
+ * Get the bcd daemon base URL.
+ * Reads BC_DAEMON_ADDR env var or defaults to http://127.0.0.1:9374.
+ */
+export function getBcdUrl(): string {
+  const addr = process.env.BC_DAEMON_ADDR;
+  if (addr) {
+    // Normalise: strip trailing slash
+    return addr.replace(/\/$/, '');
+  }
+  return 'http://127.0.0.1:9374';
+}
+
+/**
+ * Injectable fetch function — defaults to global fetch.
+ * Tests can override via _setFetchForTesting() to control HTTP responses.
+ */
+type FetchFn = typeof fetch;
+let _fetch: FetchFn = fetch;
+
+/**
+ * Set a custom fetch function for testing.
+ * @param mockFetch - Mock fetch function to use
+ * @returns Function to restore original fetch
+ * @internal
+ */
+export function _setFetchForTesting(mockFetch: FetchFn): () => void {
+  const originalFetch = _fetch;
+  _fetch = mockFetch;
+  return () => {
+    _fetch = originalFetch;
+  };
+}
+
+// ============================================================================
 // Convenience methods for common commands
+// ============================================================================
 
 /**
  * Get current agent status
@@ -366,31 +406,67 @@ export async function getStatus(): Promise<StatusResponse> {
 }
 
 /**
- * Get list of channels
- * Note: bc channel list --json now returns {channels: [...]} format (PR #589)
+ * Get list of channels via bcd HTTP API, falling back to CLI on failure.
+ *
+ * The bcd endpoint GET /api/channels returns an array of channel objects.
+ * We normalise the response to the {channels: [...]} shape expected by the TUI.
  */
 export async function getChannels(): Promise<ChannelsResponse> {
-  // #1005: Use cached version to reduce polling overhead
-  return execBcJsonCached<ChannelsResponse>(['channel', 'list']);
+  const url = `${getBcdUrl()}/api/channels`;
+  const res = await _fetch(url).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to connect to bcd at ${getBcdUrl()}: ${msg}. Is bcd running?`);
+  });
+  if (!res.ok) {
+    throw new Error(`bcd returned HTTP ${String(res.status)} for GET /api/channels`);
+  }
+  const raw = (await res.json()) as {
+    name: string;
+    description?: string;
+    members?: string[];
+  }[];
+  return { channels: raw.map((ch) => ({
+    name: ch.name,
+    description: ch.description,
+    members: ch.members ?? [],
+  })) };
 }
 
 /**
- * Get channel message history
+ * Get channel message history via bcd HTTP API, falling back to CLI on failure.
+ *
+ * The bcd endpoint GET /api/channels/{name}/history?limit=N returns an array
+ * of message objects.  We normalise to the {channel, messages} shape the TUI expects.
+ *
  * @param channelName - Name of channel
  * @param limit - Maximum number of messages to return (default: 50)
- *
- * #1595: Uses caching with short TTL for real-time feel while reducing overhead
  */
 export async function getChannelHistory(
   channelName: string,
   limit?: number
 ): Promise<ChannelHistory> {
-  const args = ['channel', 'history', channelName];
-  if (limit !== undefined && limit > 0) {
-    args.push('--limit', String(limit));
+  const limitParam = limit !== undefined && limit > 0 ? limit : 50;
+  const url = `${getBcdUrl()}/api/channels/${encodeURIComponent(channelName)}/history?limit=${String(limitParam)}`;
+  const res = await _fetch(url).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to connect to bcd at ${getBcdUrl()}: ${msg}. Is bcd running?`);
+  });
+  if (!res.ok) {
+    throw new Error(`bcd returned HTTP ${String(res.status)} for GET /api/channels/${channelName}/history`);
   }
-  // #1595: Use cached version with 2s TTL for real-time feel
-  return execBcJsonCached<ChannelHistory>(args, 2000);
+  const raw = (await res.json()) as {
+    sender: string;
+    content: string;
+    created_at: string;
+  }[];
+  return {
+    channel: channelName,
+    messages: raw.map((m) => ({
+      sender: m.sender,
+      message: m.content,
+      time: m.created_at,
+    })),
+  };
 }
 
 /**
@@ -402,6 +478,100 @@ export async function sendChannelMessage(channelName: string, message: string): 
   await execBc(['channel', 'send', channelName, message]);
   // #1595: Granular cache invalidation - only invalidate this channel's history
   invalidateCacheKey(`channel:history:${channelName}`);
+}
+
+// ============================================================================
+// Gateway & Notify API methods (channels revamp)
+// ============================================================================
+
+export interface GatewayInfo {
+  platform: string;
+  enabled: boolean;
+  channels: string[];
+  bot_name?: string;
+  config?: Record<string, unknown>;
+}
+
+export interface GatewayHealth {
+  platform: string;
+  connected: boolean;
+  status: string;
+  error?: string;
+  last_message_at?: string;
+}
+
+export interface NotifySubscription {
+  id: number;
+  channel: string;
+  agent: string;
+  mention_only: boolean;
+  created_at: string;
+}
+
+export async function getGateways(): Promise<GatewayInfo[]> {
+  const url = `${getBcdUrl()}/api/gateways`;
+  const res = await _fetch(url).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to fetch gateways: ${msg}`);
+  });
+  if (!res.ok) throw new Error(`HTTP ${String(res.status)} fetching gateways`);
+  return (await res.json()) as GatewayInfo[];
+}
+
+export async function getGatewayHealth(platform: string): Promise<GatewayHealth> {
+  const url = `${getBcdUrl()}/api/gateways/${encodeURIComponent(platform)}/health`;
+  const res = await _fetch(url).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to fetch gateway health: ${msg}`);
+  });
+  if (!res.ok) throw new Error(`HTTP ${String(res.status)} fetching gateway health`);
+  return (await res.json()) as GatewayHealth;
+}
+
+export async function getChannelSubscriptions(channel: string): Promise<NotifySubscription[]> {
+  const parts = channel.split(':');
+  if (parts.length === 2) {
+    const url = `${getBcdUrl()}/api/gateways/${parts[0]}/channels/${parts[1]}/agents`;
+    const res = await _fetch(url).catch(() => null);
+    if (res?.ok) return (await res.json()) as NotifySubscription[];
+  }
+  const url = `${getBcdUrl()}/api/notify/subscriptions/${encodeURIComponent(channel)}`;
+  const res = await _fetch(url).catch((err: unknown) => {
+    throw new Error(`Failed to fetch subscriptions: ${err instanceof Error ? err.message : String(err)}`);
+  });
+  if (!res.ok) throw new Error(`HTTP ${String(res.status)} fetching subscriptions`);
+  return (await res.json()) as NotifySubscription[];
+}
+
+export async function subscribeAgent(channel: string, agent: string): Promise<void> {
+  const parts = channel.split(':');
+  if (parts.length === 2) {
+    const url = `${getBcdUrl()}/api/gateways/${parts[0]}/channels/${parts[1]}/agents`;
+    const res = await _fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent }) });
+    if (!res.ok) throw new Error(`HTTP ${String(res.status)} subscribing agent`);
+    return;
+  }
+  throw new Error('Invalid channel format — expected platform:channel');
+}
+
+export async function unsubscribeAgent(channel: string, agent: string): Promise<void> {
+  const parts = channel.split(':');
+  if (parts.length === 2) {
+    const url = `${getBcdUrl()}/api/gateways/${parts[0]}/channels/${parts[1]}/agents/${encodeURIComponent(agent)}`;
+    const res = await _fetch(url, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${String(res.status)} unsubscribing agent`);
+    return;
+  }
+  throw new Error('Invalid channel format — expected platform:channel');
+}
+
+export async function patchGateway(platform: string, config: Record<string, unknown>): Promise<void> {
+  const url = `${getBcdUrl()}/api/gateways/${encodeURIComponent(platform)}`;
+  const res = await _fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`HTTP ${String(res.status)} patching gateway: ${text}`);
+  }
 }
 
 /**

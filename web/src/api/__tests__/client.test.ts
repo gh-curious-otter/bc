@@ -64,20 +64,6 @@ describe("api.request", () => {
     expect(JSON.parse(init.body as string)).toEqual({ message: "hello" });
   });
 
-  it("sends POST with JSON body for sendToChannel", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse({ id: 1, sender: "web", content: "hi", created_at: "" }),
-    );
-    await api.sendToChannel("general", "hi");
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/channels/general/messages");
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body as string)).toEqual({
-      sender: "web",
-      content: "hi",
-    });
-  });
-
   it("passes query params for getLogs", async () => {
     fetchMock.mockReturnValue(jsonResponse([]));
     await api.getLogs(25);

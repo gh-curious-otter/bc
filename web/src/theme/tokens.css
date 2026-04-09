@@ -8,59 +8,66 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* ── Solar Flare (default) ──────────────────────────────────────────── */
-/* Warm dark theme with tangerine accent — the signature bc look        */
+/* Warm charcoal + neon tangerine — elevated surfaces, subtle glow      */
+/* Inspired by Vercel/Linear dark with warm undertones                  */
 :root {
-  --bc-bg: #0c0a08;
-  --bc-surface: #1a1614;
-  --bc-surface-hover: #242018;
-  --bc-border: #2e2822;
-  --bc-text: #f5f0eb;
-  --bc-muted: #8c7e72;
-  --bc-accent: #ea580c;
-  --bc-accent-hover: #f97316;
-  --bc-success: #22c55e;
-  --bc-warning: #fb923c;
-  --bc-error: #ef4444;
-  --bc-info: #06b6d4;
+  --bc-bg: #0c0a09;
+  --bc-surface: #1c1917;
+  --bc-surface-hover: #292524;
+  --bc-border: #44403c;
+  --bc-text: #fafaf9;
+  --bc-muted: #a8a29e;
+  --bc-accent: #f97316;
+  --bc-accent-hover: #fb923c;
+  --bc-success: #4ade80;
+  --bc-warning: #fbbf24;
+  --bc-error: #f87171;
+  --bc-info: #22d3ee;
+  --bc-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --bc-shadow-lg: 0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
 
   font-family: Inter, "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   color-scheme: dark;
 }
 
 /* ── Dark ────────────────────────────────────────────────────────────── */
-/* Cool neutral dark — no warm tones, blue-grey palette                 */
+/* Zinc palette + emerald accent — Catppuccin Mocha inspired            */
 html.dark {
   --bc-bg: #09090b;
   --bc-surface: #18181b;
-  --bc-surface-hover: #1f1f23;
-  --bc-border: #27272a;
+  --bc-surface-hover: #27272a;
+  --bc-border: #3f3f46;
   --bc-text: #fafafa;
-  --bc-muted: #71717a;
-  --bc-accent: #3b82f6;
-  --bc-accent-hover: #60a5fa;
-  --bc-success: #22c55e;
-  --bc-warning: #f59e0b;
-  --bc-error: #ef4444;
-  --bc-info: #38bdf8;
+  --bc-muted: #a1a1aa;
+  --bc-accent: #10b981;
+  --bc-accent-hover: #34d399;
+  --bc-success: #4ade80;
+  --bc-warning: #fbbf24;
+  --bc-error: #f87171;
+  --bc-info: #67e8f9;
+  --bc-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+  --bc-shadow-lg: 0 4px 12px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4);
 
   color-scheme: dark;
 }
 
 /* ── Light ───────────────────────────────────────────────────────────── */
-/* Clean light theme — warm white with tangerine accent                 */
+/* Stone palette + tangerine — Radix Sand inspired, high contrast       */
 html.light {
-  --bc-bg: #fafaf9;
+  --bc-bg: #f5f5f4;
   --bc-surface: #ffffff;
-  --bc-surface-hover: #f5f5f4;
-  --bc-border: #e7e5e4;
-  --bc-text: #1c1917;
-  --bc-muted: #78716c;
+  --bc-surface-hover: #fafaf9;
+  --bc-border: #d6d3d1;
+  --bc-text: #0c0a09;
+  --bc-muted: #57534e;
   --bc-accent: #ea580c;
   --bc-accent-hover: #c2410c;
   --bc-success: #16a34a;
   --bc-warning: #d97706;
   --bc-error: #dc2626;
   --bc-info: #0891b2;
+  --bc-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --bc-shadow-lg: 0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
 
   color-scheme: light;
 }

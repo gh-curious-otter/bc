@@ -6,7 +6,7 @@ import { EmptyState } from "../components/EmptyState";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-const SECTION_ORDER = ["server", "storage", "runtime", "providers", "gateways", "cron", "logs"];
+const SECTION_ORDER = ["server", "storage", "runtime", "providers", "cron", "logs"];
 const RESTART_SECTIONS = new Set(["server", "storage", "runtime"]);
 
 function deepClone<T>(v: T): T {
@@ -66,34 +66,6 @@ function PasswordField({ value, onChange }: { value: string; onChange: (v: strin
   );
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? "bg-bc-accent" : "bg-bc-border"}`}
-    >
-      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-bc-text transition-transform ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`} />
-    </button>
-  );
-}
-
-function SecretBadge({ value }: { value: string }) {
-  return (
-    <div className="flex items-center gap-1.5 min-w-0">
-      <span className="text-[10px] font-mono text-bc-muted bg-bc-bg px-1.5 py-0.5 rounded border border-bc-border truncate min-w-0">
-        {value}
-      </span>
-      <a href="/secrets" className="text-[10px] text-bc-accent hover:underline shrink-0">Manage</a>
-    </div>
-  );
-}
-
-function TokenField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  if (value.startsWith("${secret:")) return <SecretBadge value={value} />;
-  return <PasswordField value={value} onChange={onChange} />;
-}
-
 /* ------------------------------------------------------------------ */
 /*  Section wrapper                                                     */
 /* ------------------------------------------------------------------ */
@@ -114,10 +86,6 @@ const SECTION_META: Record<string, { icon: React.ReactNode; desc: string }> = {
   providers: {
     icon: <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
     desc: "AI provider commands",
-  },
-  gateways: {
-    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />,
-    desc: "Telegram and Slack integrations",
   },
   cron: {
     icon: <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />,
@@ -261,36 +229,6 @@ function ProvidersSection({ data, onChange }: { data: Record<string, unknown>; o
             placeholder="command" />
         </Field>
       ))}
-    </div>
-  );
-}
-
-function GatewaysSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
-  const g = (data.gateways ?? {}) as Record<string, Record<string, unknown>>;
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-      {Object.entries(g).map(([name, gw]) => {
-        const enabled = Boolean(gw.enabled ?? false);
-        const basePath = ["gateways", name];
-        return (
-          <div key={name} className="rounded border border-bc-border/50 bg-bc-bg/50 p-2.5 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${enabled ? "bg-bc-success" : "bg-bc-muted"}`} />
-                {name}
-              </span>
-              <Toggle checked={enabled} onChange={(v) => onChange([...basePath, "enabled"], v)} />
-            </div>
-            {Object.entries(gw).filter(([k]) => k !== "enabled").map(([k, v]) => {
-              const path = [...basePath, k];
-              if (k.includes("token")) {
-                return <Field key={k} label={k.replace(/_/g, " ")}><TokenField value={String(v ?? "")} onChange={(val) => onChange(path, val)} /></Field>;
-              }
-              return <Field key={k} label={k.replace(/_/g, " ")}><input className={INPUT_CLS} value={String(v ?? "")} onChange={(e) => onChange(path, e.target.value)} /></Field>;
-            })}
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -464,12 +402,7 @@ export function Settings() {
         </Section>
       </div>
 
-      {/* Row 3: Gateways full width */}
-      <Section title="gateways" dirty={dirtySections.includes("gateways")}>
-        <GatewaysSection data={edited} onChange={handleChange} />
-      </Section>
-
-      {/* Row 4: Cron + Logs side by side */}
+      {/* Row 3: Cron + Logs side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Section title="cron" dirty={dirtySections.includes("cron")}>
           <CronSection data={edited} onChange={handleChange} />
