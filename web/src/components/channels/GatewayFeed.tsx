@@ -42,14 +42,6 @@ const PLATFORM_ACCENT: Record<string, string> = {
   github: "#8B949E",
 };
 
-/* ── Animation variants ──────────────────────────────────────── */
-
-const groupIn = {
-  initial: { opacity: 0, y: -6 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, scale: 0.98 },
-};
-
 /* ── Component ───────────────────────────────────────────────── */
 
 export function GatewayFeed({
@@ -513,21 +505,14 @@ export function GatewayFeed({
               </div>
             )}
 
-            <AnimatePresence initial={false}>
+            {/* Message groups — no animation on bulk load for performance */}
               {groups.map((group, gi) => {
                 const dk = dateKey(group.timestamp);
                 const showDateSep = dk !== lastDateKey;
                 lastDateKey = dk;
 
                 return (
-                  <motion.div
-                    key={group.messages[0]?.id ?? gi}
-                    variants={groupIn}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
-                  >
+                  <div key={group.messages[0]?.id ?? gi}>
                     {/* Date separator */}
                     {showDateSep && (
                       <div className="flex items-center gap-3 my-4">
@@ -636,10 +621,9 @@ export function GatewayFeed({
                         );
                       })}
                     </div>
-                  </motion.div>
+                  </div>
                 );
               })}
-            </AnimatePresence>
 
             {/* Load more sentinel */}
             {hasMore && (
