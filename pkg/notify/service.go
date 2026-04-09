@@ -73,6 +73,11 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 
 		ctx := context.Background()
 
+		// Store message for activity feed history
+		if saveErr := s.store.SaveMessage(ctx, channel, sender, content); saveErr != nil {
+			log.Warn("notify: save message failed", "channel", channel, "error", saveErr)
+		}
+
 		// Build notification
 		mentions := extractMentions(content)
 		n := Notification{
@@ -183,4 +188,9 @@ func (s *Service) ChannelActivity(ctx context.Context, channel string, limit int
 // AllSubscriptions returns all subscriptions across all channels.
 func (s *Service) AllSubscriptions(ctx context.Context) ([]Subscription, error) {
 	return s.store.AllSubscriptions(ctx)
+}
+
+// ChannelMessages returns recent messages for a channel (newest first).
+func (s *Service) ChannelMessages(ctx context.Context, channel string, limit int, before int64) ([]MessageRecord, error) {
+	return s.store.GetMessages(ctx, channel, limit, before)
 }

@@ -432,14 +432,59 @@ func (h *GatewayHandler) legacyChannelList(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, channels)
 }
 
-// legacyChannelHistory returns an empty history for now — the old message store is deleted.
-// Messages are visible via the gateway activity feed which gets them from the platform directly.
+// legacyChannelHistory returns message history from notify_messages.
 func (h *GatewayHandler) legacyChannelHistory(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	// Return empty — no message store anymore
-	writeJSON(w, http.StatusOK, []struct{}{})
+
+	// Extract channel name: /api/channels/{name}/history
+	path := strings.TrimPrefix(r.URL.Path, "/api/channels/")
+	path = strings.TrimSuffix(path, "/history")
+	path = strings.TrimSuffix(path, "/messages")
+	channelName := path
+
+	if channelName == "" || h.notifySvc == nil {
+		writeJSON(w, http.StatusOK, []struct{}{})
+		return
+	}
+
+	limit := 50
+	if s := r.URL.Query().Get("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	var before int64
+	if s := r.URL.Query().Get("before"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+			before = n
+		}
+	}
+
+	msgs, err := h.notifySvc.ChannelMessages(r.Context(), channelName, limit, before)
+	if err != nil {
+		writeJSON(w, http.StatusOK, []struct{}{})
+		return
+	}
+
+	// Convert to legacy format
+	type legacyMessage struct {
+		ID        int64  `json:"id"`
+		Sender    string `json:"sender"`
+		Content   string `json:"content"`
+		CreatedAt string `json:"created_at"`
+	}
+	result := make([]legacyMessage, len(msgs))
+	for i, m := range msgs {
+		result[i] = legacyMessage{
+			ID:        m.ID,
+			Sender:    m.Sender,
+			Content:   m.Content,
+			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 // activity returns recent activity from notify delivery log.

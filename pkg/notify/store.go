@@ -91,9 +91,18 @@ CREATE TABLE IF NOT EXISTS notify_gateways (
     updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+CREATE TABLE IF NOT EXISTS notify_messages (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel   TEXT NOT NULL,
+    sender    TEXT NOT NULL,
+    content   TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_notify_subs_channel ON notify_subscriptions(channel);
 CREATE INDEX IF NOT EXISTS idx_notify_subs_agent ON notify_subscriptions(agent);
 CREATE INDEX IF NOT EXISTS idx_notify_delivery_channel ON notify_delivery_log(channel, id DESC);
+CREATE INDEX IF NOT EXISTS idx_notify_messages_channel ON notify_messages(channel, id DESC);
 `
 
 const schemaPostgres = `
@@ -124,9 +133,18 @@ CREATE TABLE IF NOT EXISTS notify_gateways (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS notify_messages (
+    id        BIGSERIAL PRIMARY KEY,
+    channel   TEXT NOT NULL,
+    sender    TEXT NOT NULL,
+    content   TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_notify_subs_channel ON notify_subscriptions(channel);
 CREATE INDEX IF NOT EXISTS idx_notify_subs_agent ON notify_subscriptions(agent);
 CREATE INDEX IF NOT EXISTS idx_notify_delivery_channel ON notify_delivery_log(channel, id DESC);
+CREATE INDEX IF NOT EXISTS idx_notify_messages_channel ON notify_messages(channel, id DESC);
 `
 
 // Subscribe adds an agent to a channel. If already subscribed, this is a no-op.
@@ -260,6 +278,59 @@ func (s *Store) PruneActivity(ctx context.Context, channel string, keepLast int)
 		 )`),
 		channel, channel, keepLast)
 	return err
+}
+
+// MessageRecord is a stored inbound gateway message for the activity feed.
+type MessageRecord struct {
+	ID        int64     `json:"id"`
+	Channel   string    `json:"channel"`
+	Sender    string    `json:"sender"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// SaveMessage stores an inbound gateway message for the activity feed.
+func (s *Store) SaveMessage(ctx context.Context, channel, sender, content string) error {
+	_, err := s.db.ExecContext(ctx, s.q(
+		`INSERT INTO notify_messages (channel, sender, content) VALUES (?, ?, ?)`),
+		channel, sender, content)
+	return err
+}
+
+// GetMessages returns recent messages for a channel (newest first).
+func (s *Store) GetMessages(ctx context.Context, channel string, limit int, before int64) ([]MessageRecord, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	var rows *sql.Rows
+	var err error
+	if before > 0 {
+		rows, err = s.db.QueryContext(ctx, s.q(
+			`SELECT id, channel, sender, content, created_at FROM notify_messages
+			 WHERE channel = ? AND id < ? ORDER BY id DESC LIMIT ?`),
+			channel, before, limit)
+	} else {
+		rows, err = s.db.QueryContext(ctx, s.q(
+			`SELECT id, channel, sender, content, created_at FROM notify_messages
+			 WHERE channel = ? ORDER BY id DESC LIMIT ?`),
+			channel, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var msgs []MessageRecord
+	for rows.Next() {
+		var m MessageRecord
+		var createdStr string
+		if err := rows.Scan(&m.ID, &m.Channel, &m.Sender, &m.Content, &createdStr); err != nil {
+			return nil, err
+		}
+		m.CreatedAt, _ = time.Parse(time.RFC3339, createdStr) //nolint:errcheck // DB-written timestamp
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
 }
 
 // UpsertGateway inserts or updates a gateway record.
