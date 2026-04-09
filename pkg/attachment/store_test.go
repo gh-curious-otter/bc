@@ -103,8 +103,8 @@ func TestStore_Delete(t *testing.T) {
 		t.Fatalf("Save failed: %v", err)
 	}
 
-	if err := store.Delete(meta.ID); err != nil {
-		t.Fatalf("Delete failed: %v", err)
+	if delErr := store.Delete(meta.ID); delErr != nil {
+		t.Fatalf("Delete failed: %v", delErr)
 	}
 
 	_, _, err = store.Get(meta.ID)

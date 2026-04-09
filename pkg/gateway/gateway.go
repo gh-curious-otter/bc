@@ -43,9 +43,9 @@ type StatusReporter interface {
 
 // AdapterStatus reports connection state for the web UI.
 type AdapterStatus struct {
-	Connected     bool      `json:"connected"`
 	LastMessageAt time.Time `json:"last_message_at,omitempty"`
 	Error         string    `json:"error,omitempty"`
+	Connected     bool      `json:"connected"`
 }
 
 // Attachment represents a file attached to a message.
@@ -53,9 +53,9 @@ type Attachment struct {
 	URL      string `json:"url"`
 	Name     string `json:"name"`
 	MimeType string `json:"mime_type"`
-	Size     int64  `json:"size,omitempty"`
-	Source   string `json:"source"` // "slack", "telegram", "discord", "local"
+	Source   string `json:"source"`
 	FileID   string `json:"file_id,omitempty"`
+	Size     int64  `json:"size,omitempty"`
 }
 
 // InboundMessage is a normalized message from an external platform.

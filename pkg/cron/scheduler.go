@@ -24,15 +24,13 @@ const (
 
 // Scheduler polls the cron store and executes due jobs in the background.
 type Scheduler struct {
-	// execFn is the function used to run a command. Replaceable for testing.
 	execFn     func(ctx context.Context, command string, logWriter io.Writer) (err error)
 	store      *Store
+	running    map[string]bool
+	logDir     string
 	interval   time.Duration
 	jobTimeout time.Duration
-	logDir     string // directory for live log files
-
-	running   map[string]bool // jobs currently executing
-	runningMu sync.RWMutex
+	runningMu  sync.RWMutex
 }
 
 // NewScheduler creates a Scheduler that polls at DefaultPollInterval.
@@ -44,7 +42,7 @@ func NewScheduler(store *Store, logDir string) *Scheduler {
 // Zero values use defaults (30s poll, 5m timeout).
 func NewSchedulerWithConfig(store *Store, logDir string, pollIntervalSec, jobTimeoutSec int) *Scheduler {
 	if logDir != "" {
-		_ = os.MkdirAll(logDir, 0o755)
+		_ = os.MkdirAll(logDir, 0o750)
 	}
 	interval := DefaultPollInterval
 	if pollIntervalSec > 0 {

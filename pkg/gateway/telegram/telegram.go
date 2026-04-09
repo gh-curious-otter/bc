@@ -17,15 +17,14 @@ import (
 
 // Adapter implements gateway.Adapter for Telegram.
 type Adapter struct {
-	bot *tgbotapi.BotAPI
-	// chatMap stores chat_id → group name for discovered groups
+	lastMessageAt time.Time
+	bot           *tgbotapi.BotAPI
 	chatMap       map[int64]string
 	token         string
-	mode          string // "polling" or "webhook"
-	connected     bool
-	lastMessageAt time.Time
+	mode          string
 	lastError     string
 	chatMu        sync.RWMutex
+	connected     bool
 }
 
 // Ensure Adapter implements gateway.Adapter.

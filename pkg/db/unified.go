@@ -86,10 +86,10 @@ type SQLiteSettings struct {
 // TimescaleSettings configures the TimescaleDB (Postgres) connection.
 type TimescaleSettings struct {
 	Host     string
-	Port     int
 	User     string
 	Password string
 	Database string
+	Port     int
 }
 
 // DSN builds a Postgres connection string from config fields.

@@ -18,20 +18,18 @@ import (
 
 // Adapter implements gateway.Adapter for Slack using Socket Mode.
 type Adapter struct {
-	api       *slack.Client
-	sm        *socketmode.Client
-	onMessage func(gateway.InboundMessage)
-	// channelMap maps channel_id → channel name
-	channelMap map[string]string
-	// userCache maps user_id → display name
+	lastMessageAt time.Time
+	api           *slack.Client
+	sm            *socketmode.Client
+	onMessage     func(gateway.InboundMessage)
+	channelMap    map[string]string
 	userCache     map[string]string
 	botToken      string
 	appToken      string
 	botUserID     string
-	connected     bool
-	lastMessageAt time.Time
 	lastError     string
 	chatMu        sync.RWMutex
+	connected     bool
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)

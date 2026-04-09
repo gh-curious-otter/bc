@@ -28,20 +28,25 @@ type ContainerStats struct {
 // (stream=false). We query the Docker socket directly for structured data rather
 // than parsing human-readable output from `docker stats`.
 type dockerStatsOneShot struct {
+	Networks map[string]struct {
+		RxBytes int64 `json:"rx_bytes"`
+		TxBytes int64 `json:"tx_bytes"`
+	} `json:"networks"`
+	Name       string `json:"name"`
+	BlkioStats struct {
+		IOServiceBytesRecursive []struct {
+			Op    string `json:"op"`
+			Value int64  `json:"value"`
+		} `json:"io_service_bytes_recursive"`
+	} `json:"blkio_stats"`
 	CPUStats struct {
 		CPUUsage struct {
-			TotalUsage  int64   `json:"total_usage"`
 			PercpuUsage []int64 `json:"percpu_usage"`
+			TotalUsage  int64   `json:"total_usage"`
 		} `json:"cpu_usage"`
 		SystemCPUUsage int64 `json:"system_cpu_usage"`
 		OnlineCPUs     int   `json:"online_cpus"`
 	} `json:"cpu_stats"`
-	PrecpuStats struct {
-		CPUUsage struct {
-			TotalUsage int64 `json:"total_usage"`
-		} `json:"cpu_usage"`
-		SystemCPUUsage int64 `json:"system_cpu_usage"`
-	} `json:"precpu_stats"`
 	MemoryStats struct {
 		Usage int64 `json:"usage"`
 		Limit int64 `json:"limit"`
@@ -50,20 +55,15 @@ type dockerStatsOneShot struct {
 			Cache        int64 `json:"cache"`
 		} `json:"stats"`
 	} `json:"memory_stats"`
-	BlkioStats struct {
-		IOServiceBytesRecursive []struct {
-			Op    string `json:"op"`
-			Value int64  `json:"value"`
-		} `json:"io_service_bytes_recursive"`
-	} `json:"blkio_stats"`
-	Networks map[string]struct {
-		RxBytes int64 `json:"rx_bytes"`
-		TxBytes int64 `json:"tx_bytes"`
-	} `json:"networks"`
+	PrecpuStats struct {
+		CPUUsage struct {
+			TotalUsage int64 `json:"total_usage"`
+		} `json:"cpu_usage"`
+		SystemCPUUsage int64 `json:"system_cpu_usage"`
+	} `json:"precpu_stats"`
 	PidsStats struct {
 		Current int `json:"current"`
 	} `json:"pids_stats"`
-	Name string `json:"name"`
 }
 
 // Stats collects resource usage metrics for a single Docker container.

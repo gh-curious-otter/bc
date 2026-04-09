@@ -61,7 +61,7 @@ func (w *JSONLWriter) Write(eventType string, data any) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	f, err := os.OpenFile(w.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(w.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open JSONL file: %w", err)
 	}
@@ -170,7 +170,7 @@ func (w *JSONLWriter) lineCount() (int, error) {
 // readAllLines reads all non-empty lines from the file.
 // Caller must hold w.mu.
 func (w *JSONLWriter) readAllLines() ([][]byte, error) {
-	f, err := os.Open(w.path)
+	f, err := os.Open(w.path) //nolint:gosec // reading JSONL file from agent dir
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +408,6 @@ func extractTaskUpdate(data map[string]any) (string, string, []string) {
 		"completed":   "completed",
 		"done":        "completed",
 		"deleted":     "deleted",
-		"cancelled":   "deleted",
 		"canceled":    "deleted",
 	}
 

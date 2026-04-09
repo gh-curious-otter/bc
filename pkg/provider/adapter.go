@@ -3,12 +3,12 @@ package provider
 
 // MCPEntry represents an MCP server configuration for adapter setup.
 type MCPEntry struct {
+	Env       map[string]string
 	Name      string
-	Transport string // "sse" or "stdio"
+	Transport string
 	Command   string
 	URL       string
 	Args      []string
-	Env       map[string]string
 }
 
 // ConfigAdapter handles provider-specific configuration file setup.

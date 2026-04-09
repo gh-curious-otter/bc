@@ -15,17 +15,15 @@ import (
 
 // Adapter implements gateway.Adapter for Discord.
 type Adapter struct {
-	session   *discordgo.Session
-	onMessage func(gateway.InboundMessage)
-	// guildChannels maps channel_id → channel name
+	lastMessageAt time.Time
+	session       *discordgo.Session
+	onMessage     func(gateway.InboundMessage)
 	guildChannels map[string]string
 	token         string
-	// guildIDs tracks guilds the bot is in
-	guildIDs      []string
-	connected     bool
-	lastMessageAt time.Time
 	lastError     string
+	guildIDs      []string
 	chatMu        sync.RWMutex
+	connected     bool
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)

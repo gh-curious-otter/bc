@@ -251,10 +251,10 @@ func (h *GatewayHandler) gatewayChannelAgents(w http.ResponseWriter, r *http.Req
 
 // gatewayStatus represents a gateway platform's config and runtime state.
 type gatewayStatus struct {
+	Config   any      `json:"config,omitempty"`
 	Platform string   `json:"platform"`
-	Enabled  bool     `json:"enabled"`
 	Channels []string `json:"channels"`
-	Config   any      `json:"config,omitempty"` // platform-specific config (tokens redacted)
+	Enabled  bool     `json:"enabled"`
 }
 
 func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -470,10 +470,10 @@ func (h *GatewayHandler) legacyChannelHistory(w http.ResponseWriter, r *http.Req
 
 	// Convert to legacy format
 	type legacyMessage struct {
-		ID        int64  `json:"id"`
 		Sender    string `json:"sender"`
 		Content   string `json:"content"`
 		CreatedAt string `json:"created_at"`
+		ID        int64  `json:"id"`
 	}
 	result := make([]legacyMessage, len(msgs))
 	for i, m := range msgs {

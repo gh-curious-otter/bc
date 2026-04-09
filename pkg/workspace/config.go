@@ -16,15 +16,15 @@ const ConfigVersion = 2
 
 // Config represents the JSON-based workspace configuration for bc.
 type Config struct {
-	User      UserConfig      `json:"user"`
-	Server    ServerConfig    `json:"server"`
-	Providers ProvidersConfig `json:"providers"`
 	Gateways  GatewaysConfig  `json:"gateways"`
+	UI        UIConfig        `json:"ui"`
+	Providers ProvidersConfig `json:"providers"`
+	User      UserConfig      `json:"user"`
+	Storage   StorageConfig   `json:"storage"`
+	Server    ServerConfig    `json:"server"`
+	Logs      LogsConfig      `json:"logs"`
 	Runtime   RuntimeConfig   `json:"runtime"`
 	Cron      CronConfig      `json:"cron"`
-	Storage   StorageConfig   `json:"storage"`
-	Logs      LogsConfig      `json:"logs"`
-	UI        UIConfig        `json:"ui"`
 	Version   int             `json:"version"`
 }
 
@@ -36,8 +36,8 @@ type UserConfig struct {
 // ServerConfig configures the bcd HTTP server.
 type ServerConfig struct {
 	Host       string `json:"host"`
-	Port       int    `json:"port"`
 	CORSOrigin string `json:"cors_origin"`
+	Port       int    `json:"port"`
 }
 
 // Addr returns the host:port string for the server.
@@ -47,10 +47,10 @@ func (s ServerConfig) Addr() string {
 
 // RuntimeConfig configures the agent session backend.
 type RuntimeConfig struct {
-	Default string              `json:"default"` // "tmux" or "docker"
-	Docker  DockerRuntimeConfig `json:"docker"`
 	Tmux    TmuxRuntimeConfig   `json:"tmux"`
-	K8s     json.RawMessage     `json:"k8s,omitempty"` // future
+	Default string              `json:"default"`
+	K8s     json.RawMessage     `json:"k8s,omitempty"`
+	Docker  DockerRuntimeConfig `json:"docker"`
 }
 
 // DockerRuntimeConfig configures Docker container settings for agents.
@@ -66,14 +66,14 @@ type DockerRuntimeConfig struct {
 // TmuxRuntimeConfig configures tmux session settings.
 type TmuxRuntimeConfig struct {
 	SessionPrefix string `json:"session_prefix"`
-	HistoryLimit  int    `json:"history_limit"`
 	DefaultShell  string `json:"default_shell"`
+	HistoryLimit  int    `json:"history_limit"`
 }
 
 // ProvidersConfig configures AI agent providers.
 type ProvidersConfig struct {
-	Default   string                    `json:"default"`
 	Providers map[string]ProviderConfig `json:"providers,omitempty"`
+	Default   string                    `json:"default"`
 }
 
 // ProviderConfig defines an AI provider's configuration.
@@ -130,10 +130,10 @@ type SQLiteStorageConfig struct {
 // TimescaleStorageConfig configures TimescaleDB (Postgres) storage.
 type TimescaleStorageConfig struct {
 	Host     string `json:"host"`
-	Port     int    `json:"port"`
 	User     string `json:"user"`
 	Password string `json:"password"`
 	Database string `json:"database"`
+	Port     int    `json:"port"`
 }
 
 // LogsConfig configures persistent session log streaming.

@@ -114,8 +114,8 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	// Copy settings from the global state dir to a legacy .bc/ in the moved location
 	srcCfg := filepath.Join(origWS.StateDir(), "settings.json")
 	dstDir := filepath.Join(moved, ".bc")
-	if err := os.MkdirAll(dstDir, 0750); err != nil {
-		t.Fatal(err)
+	if mkErr := os.MkdirAll(dstDir, 0750); mkErr != nil {
+		t.Fatal(mkErr)
 	}
 	data, err := os.ReadFile(srcCfg) //nolint:gosec // test file read
 	if err != nil {

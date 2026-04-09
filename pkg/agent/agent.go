@@ -432,47 +432,24 @@ const DefaultBootstrapDelay = 3 * time.Second
 
 // Manager handles agent lifecycle.
 type Manager struct {
+	roleManager      *workspace.RoleManager
 	agents           map[string]*Agent
-	store            *SQLiteStore               // SQLite-backed agent persistence
-	backends         map[string]runtime.Backend // keyed by "tmux", "docker"
-	agentLocks       map[string]*sync.Mutex     // per-agent locks for slow I/O operations
+	backends         map[string]runtime.Backend
+	agentLocks       map[string]*sync.Mutex
 	providerRegistry *provider.Registry
-
-	// worktreeMgr manages per-agent git worktrees for isolation.
-	worktreeMgr *worktree.Manager
-
-	// onStateChange is called when an agent's state changes.
-	// Set by AgentService to publish SSE events.
-	onStateChange func(name string, state State, task string)
-
-	defaultBackend string // "tmux" or "docker"
-	stateDir       string
-
-	// Agent command (e.g., "claude" or "claude --dangerously-skip-permissions")
-	agentCmd string
-
-	// defaultTool is the provider name for the default agentCmd (for BuildCommand)
-	defaultTool string
-
-	// Workspace path for env vars
-	workspacePath string
-
-	// roleManager validates role existence (shared with workspace)
-	roleManager *workspace.RoleManager
-
-	// maxLogBytes is the maximum log file size before truncation.
-	// Defaults to DefaultMaxLogBytes; overridden by ApplyWorkspaceConfig.
-	maxLogBytes int64
-
-	// BootstrapDelay is the time to wait before sending bootstrap prompts.
-	// If zero, DefaultBootstrapDelay is used.
-	BootstrapDelay time.Duration
-
-	mu sync.RWMutex // protects maps (agents, agentLocks) only
-
-	// toolHealthCancel stops the background tool health check loop.
+	worktreeMgr      *worktree.Manager
+	onStateChange    func(name string, state State, task string)
 	toolHealthCancel context.CancelFunc
-	toolHealthMu     sync.Mutex // protects toolHealthCancel
+	store            *SQLiteStore
+	defaultTool      string
+	agentCmd         string
+	workspacePath    string
+	stateDir         string
+	defaultBackend   string
+	maxLogBytes      int64
+	BootstrapDelay   time.Duration
+	mu               sync.RWMutex
+	toolHealthMu     sync.Mutex
 }
 
 // SetOnStateChange registers a callback invoked whenever an agent's state

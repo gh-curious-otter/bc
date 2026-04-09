@@ -34,10 +34,10 @@ type ProviderInfo struct {
 
 // ProviderDetail extends ProviderInfo with per-model cost breakdown and agent list.
 type ProviderDetail struct {
-	ProviderInfo
 	Config      map[string]string `json:"config"`
 	Agents      []AgentSummary    `json:"agents"`
 	CostByModel []ModelCost       `json:"cost_by_model"`
+	ProviderInfo
 }
 
 // AgentSummary is a lightweight agent reference.
@@ -660,7 +660,7 @@ func (h *ProviderHandler) parseMCPJSONFile(relPath string) []MCPServer {
 		return []MCPServer{}
 	}
 
-	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, relPath))
+	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, relPath)) //nolint:gosec // reading provider config file
 	if err != nil {
 		return []MCPServer{}
 	}

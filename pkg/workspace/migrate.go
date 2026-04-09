@@ -97,10 +97,6 @@ func MigrateV1ToV2(rootDir string) (*MigrateResult, error) {
 
 	// ── 2. Build v2 Config from v1 fields ────────────────────────────────────
 
-	name := v1cfg.Name
-	if name == "" {
-		name = filepath.Base(absRoot)
-	}
 	v2cfg := DefaultConfig()
 
 	if v1cfg.Nickname != "" {

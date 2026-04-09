@@ -87,7 +87,7 @@ func (s *Store) Save(data []byte, filename, channel, sender string) (*Metadata, 
 
 	// Create directory
 	attachDir := filepath.Join(s.dir, id)
-	if err := os.MkdirAll(attachDir, 0o755); err != nil {
+	if err := os.MkdirAll(attachDir, 0o750); err != nil {
 		return nil, fmt.Errorf("create attachment dir: %w", err)
 	}
 
@@ -183,7 +183,7 @@ func isValidID(id string) bool {
 		return false
 	}
 	for _, c := range id {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}

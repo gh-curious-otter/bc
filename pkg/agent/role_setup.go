@@ -315,37 +315,6 @@ func resolveSecretValue(value string, secrets map[string]string) string {
 	})
 }
 
-// ── Plugin config ────────────────────────────────────────────────────────────
-
-// pluginEntry represents a single plugin in installed_plugins.json.
-type pluginEntry struct {
-	Name    string `json:"name"`
-	Source  string `json:"source"`
-	Enabled bool   `json:"enabled"`
-}
-
-// pluginManifest is the top-level structure for installed_plugins.json.
-type pluginManifest struct {
-	Plugins map[string]pluginEntry `json:"plugins"`
-}
-
-// writePluginConfig writes an installed_plugins.json manifest so Claude Code
-// knows which plugins to load. The file is placed in the agent's Claude home
-// directory (mounted as /home/agent/.claude in Docker containers).
-func writePluginConfig(claudeDir string, plugins []string) error {
-	manifest := pluginManifest{
-		Plugins: make(map[string]pluginEntry, len(plugins)),
-	}
-	for _, name := range plugins {
-		manifest.Plugins[name] = pluginEntry{
-			Name:    name,
-			Source:  "claude-plugins-official",
-			Enabled: true,
-		}
-	}
-	return writeJSONFile(claudeDir, "installed_plugins.json", manifest)
-}
-
 // ── File writers ────────────────────────────────────────────────────────────
 
 func writeTextFile(dir, name, content string) error {
@@ -417,7 +386,7 @@ func mergeSettingsJSON(dir string, roleSettings map[string]any) error {
 
 	// Read existing settings (may contain hooks from WriteWorkspaceHookSettings).
 	existing := make(map[string]any)
-	data, err := os.ReadFile(settingsPath)
+	data, err := os.ReadFile(settingsPath) //nolint:gosec // reading role template file
 	if err == nil {
 		_ = json.Unmarshal(data, &existing) //nolint:errcheck // if malformed, start fresh
 	}
@@ -556,6 +525,8 @@ func checkSSEEndpoint(url string) error {
 // Returns true if claude CLI was used successfully, false if caller should
 // fall back to file-based .mcp.json.
 func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEntry) bool {
+	ctx := context.Background()
+
 	// Check if claude CLI is available
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
@@ -564,12 +535,12 @@ func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEnt
 	}
 
 	// First remove any existing MCP servers to avoid duplicates
-	existingCmd := exec.Command(claudePath, "mcp", "list")
+	existingCmd := exec.CommandContext(ctx, claudePath, "mcp", "list") //nolint:gosec // executing configured tool binary
 	existingCmd.Dir = targetDir
 	if out, err := existingCmd.Output(); err == nil && len(out) > 0 {
 		// Parse existing servers and remove them
 		for name := range servers {
-			rmCmd := exec.Command(claudePath, "mcp", "remove", name, "--scope", "project")
+			rmCmd := exec.CommandContext(ctx, claudePath, "mcp", "remove", name, "--scope", "project") //nolint:gosec // executing configured tool binary
 			rmCmd.Dir = targetDir
 			_ = rmCmd.Run() //nolint:errcheck // ignore if not found
 		}
@@ -605,7 +576,7 @@ func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEnt
 			continue
 		}
 
-		cmd := exec.Command(claudePath, args...) //nolint:gosec // args are from trusted config
+		cmd := exec.CommandContext(ctx, claudePath, args...) //nolint:gosec // args are from trusted config
 		cmd.Dir = targetDir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			log.Warn("claude mcp add failed", "name", name, "error", err, "output", string(out))

@@ -18,16 +18,16 @@ const maxVersionLen = 80
 // UnifiedTool represents a tool (MCP or CLI) with its status.
 type UnifiedTool struct {
 	Name       string `json:"name"`
-	Type       string `json:"type"`                // "mcp" or "cli"
-	Status     string `json:"status"`              // "connected", "installed", "not_installed", "error", "unknown"
-	Transport  string `json:"transport,omitempty"` // for MCP: "sse" or "stdio"
-	Command    string `json:"command,omitempty"`   // for CLI or stdio MCP
-	URL        string `json:"url,omitempty"`       // for SSE MCP
-	Version    string `json:"version,omitempty"`   // for CLI tools
-	Error      string `json:"error,omitempty"`     // if status is "error"
+	Type       string `json:"type"`
+	Status     string `json:"status"`
+	Transport  string `json:"transport,omitempty"`
+	Command    string `json:"command,omitempty"`
+	URL        string `json:"url,omitempty"`
+	Version    string `json:"version,omitempty"`
+	Error      string `json:"error,omitempty"`
+	InstallCmd string `json:"install_cmd,omitempty"`
+	UpgradeCmd string `json:"upgrade_cmd,omitempty"`
 	Required   bool   `json:"required"`
-	InstallCmd string `json:"install_cmd,omitempty"` // install command
-	UpgradeCmd string `json:"upgrade_cmd,omitempty"` // upgrade command
 }
 
 // UnifiedToolsHandler handles the merged /api/tools endpoint.

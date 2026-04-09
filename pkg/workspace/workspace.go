@@ -53,8 +53,8 @@ func Init(rootDir string) (*Workspace, error) {
 		return nil, err
 	}
 
-	if err := EnsureBCHome(); err != nil {
-		return nil, err
+	if homeErr := EnsureBCHome(); homeErr != nil {
+		return nil, homeErr
 	}
 
 	stateDir, err := GlobalStateDir(absRoot)

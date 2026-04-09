@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -1090,7 +1091,7 @@ func TestToolHandler_MethodNotAllowed(t *testing.T) {
 	defer ts.Close()
 
 	// POST is now valid (creates tools), test PATCH instead
-	req, _ := http.NewRequest(http.MethodPatch, ts.URL+"/api/tools", nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPatch, ts.URL+"/api/tools", nil)
 	resp, _ := http.DefaultClient.Do(req)
 	assertStatus(t, resp, http.StatusMethodNotAllowed)
 	_ = resp.Body.Close()

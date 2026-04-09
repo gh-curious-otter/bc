@@ -537,23 +537,23 @@ func FormatRoleFile(role *Role) (string, error) {
 
 // ResolvedRole contains the fully resolved role after BFS inheritance merge.
 type ResolvedRole struct {
-	Settings     map[string]any    // Merged settings (child overrides parent)
-	Rules        map[string]string // Merged rule files (child overrides parent)
-	Agents       map[string]string // Merged agent templates
-	Skills       map[string]string // Merged skill files
-	Commands     map[string]string // Merged command files
-	PromptStart  string            // Lifecycle: sent on agent start/restart
-	Name         string            // Role name
-	PromptStop   string            // Lifecycle: sent on agent stop
-	PromptDelete string            // Lifecycle: sent on agent delete
-	PromptCreate string            // Lifecycle: sent on agent create
-	Prompt       string            // Merged prompt body (child + parent)
-	Review       string            // REVIEW.md content
-	Plugins      []string          // Unioned plugins from all ancestors
-	Secrets      []string          // Unioned secret names from all ancestors
-	MCPServers   []string          // Unioned MCP servers from all ancestors
-	CLITools     []string          // Unioned CLI tools from all ancestors
-	Description  string            // Human-readable role description
+	Settings     map[string]any
+	Rules        map[string]string
+	Agents       map[string]string
+	Skills       map[string]string
+	Commands     map[string]string
+	PromptDelete string
+	Name         string
+	PromptStop   string
+	PromptStart  string
+	PromptCreate string
+	Prompt       string
+	Review       string
+	Description  string
+	Plugins      []string
+	Secrets      []string
+	MCPServers   []string
+	CLITools     []string
 }
 
 // ResolveRole loads a role directly from the store. No inheritance — each role
