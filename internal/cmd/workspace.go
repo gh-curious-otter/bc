@@ -562,12 +562,12 @@ func runWorkspaceInfo(cmd *cobra.Command, _ []string) error {
 	}
 
 	if jsonOutput {
-		info := struct { //nolint:govet // fieldalignment: inline struct for JSON, alignment not critical
+		info := struct {
 			Name        string `json:"name"`
 			Path        string `json:"path"`
 			StateDir    string `json:"state_dir"`
-			Version     int    `json:"version"`
 			Backend     string `json:"backend"`
+			Version     int    `json:"version"`
 			RoleCount   int    `json:"role_count"`
 			AgentCount  int    `json:"agent_count"`
 			ConfigValid bool   `json:"config_valid"`

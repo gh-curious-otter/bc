@@ -88,12 +88,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if jsonOutput {
-		output := struct { //nolint:govet // fieldalignment: inline struct for JSON
+		output := struct {
 			Workspace string             `json:"workspace"`
+			Agents    []client.AgentInfo `json:"agents"`
 			Total     int                `json:"total"`
 			Active    int                `json:"active"`
 			Working   int                `json:"working"`
-			Agents    []client.AgentInfo `json:"agents"`
 		}{
 			Workspace: filepath.Base(ws.RootDir),
 			Agents:    agentList,
