@@ -2,7 +2,7 @@ module github.com/rpuneet/bc
 
 go 1.25.4
 
-toolchain go1.25.8
+toolchain go1.25.9
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0
