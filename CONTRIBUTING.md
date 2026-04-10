@@ -298,3 +298,50 @@ Include:
 ## Questions?
 
 Open an issue or discussion on GitHub.
+
+## Releasing
+
+Releases are cut manually via GitHub Actions. CI/CD is fully automated from tag onwards.
+
+### Steps
+
+1. Ensure `main` is green. Check https://github.com/rpuneet/bc/actions/workflows/ci.yml
+2. Go to **Actions → Release → Run workflow**
+3. Enter version in semver format: `vMAJOR.MINOR.PATCH` (e.g. `v0.1.0`)
+   - Alpha/RC allowed: `v0.2.0-alpha`, `v1.0.0-rc.1`
+4. Click **Run workflow**
+
+### What happens
+
+The release workflow:
+
+1. **Prepare** — validates version format, creates and pushes git tag
+2. **CI** — full test suite (lint, test, TUI, web, landing, build gate, security, container scan)
+3. **Release Linux** — GoReleaser builds `linux/amd64`, creates archive + checksums, publishes GitHub release
+4. **Release macOS** — Native CGO builds for `darwin/amd64` and `darwin/arm64`, uploads to release
+5. **Release Docker** — Pushes `ghcr.io/rpuneet/bc:<version>` and `:latest` to GHCR
+6. **SBOM** — Generates and uploads `sbom.spdx.json` to release
+
+### Homebrew tap publish
+
+Requires `HOMEBREW_TAP_TOKEN` repo secret (GitHub PAT with repo scope for `rpuneet/homebrew-bc`). If unset, Homebrew publish is skipped automatically.
+
+### Continuous deployment
+
+Every merge to `main` also publishes `ghcr.io/rpuneet/bc:main` via `.github/workflows/cd-main.yml`. No tagging required — users can pull the bleeding edge.
+
+### Version strategy
+
+- `v0.x.y` — pre-1.0, any breaking changes allowed, document in release notes
+- `v1.0.0+` — semver discipline: breaking → major, features → minor, fixes → patch
+- Pre-releases: `-alpha`, `-beta`, `-rc.N` suffixes
+
+### Rollback
+
+If a release is broken:
+
+1. Delete the GitHub release (keeps the tag)
+2. Or delete the tag: `git push origin :refs/tags/vX.Y.Z`
+3. Fix, re-tag, re-run the workflow
+
+Docker images are immutable — pull a prior tag instead.

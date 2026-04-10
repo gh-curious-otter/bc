@@ -4,6 +4,7 @@ import { DashboardScreenshots } from "./_components/DashboardScreenshots";
 import { Footer } from "./_components/Footer";
 import { HeroSection } from "./_components/HeroSection";
 import { BentoGrid } from "./_components/BentoGrid";
+import { InstallSection } from "./_components/InstallSection";
 import {
   TerminalWindow,
   CommandOutput,
@@ -179,6 +180,9 @@ export default function Home() {
             </div>
             <BentoGrid />
           </RevealSection>
+
+          {/* Install */}
+          <InstallSection />
 
           {/* Dashboard Preview */}
           <RevealSection className="py-12 sm:py-16 lg:py-28" id="demo">
