@@ -74,7 +74,7 @@ export function Footer() {
                 Getting Started
               </Link>
               <Link
-                href="https://github.com/bcinfra1/bc"
+                href="https://github.com/rpuneet/bc"
                 className="hover:text-foreground transition-colors"
                 target="_blank"
                 rel="noopener noreferrer"

@@ -353,7 +353,7 @@ export default function Waitlist() {
                         We&apos;ll notify you when bc is ready for early access.
                         In the meantime, check out the{" "}
                         <a
-                          href="https://github.com/bcinfra1/bc"
+                          href="https://github.com/rpuneet/bc"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline"

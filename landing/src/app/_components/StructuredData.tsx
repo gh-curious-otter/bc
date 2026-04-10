@@ -7,7 +7,7 @@ export function OrganizationSchema() {
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     sameAs: [
-      "https://github.com/bcinfra1",
+      "https://github.com/rpuneet",
       "https://twitter.com/bc_infra",
       "https://linkedin.com/company/bc-infra",
       "https://discord.gg/bc-infra",

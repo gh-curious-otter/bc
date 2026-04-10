@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh 
 
 **Using Homebrew:**
 ```bash
-brew install rpuneet/bc-infra/bc-infra
+brew install rpuneet/bc/bc
 ```
 
 ### Linux
@@ -39,10 +39,22 @@ curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh 
 ### Docker
 
 ```bash
-docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374
+# Stable release
+docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:latest bc up --addr 0.0.0.0:9374
+
+# Bleeding-edge (main branch)
+docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:main bc up --addr 0.0.0.0:9374
 ```
 
-### From Source
+### npm / bun
+
+```bash
+npm install -g bc-cli
+# or
+bunx bc-cli
+```
+
+### Go
 
 ```bash
 go install github.com/rpuneet/bc/cmd/bc@latest
@@ -368,7 +380,7 @@ bc down && bc up
 - Audit logging and compliance
 
 ### 5. Get Support
-- GitHub Issues: [Report bugs](https://github.com/bcinfra1/bc/issues)
+- GitHub Issues: [Report bugs](https://github.com/rpuneet/bc/issues)
 - Documentation: [Full docs](https://docs.bc-infra.com)
 - Community: [Discord server](https://discord.gg/bc-infra)
 
@@ -441,7 +453,7 @@ bc <command> --help
 - [CLI Reference](https://docs.bc-infra.com/cli)
 
 **Support:**
-- [GitHub Issues](https://github.com/bcinfra1/bc/issues)
+- [GitHub Issues](https://github.com/rpuneet/bc/issues)
 - [Discord Community](https://discord.gg/bc-infra)
 - Email: support@bc-infra.com
 

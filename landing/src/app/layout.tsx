@@ -65,7 +65,7 @@ export const metadata = {
   authors: [
     {
       name: "bc team",
-      url: "https://github.com/bcinfra1",
+      url: "https://github.com/rpuneet",
     },
   ],
   creator: "bc team",
