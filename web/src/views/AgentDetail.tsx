@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { Agent } from "../api/client";
+import type { Agent, AgentActivityItem } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
@@ -188,12 +188,46 @@ function buildTimeline(agent: Agent): TimelineEvent[] {
   return events;
 }
 
+function humanizeEvent(type: string): string {
+  // "agent.spawned" -> "Spawned", "work.assigned" -> "Work assigned"
+  const cleaned = type.replace(/^agent\./, "").replace(/[._-]/g, " ");
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
 function InfoTab({ agent }: { agent: Agent }) {
   const navigate = useNavigate();
   const [metaOpen, setMetaOpen] = useState(true);
+  const [activity, setActivity] = useState<AgentActivityItem[]>([]);
+
+  // Fetch agent activity from the event store.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getAgentActivity(agent.name)
+      .then((items) => {
+        if (!cancelled) setActivity(items);
+      })
+      .catch(() => {
+        // Activity is best-effort; if the endpoint fails the UI falls back
+        // to the derived timeline from timestamps.
+      });
+    return () => { cancelled = true; };
+  }, [agent.name]);
 
   const isStopped = agent.state === "stopped" || agent.state === "error";
-  const timeline = buildTimeline(agent);
+  const derivedTimeline = buildTimeline(agent);
+  // If we have live activity from the event store, prefer it; otherwise fall
+  // back to the derived timeline built from agent timestamps.
+  const timeline: TimelineEvent[] =
+    activity.length > 0
+      ? activity.slice(0, 8).map((it, idx) => ({
+          key: `${it.event}-${String(idx)}`,
+          label: humanizeEvent(it.event),
+          timestamp: it.timestamp,
+          detail: it.message,
+          active: idx === 0,
+        }))
+      : derivedTimeline;
   const lastActivity =
     agent.stopped_at ??
     agent.updated_at ??
@@ -649,8 +683,23 @@ export function AgentDetail() {
               Interactive Terminal
             </h2>
             {agent.state === "stopped" || agent.state === "error" ? (
-              <div className="rounded border border-bc-border bg-bc-surface p-4 text-bc-muted text-sm">
-                Agent is not active. Start the agent to attach to its terminal.
+              <div className="space-y-2">
+                <div className="rounded border border-bc-border/60 bg-bc-surface/50 px-3 py-2 text-[11px] text-bc-muted italic">
+                  Agent is not running — showing last captured output. Start the agent to attach a live terminal.
+                </div>
+                <pre
+                  className="rounded-lg border border-bc-border/50 bg-bc-bg p-4 text-xs leading-relaxed overflow-y-auto overflow-x-hidden max-h-[60vh] whitespace-pre-wrap break-words text-bc-text/80 shadow-inner w-full min-w-0"
+                  style={{
+                    fontFamily:
+                      "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                  }}
+                >
+                  {outputLines.length > 0 ? (
+                    outputLines.join("\n")
+                  ) : (
+                    <span className="text-bc-muted italic">No captured output from the last run.</span>
+                  )}
+                </pre>
               </div>
             ) : (
               <div className="h-[60vh]">

@@ -279,6 +279,9 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, toDTO(a))
 
+	case action == "activity":
+		h.agentActivity(w, r, name)
+
 	case r.Method == http.MethodPost && action == "start":
 		var req struct {
 			Runtime  string `json:"runtime"`

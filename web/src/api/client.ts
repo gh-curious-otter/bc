@@ -27,6 +27,13 @@ export interface BulkResult {
   error?: string;
 }
 
+export interface AgentActivityItem {
+  timestamp: string;
+  event: string;
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
 export interface Agent {
   name: string;
   role: string;
@@ -545,6 +552,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ agents, message }),
     }),
+
+  // Agent activity timeline — newest first, capped at 50 entries.
+  getAgentActivity: (name: string) =>
+    request<AgentActivityItem[]>(`/agents/${encodeURIComponent(name)}/activity`),
 
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, {
