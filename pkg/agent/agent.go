@@ -928,6 +928,11 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if existing.ParentID != "" {
 		env["BC_PARENT_ID"] = existing.ParentID
 	}
+	// Pass through BC_API_KEY from the host environment so agents inside
+	// containers can authenticate back to bcd when --api-key is enabled.
+	if apiKey := os.Getenv("BC_API_KEY"); apiKey != "" {
+		env["BC_API_KEY"] = apiKey
+	}
 	injectEnv(env, wsPath, toolName, existing.EnvFile)
 
 	rt := m.runtimeForAgent(name)
@@ -1140,6 +1145,11 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 	if parentID != "" {
 		env["BC_PARENT_ID"] = parentID
+	}
+	// Pass through BC_API_KEY from the host environment so agents inside
+	// containers can authenticate back to bcd when --api-key is enabled.
+	if apiKey := os.Getenv("BC_API_KEY"); apiKey != "" {
+		env["BC_API_KEY"] = apiKey
 	}
 	injectEnv(env, wsPath, effectiveTool, opts.EnvFile)
 

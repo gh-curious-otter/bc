@@ -120,9 +120,17 @@ func clampInt(n, min, max int) int {
 
 // MaxBodySize returns a middleware that limits request body size.
 // Returns 413 Payload Too Large if the body exceeds maxBytes.
+//
+// MCP endpoints (/_mcp/*) are excluded because MCP tools like send_file
+// legitimately handle large payloads (up to 50MB) and enforce their own
+// per-tool size limits in server/mcp/tools.go.
 func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/_mcp/") {
+				next.ServeHTTP(w, r)
+				return
+			}
 			if r.ContentLength > maxBytes {
 				httpError(w, "request body too large", http.StatusRequestEntityTooLarge)
 				return

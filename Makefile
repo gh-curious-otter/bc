@@ -25,7 +25,7 @@
 # Top-level
 .PHONY: build build-local build-docker test lint fmt vet check clean deps release install
 # Go
-.PHONY: build-local-bc test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
+.PHONY: build-local-bc build-local-tui-bundle test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
 .PHONY: release-local-bc install-local-bc
 # Docker
 .PHONY: build-docker-daemon build-docker-db build-docker-bcdb
@@ -105,10 +105,21 @@ clean: clean-local ## Remove all build artifacts
 
 build-local-go: build-local-bc ## Build all Go binaries
 
-build-local-bc: ## Build bc (embeds web UI + server)
+build-local-bc: build-local-tui-bundle ## Build bc (embeds web UI, TUI bundle, server)
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
+
+build-local-tui-bundle: ## Build single-file TUI bundle for embedding into bc binary
+	@mkdir -p internal/cmd/tui-bundle
+	@if [ ! -f tui/node_modules/.package-lock.json ] && [ ! -d tui/node_modules/react-devtools-core ]; then \
+		echo "Installing TUI dependencies..."; \
+		cd tui && bun install; \
+	fi
+	cd tui && bun build --target=bun --minify \
+		--external react-devtools-core --external yoga-wasm-web \
+		--outfile=../internal/cmd/tui-bundle/index.js \
+		src/index.tsx
 
 # =============================================================================
 # Build — Local TypeScript
@@ -277,7 +288,7 @@ ci-docker: ## Build all Docker images
 # Release
 # =============================================================================
 
-release-local-bc: ## Build optimized bc binary
+release-local-bc: build-local-tui-bundle ## Build optimized bc binary (embeds web + TUI)
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
@@ -338,7 +349,8 @@ scan-ts: ## TS dependency audit
 
 clean-local: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)/ dist/ coverage.out coverage.html
-	rm -rf tui/dist web/dist server/web/dist landing/.next landing/out
+	rm -rf tui/dist tui/dist-bundle web/dist server/web/dist landing/.next landing/out
+	rm -rf internal/cmd/tui-bundle/index.js
 
 clean-deps: clean-local ## Remove artifacts + node_modules
 	rm -rf tui/node_modules web/node_modules landing/node_modules
