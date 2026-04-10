@@ -97,10 +97,12 @@ brews:
       owner: rpuneet
       name: homebrew-bc
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      branch: main
     directory: Formula
     homepage: https://github.com/rpuneet/bc
     description: Orchestration for AI agents
     license: MIT
+    # Homebrew publish is gated by --skip=homebrew in release.yml when token not set
     skip_upload: auto
     install: |
       bin.install "bc"
