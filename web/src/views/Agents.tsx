@@ -527,6 +527,66 @@ export function Agents() {
     });
   }, [allAgents, search, roleFilter, stateFilter, toolFilter]);
 
+  // View mode: flat | tree. Auto-detect default based on whether any agent has a parent.
+  const hasHierarchy = useMemo(
+    () => allAgents.some((a) => a.parent_id != null && a.parent_id !== ""),
+    [allAgents],
+  );
+  const viewParam = searchParams.get("view");
+  const viewMode: "flat" | "tree" =
+    viewParam === "flat" || viewParam === "tree"
+      ? viewParam
+      : hasHierarchy
+      ? "tree"
+      : "flat";
+  const setViewMode = (mode: "flat" | "tree") => {
+    const next = new URLSearchParams(searchParams);
+    next.set("view", mode);
+    setSearchParams(next, { replace: true });
+  };
+
+  // Build display order: either flat list or hierarchical traversal with depth.
+  const displayRows = useMemo<{ agent: Agent; depth: number }[]>(() => {
+    if (viewMode === "flat") {
+      return filteredAgents.map((a) => ({ agent: a, depth: 0 }));
+    }
+    // Build parent → children adjacency from the filtered list.
+    const byName = new Map<string, Agent>();
+    for (const a of filteredAgents) byName.set(a.name, a);
+    const childrenOf = new Map<string, Agent[]>();
+    const roots: Agent[] = [];
+    for (const a of filteredAgents) {
+      const parent = a.parent_id ?? "";
+      if (parent && byName.has(parent)) {
+        const list = childrenOf.get(parent) ?? [];
+        list.push(a);
+        childrenOf.set(parent, list);
+      } else {
+        roots.push(a);
+      }
+    }
+    // Sort roots and children alphabetically for stable order.
+    const sortFn = (x: Agent, y: Agent) => x.name.localeCompare(y.name);
+    roots.sort(sortFn);
+    for (const list of childrenOf.values()) list.sort(sortFn);
+
+    const out: { agent: Agent; depth: number }[] = [];
+    const visited = new Set<string>();
+    const walk = (a: Agent, depth: number): void => {
+      if (visited.has(a.name)) return;
+      visited.add(a.name);
+      out.push({ agent: a, depth });
+      const kids = childrenOf.get(a.name) ?? [];
+      for (const k of kids) walk(k, depth + 1);
+    };
+    for (const r of roots) walk(r, 0);
+    // Catch any agents we missed (shouldn't happen, defensive).
+    for (const a of filteredAgents) {
+      if (!visited.has(a.name)) walk(a, 0);
+    }
+    return out;
+  }, [filteredAgents, viewMode]);
+
   // Bulk action helpers
   const visibleNames = filteredAgents.map((a) => a.name);
   const allVisibleSelected = visibleNames.length > 0 && visibleNames.every((n) => selected.has(n));
@@ -706,6 +766,40 @@ export function Agents() {
               Clear
             </button>
           )}
+          {hasHierarchy && (
+            <div
+              role="group"
+              aria-label="View mode"
+              className="inline-flex rounded border border-bc-border overflow-hidden text-xs"
+            >
+              <button
+                type="button"
+                onClick={() => { setViewMode("flat"); }}
+                className={`px-2.5 py-1.5 transition-colors ${
+                  viewMode === "flat"
+                    ? "bg-bc-accent/20 text-bc-accent"
+                    : "text-bc-muted hover:text-bc-text hover:bg-bc-surface"
+                }`}
+                aria-pressed={viewMode === "flat"}
+                title="Flat view"
+              >
+                Flat
+              </button>
+              <button
+                type="button"
+                onClick={() => { setViewMode("tree"); }}
+                className={`px-2.5 py-1.5 border-l border-bc-border transition-colors ${
+                  viewMode === "tree"
+                    ? "bg-bc-accent/20 text-bc-accent"
+                    : "text-bc-muted hover:text-bc-text hover:bg-bc-surface"
+                }`}
+                aria-pressed={viewMode === "tree"}
+                title="Tree view (parent → children)"
+              >
+                Tree
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -761,7 +855,7 @@ export function Agents() {
               </tr>
             </thead>
             <tbody>
-              {filteredAgents.map((a) => (
+              {displayRows.map(({ agent: a, depth }) => (
                 <Fragment key={a.name}>
                   <tr
                     onClick={() =>
@@ -789,7 +883,17 @@ export function Agents() {
                       />
                     </td>
                     <td className="px-4 py-2">
-                      <InlineAgentName agent={a} onRenamed={refresh} />
+                      <div className="flex items-center" style={{ paddingLeft: `${String(depth * 16)}px` }}>
+                        {depth > 0 && (
+                          <span
+                            aria-hidden
+                            className="text-bc-muted/40 mr-1.5 font-mono text-xs select-none"
+                          >
+                            └
+                          </span>
+                        )}
+                        <InlineAgentName agent={a} onRenamed={refresh} />
+                      </div>
                     </td>
                     <td className="px-4 py-2">
                       <span className="text-bc-muted">{a.role}</span>
