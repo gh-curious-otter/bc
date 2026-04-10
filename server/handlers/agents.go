@@ -62,6 +62,8 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/send-pattern", h.sendPattern)
 	mux.HandleFunc("/api/agents/stop-all", h.stopAll)
 	mux.HandleFunc("/api/agents/health", h.health)
+	// Bulk operations — must be registered before the catch-all below.
+	h.registerBulkRoutes(mux)
 	mux.HandleFunc("/api/agents", h.list)
 	mux.HandleFunc("/api/agents/", h.byName)
 }
