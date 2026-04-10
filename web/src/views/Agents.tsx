@@ -10,6 +10,17 @@ import { EmptyState } from "../components/EmptyState";
 import { InlineTerminal } from "../components/InlineTerminal";
 import { truncate } from "../utils/text";
 
+function KeyHint({ k, label }: { k: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <kbd className="px-1 py-px rounded border border-bc-border/60 bg-bc-bg text-[9px] font-mono text-bc-muted">
+        {k}
+      </kbd>
+      <span>{label}</span>
+    </span>
+  );
+}
+
 // --- Create Agent Form ---
 
 interface CreateFormState {
@@ -542,6 +553,7 @@ export function Agents() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [focusIndex, setFocusIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const updateFilter = (key: "role" | "state" | "tool", value: string) => {
@@ -563,22 +575,8 @@ export function Agents() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  // Global keyboard shortcut: "/" focuses search
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isInput = target != null && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
-      if (e.key === "/" && !isInput) {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-      if (e.key === "Escape" && selected.size > 0) {
-        setSelected(new Set());
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => { window.removeEventListener("keydown", onKeyDown); };
-  }, [selected.size]);
+  // Keyboard shortcuts now live after displayRows is declared below —
+  // see the useEffect labelled "Global keyboard shortcuts".
 
   // Fetch latest CPU/Mem stats for all agents
   useEffect(() => {
@@ -732,6 +730,99 @@ export function Agents() {
     }
     return out;
   }, [filteredAgents, viewMode]);
+
+  // Clamp focusIndex when displayRows shrinks (e.g. after filtering).
+  useEffect(() => {
+    if (focusIndex >= displayRows.length && displayRows.length > 0) {
+      setFocusIndex(displayRows.length - 1);
+    }
+  }, [displayRows.length, focusIndex]);
+
+  // Global keyboard shortcuts. These work when focus is anywhere on the page,
+  // except inside inputs/textareas/contenteditable elements.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target != null &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
+      // "/" always focuses search even from inputs? no — only outside.
+      if (e.key === "/" && !isInput) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+      if (e.key === "Escape" && selected.size > 0) {
+        setSelected(new Set());
+        return;
+      }
+      if (isInput) return;
+
+      // Row navigation
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusIndex((i) => Math.min(i + 1, Math.max(0, displayRows.length - 1)));
+        return;
+      }
+      if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      // Enter opens the focused agent
+      if (e.key === "Enter") {
+        const row = displayRows[focusIndex];
+        if (row) {
+          e.preventDefault();
+          navigate(`/agents/${encodeURIComponent(row.agent.name)}`);
+        }
+        return;
+      }
+      // Space toggles peek for the focused row
+      if (e.key === " ") {
+        const row = displayRows[focusIndex];
+        if (row) {
+          e.preventDefault();
+          setPeekAgent((prev) => (prev === row.agent.name ? null : row.agent.name));
+        }
+        return;
+      }
+      // x toggles selection on the focused row
+      if (e.key === "x") {
+        const row = displayRows[focusIndex];
+        if (row) {
+          e.preventDefault();
+          setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(row.agent.name)) next.delete(row.agent.name);
+            else next.add(row.agent.name);
+            return next;
+          });
+        }
+        return;
+      }
+      // a selects all visible
+      if (e.key === "a") {
+        e.preventDefault();
+        setSelected((prev) => {
+          const next = new Set(prev);
+          const names = displayRows.map((r) => r.agent.name);
+          const allSel = names.every((n) => next.has(n));
+          if (allSel) {
+            for (const n of names) next.delete(n);
+          } else {
+            for (const n of names) next.add(n);
+          }
+          return next;
+        });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); };
+  }, [selected.size, displayRows, focusIndex, navigate]);
 
   // Bulk action helpers
   const visibleNames = filteredAgents.map((a) => a.name);
@@ -949,6 +1040,19 @@ export function Agents() {
         </div>
       )}
 
+      {/* Keyboard hints — only shown when the list is visible */}
+      {allAgents.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-bc-muted/60">
+          <KeyHint k="/" label="search" />
+          <KeyHint k="j / k" label="nav" />
+          <KeyHint k="↵" label="open" />
+          <KeyHint k="space" label="peek" />
+          <KeyHint k="x" label="select" />
+          <KeyHint k="a" label="select all" />
+          <KeyHint k="esc" label="clear" />
+        </div>
+      )}
+
       <div className="rounded border border-bc-border overflow-x-auto">
         {allAgents.length === 0 ? (
           <EmptyState
@@ -1001,7 +1105,7 @@ export function Agents() {
               </tr>
             </thead>
             <tbody>
-              {displayRows.map(({ agent: a, depth }) => (
+              {displayRows.map(({ agent: a, depth }, rowIdx) => (
                 <Fragment key={a.name}>
                   <tr
                     onClick={() =>
@@ -1013,6 +1117,10 @@ export function Agents() {
                     role="link"
                     tabIndex={0}
                     className={`border-b border-bc-border/50 cursor-pointer transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg ${
+                      rowIdx === focusIndex ? "ring-1 ring-inset ring-bc-accent/40 " : ""
+                    }${
+                      peekAgent === a.name ? "bg-bc-accent/5 " : ""
+                    }${
                       selected.has(a.name) ? "bg-bc-accent/10 hover:bg-bc-accent/15" : "hover:bg-bc-surface"
                     }`}
                   >
@@ -1079,26 +1187,40 @@ export function Agents() {
                       </span>
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
-                      <div className="flex flex-wrap gap-1">
-                        {(a.mcp_servers ?? []).length === 0 ? (
-                          <span className="text-bc-muted">{"\u2014"}</span>
-                        ) : (a.mcp_servers ?? []).length <= 3 ? (
-                          (a.mcp_servers ?? []).map((s) => (
-                            <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
-                              {s.replace(/^mcp__/, "")}
-                            </span>
-                          ))
-                        ) : (
-                          <>
-                            {(a.mcp_servers ?? []).slice(0, 2).map((s) => (
+                      {(() => {
+                        const servers = a.mcp_servers ?? [];
+                        if (servers.length === 0) {
+                          return <span className="text-bc-muted">{"\u2014"}</span>;
+                        }
+                        const fullList = servers.map((s) => s.replace(/^mcp__/, "")).join(", ");
+                        if (servers.length <= 3) {
+                          return (
+                            <div className="flex flex-wrap gap-1" title={fullList}>
+                              {servers.map((s) => (
+                                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
+                                  {s.replace(/^mcp__/, "")}
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        }
+                        const rest = servers.slice(2).map((s) => s.replace(/^mcp__/, "")).join(", ");
+                        return (
+                          <div className="flex flex-wrap gap-1" title={fullList}>
+                            {servers.slice(0, 2).map((s) => (
                               <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
                                 {s.replace(/^mcp__/, "")}
                               </span>
                             ))}
-                            <span className="text-[10px] text-bc-muted">+{(a.mcp_servers ?? []).length - 2}</span>
-                          </>
-                        )}
-                      </div>
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-bc-border text-bc-muted cursor-help"
+                              title={rest}
+                            >
+                              +{String(servers.length - 2)}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-2">
                       <AgentActions agent={a} onDone={refresh} />
