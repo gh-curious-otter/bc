@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { Agent } from "../api/client";
+import type { Agent, AgentActivityItem } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
@@ -17,21 +17,6 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-function MetadataRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30 last:border-0">
-      <span className="text-bc-muted text-sm w-32 shrink-0">{label}</span>
-      <span className="text-sm break-all">{value ?? "\u2014"}</span>
-    </div>
-  );
-}
-
 function formatTime(t?: string): string {
   if (!t) return "\u2014";
   try {
@@ -43,16 +28,34 @@ function formatTime(t?: string): string {
   }
 }
 
+function formatRelative(t?: string): string {
+  if (!t) return "";
+  try {
+    const d = new Date(t);
+    if (isNaN(d.getTime())) return "";
+    const diffMs = Date.now() - d.getTime();
+    const diffSec = Math.floor(Math.abs(diffMs) / 1000);
+    if (diffSec < 60) return `${String(diffSec)}s ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${String(diffMin)}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${String(diffHr)}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay < 30) return `${String(diffDay)}d ago`;
+    return d.toLocaleDateString();
+  } catch {
+    return "";
+  }
+}
+
 /* ───────────────────────── Tab types ───────────────────────── */
 
-type Tab = "logs" | "terminal" | "overview" | "stats" | "role";
+type Tab = "logs" | "terminal" | "info";
 
 const TABS: { key: Tab; label: string; shortcut: string }[] = [
   { key: "logs", label: "Logs", shortcut: "1" },
   { key: "terminal", label: "Terminal", shortcut: "2" },
-  { key: "overview", label: "Overview", shortcut: "3" },
-  { key: "stats", label: "Stats", shortcut: "4" },
-  { key: "role", label: "Role", shortcut: "5" },
+  { key: "info", label: "Info", shortcut: "3" },
 ];
 
 /* ───────────────────────── Tab content ───────────────────────── */
@@ -89,103 +92,395 @@ function LogsTab({
   );
 }
 
-function OverviewTab({ agent }: { agent: Agent }) {
+/* ───────────────────────── Info tab building blocks ───────────────────────── */
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-6">
-      {/* Task */}
-      {agent.task && (
-        <div className="rounded border border-bc-border bg-bc-surface p-3">
-          <span className="text-xs text-bc-muted uppercase tracking-wide">
-            Current Task
-          </span>
-          <p className="mt-1 text-sm">{agent.task}</p>
-        </div>
-      )}
-
-      {/* Identity */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-          Identity
-        </h2>
-        <div className="rounded border border-bc-border bg-bc-surface p-4">
-          <MetadataRow label="Name" value={agent.name} />
-          <MetadataRow label="Role" value={agent.role} />
-          <MetadataRow
-            label="State"
-            value={<StatusBadge status={agent.state} />}
-          />
-          <MetadataRow label="Tool" value={agent.tool || "\u2014"} />
-          <MetadataRow label="Runtime" value={agent.runtime_backend || "\u2014"} />
-        </div>
-      </div>
-
-      {/* Hierarchy */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-          Hierarchy
-        </h2>
-        <div className="rounded border border-bc-border bg-bc-surface p-4">
-          <MetadataRow label="Parent" value={agent.parent_id || "\u2014"} />
-          <MetadataRow
-            label="Children"
-            value={
-              agent.children && agent.children.length > 0
-                ? agent.children.join(", ")
-                : "\u2014"
-            }
-          />
-        </div>
-      </div>
-
-      {/* Paths */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-          Paths
-        </h2>
-        <div className="rounded border border-bc-border bg-bc-surface p-4">
-          <MetadataRow label="Session" value={agent.session || "\u2014"} />
-        </div>
-      </div>
-
-      {/* Timestamps */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-          Timestamps
-        </h2>
-        <div className="rounded border border-bc-border bg-bc-surface p-4">
-          <MetadataRow label="Created" value={formatTime(agent.created_at)} />
-          <MetadataRow label="Started" value={formatTime(agent.started_at)} />
-          <MetadataRow label="Updated" value={formatTime(agent.updated_at)} />
-          <MetadataRow label="Stopped" value={formatTime(agent.stopped_at)} />
-        </div>
-      </div>
+    <div className="mb-3 flex items-baseline gap-3">
+      <h2 className="text-[10px] font-semibold text-bc-muted uppercase tracking-[0.18em]">
+        {children}
+      </h2>
+      <div className="flex-1 h-px bg-bc-border/40" />
     </div>
   );
 }
 
-function StatsTab({ agent }: { agent: Agent }) {
-  return <StatsTabComponent agent={agent} />;
+function AgentPill({
+  name,
+  onClick,
+}: {
+  name: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-bc-border bg-bc-surface hover:border-bc-accent/50 hover:bg-bc-accent/5 transition-colors text-xs font-medium text-bc-text focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+    >
+      <span className="w-1 h-1 rounded-full bg-bc-accent/70" />
+      <span
+        style={{
+          fontFamily:
+            "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        }}
+      >
+        {name}
+      </span>
+    </button>
+  );
 }
 
-function RoleTab({ agent }: { agent: Agent }) {
+interface TimelineEvent {
+  key: string;
+  label: string;
+  timestamp?: string;
+  detail?: string;
+  active: boolean;
+}
+
+function buildTimeline(agent: Agent): TimelineEvent[] {
+  const events: TimelineEvent[] = [];
+  const isRunning = agent.state !== "stopped" && agent.state !== "error";
+
+  if (agent.created_at) {
+    events.push({
+      key: "created",
+      label: "Created",
+      timestamp: agent.created_at,
+      active: false,
+    });
+  }
+  if (agent.started_at) {
+    events.push({
+      key: "started",
+      label: "Started",
+      timestamp: agent.started_at,
+      active: false,
+    });
+  }
+  if (isRunning) {
+    // Current running state — skip stale stopped_at from a previous run.
+    events.push({
+      key: "current",
+      label:
+        agent.state === "working"
+          ? "Working"
+          : agent.state === "starting"
+          ? "Starting"
+          : agent.state === "idle"
+          ? "Idle"
+          : "Active",
+      timestamp: agent.updated_at,
+      detail: agent.task,
+      active: true,
+    });
+  } else if (agent.stopped_at) {
+    // Stopped state is current — show it as the active event.
+    events.push({
+      key: "stopped",
+      label: agent.state === "error" ? "Errored" : "Stopped",
+      timestamp: agent.stopped_at,
+      detail: agent.task,
+      active: true,
+    });
+  }
+  return events;
+}
+
+function humanizeEvent(type: string): string {
+  // "agent.spawned" -> "Spawned", "work.assigned" -> "Work assigned"
+  const cleaned = type.replace(/^agent\./, "").replace(/[._-]/g, " ");
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function InfoTab({ agent }: { agent: Agent }) {
+  const navigate = useNavigate();
+  const [metaOpen, setMetaOpen] = useState(true);
+  const [activity, setActivity] = useState<AgentActivityItem[]>([]);
+
+  // Fetch agent activity from the event store.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getAgentActivity(agent.name)
+      .then((items) => {
+        if (!cancelled) setActivity(items);
+      })
+      .catch(() => {
+        // Activity is best-effort; if the endpoint fails the UI falls back
+        // to the derived timeline from timestamps.
+      });
+    return () => { cancelled = true; };
+  }, [agent.name]);
+
+  const isStopped = agent.state === "stopped" || agent.state === "error";
+  const derivedTimeline = buildTimeline(agent);
+  // If we have live activity from the event store, prefer it; otherwise fall
+  // back to the derived timeline built from agent timestamps.
+  const timeline: TimelineEvent[] =
+    activity.length > 0
+      ? activity.slice(0, 8).map((it, idx) => ({
+          key: `${it.event}-${String(idx)}`,
+          label: humanizeEvent(it.event),
+          timestamp: it.timestamp,
+          detail: it.message,
+          active: idx === 0,
+        }))
+      : derivedTimeline;
+  const lastActivity =
+    agent.stopped_at ??
+    agent.updated_at ??
+    agent.started_at ??
+    agent.created_at;
+
   return (
-    <div className="space-y-2">
-      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-        Role
-      </h2>
-      <div className="rounded border border-bc-border bg-bc-surface p-4">
-        <MetadataRow label="Role" value={<RoleBadge role={agent.role} />} />
-        <MetadataRow label="Tool" value={agent.tool || "\u2014"} />
-        <MetadataRow label="Parent" value={agent.parent_id || "\u2014"} />
-        <MetadataRow
-          label="Children"
-          value={
-            agent.children && agent.children.length > 0
-              ? agent.children.join(", ")
-              : "\u2014"
-          }
-        />
-      </div>
+    <div className="max-w-4xl mx-auto space-y-10">
+      {/* ── CURRENT TASK BANNER ── */}
+      <section>
+        <div
+          className={`rounded-lg border p-4 transition-colors ${
+            isStopped
+              ? "border-bc-border/60 bg-bc-surface/50"
+              : "border-bc-accent/30 bg-bc-accent/5"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-semibold text-bc-muted uppercase tracking-[0.18em] mb-1.5">
+                {isStopped ? "Last Task" : "Current Task"}
+              </div>
+              <p className="text-sm text-bc-text break-words leading-relaxed">
+                {agent.task ? (
+                  agent.task
+                ) : (
+                  <span className="text-bc-muted italic">no task recorded</span>
+                )}
+              </p>
+            </div>
+            {lastActivity && (
+              <div className="shrink-0 text-right">
+                <div className="text-[10px] font-semibold text-bc-muted uppercase tracking-[0.18em] mb-1.5">
+                  {isStopped ? "Last ran" : "Updated"}
+                </div>
+                <span
+                  className="text-sm text-bc-text tabular-nums"
+                  title={formatTime(lastActivity)}
+                >
+                  {formatRelative(lastActivity)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+        {isStopped && (
+          <p className="mt-2 ml-1 text-[11px] text-bc-muted/70 italic">
+            Agent is not running. Stats below show last known values.
+          </p>
+        )}
+      </section>
+
+      {/* ── STATS ── */}
+      <section>
+        <SectionHeader>Stats</SectionHeader>
+        <StatsTabComponent agent={agent} />
+      </section>
+
+      {/* ── HIERARCHY ── */}
+      <section>
+        <SectionHeader>Hierarchy</SectionHeader>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-bc-muted w-16 shrink-0 uppercase tracking-wider">
+              Parent
+            </span>
+            {agent.parent_id ? (
+              <AgentPill
+                name={agent.parent_id}
+                onClick={() => {
+                  navigate(`/agents/${encodeURIComponent(agent.parent_id ?? "")}`);
+                }}
+              />
+            ) : (
+              <span className="text-xs text-bc-muted/40">—</span>
+            )}
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-[11px] text-bc-muted w-16 shrink-0 pt-1 uppercase tracking-wider">
+              Children
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {agent.children && agent.children.length > 0 ? (
+                agent.children.map((c) => (
+                  <AgentPill
+                    key={c}
+                    name={c}
+                    onClick={() => {
+                      navigate(`/agents/${encodeURIComponent(c)}`);
+                    }}
+                  />
+                ))
+              ) : (
+                <span className="text-xs text-bc-muted/40 pt-1">—</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── ACTIVITY TIMELINE ── */}
+      <section>
+        <SectionHeader>Activity</SectionHeader>
+        {timeline.length === 0 ? (
+          <p className="text-xs text-bc-muted/40">No activity recorded</p>
+        ) : (
+          <ol className="relative ml-1">
+            {/* Vertical rail */}
+            <span
+              aria-hidden
+              className="absolute left-[3px] top-2 bottom-2 w-px bg-bc-border/60"
+            />
+            {timeline.map((evt) => (
+              <li key={evt.key} className="relative pl-6 pb-4 last:pb-0">
+                {/* Dot */}
+                <span
+                  aria-hidden
+                  className={`absolute left-0 top-[7px] w-[9px] h-[9px] rounded-full border-2 ${
+                    evt.active
+                      ? "bg-bc-accent border-bc-accent animate-pulse"
+                      : "bg-bc-bg border-bc-muted/60"
+                  }`}
+                />
+                <div className="flex items-baseline justify-between gap-3">
+                  <span
+                    className={`text-sm font-medium ${
+                      evt.active ? "text-bc-accent" : "text-bc-text/85"
+                    }`}
+                  >
+                    {evt.label}
+                  </span>
+                  {evt.timestamp && (
+                    <span
+                      className="text-[11px] text-bc-muted tabular-nums shrink-0"
+                      title={formatTime(evt.timestamp)}
+                    >
+                      {formatRelative(evt.timestamp)}
+                    </span>
+                  )}
+                </div>
+                {evt.detail && (
+                  <p className="mt-0.5 text-xs text-bc-muted break-words leading-relaxed">
+                    {evt.detail}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      {/* ── METADATA (collapsible) ── */}
+      <section>
+        <button
+          type="button"
+          onClick={() => {
+            setMetaOpen((v) => !v);
+          }}
+          className="w-full flex items-center gap-3 text-left group"
+          aria-expanded={metaOpen}
+        >
+          <span className="text-[10px] font-semibold text-bc-muted uppercase tracking-[0.18em] group-hover:text-bc-text transition-colors">
+            Metadata
+          </span>
+          <div className="flex-1 h-px bg-bc-border/40" />
+          <span className="text-[10px] text-bc-muted tabular-nums">
+            {metaOpen ? "−" : "+"}
+          </span>
+        </button>
+        {metaOpen && (
+          <dl className="mt-4 grid grid-cols-[6rem_1fr] gap-y-2.5 gap-x-4 text-sm">
+            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
+              Role
+            </dt>
+            <dd>
+              <RoleBadge role={agent.role} />
+            </dd>
+
+            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
+              Tool
+            </dt>
+            <dd
+              className="text-xs text-bc-text/80"
+              style={{
+                fontFamily:
+                  "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              }}
+            >
+              {agent.tool || "—"}
+            </dd>
+
+            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
+              Runtime
+            </dt>
+            <dd
+              className="text-xs text-bc-text/80"
+              style={{
+                fontFamily:
+                  "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              }}
+            >
+              {agent.runtime_backend || "—"}
+            </dd>
+
+            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
+              Session
+            </dt>
+            <dd
+              className="text-xs text-bc-text/80 break-all"
+              style={{
+                fontFamily:
+                  "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              }}
+            >
+              {agent.session || "—"}
+            </dd>
+
+            {agent.mcp_servers && agent.mcp_servers.length > 0 && (
+              <>
+                <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-1">
+                  MCP
+                </dt>
+                <dd>
+                  <div className="flex flex-wrap gap-1">
+                    {agent.mcp_servers.map((s) => (
+                      <span
+                        key={s}
+                        className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-bc-accent/10 text-bc-accent"
+                      >
+                        {s.replace(/^mcp__/, "")}
+                      </span>
+                    ))}
+                  </div>
+                </dd>
+              </>
+            )}
+
+            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
+              Created
+            </dt>
+            <dd className="text-xs text-bc-text/80 tabular-nums">
+              {formatTime(agent.created_at)}
+            </dd>
+
+            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
+              Started
+            </dt>
+            <dd className="text-xs text-bc-text/80 tabular-nums">
+              {formatTime(agent.started_at)}
+            </dd>
+          </dl>
+        )}
+      </section>
     </div>
   );
 }
@@ -288,21 +583,29 @@ export function AgentDetail() {
     return subscribe("agent.state_changed", () => void refresh());
   }, [subscribe, refresh]);
 
-  // Keyboard shortcuts: 1-4 to switch tabs
+  // Keyboard shortcuts: 1=Logs, 2=Terminal, 3=Info.
+  // 4 and 5 also map to Info (muscle memory from the old 5-tab layout).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Don't intercept when typing in an input
-      const tag = (e.target as HTMLElement)?.tagName;
+      const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-      const idx = parseInt(e.key, 10);
-      const tab = TABS[idx - 1];
-      if (idx >= 1 && idx <= TABS.length && tab) {
-        setActiveTab(tab.key);
+      switch (e.key) {
+        case "1":
+          setActiveTab("logs");
+          break;
+        case "2":
+          setActiveTab("terminal");
+          break;
+        case "3":
+        case "4":
+        case "5":
+          setActiveTab("info");
+          break;
       }
     };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    return () => { window.removeEventListener("keydown", handler); };
   }, []);
 
   const handleSend = async () => {
@@ -380,8 +683,23 @@ export function AgentDetail() {
               Interactive Terminal
             </h2>
             {agent.state === "stopped" || agent.state === "error" ? (
-              <div className="rounded border border-bc-border bg-bc-surface p-4 text-bc-muted text-sm">
-                Agent is not active. Start the agent to attach to its terminal.
+              <div className="space-y-2">
+                <div className="rounded border border-bc-border/60 bg-bc-surface/50 px-3 py-2 text-[11px] text-bc-muted italic">
+                  Agent is not running — showing last captured output. Start the agent to attach a live terminal.
+                </div>
+                <pre
+                  className="rounded-lg border border-bc-border/50 bg-bc-bg p-4 text-xs leading-relaxed overflow-y-auto overflow-x-hidden max-h-[60vh] whitespace-pre-wrap break-words text-bc-text/80 shadow-inner w-full min-w-0"
+                  style={{
+                    fontFamily:
+                      "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                  }}
+                >
+                  {outputLines.length > 0 ? (
+                    outputLines.join("\n")
+                  ) : (
+                    <span className="text-bc-muted italic">No captured output from the last run.</span>
+                  )}
+                </pre>
               </div>
             ) : (
               <div className="h-[60vh]">
@@ -390,9 +708,7 @@ export function AgentDetail() {
             )}
           </div>
         )}
-        {activeTab === "overview" && <OverviewTab agent={agent} />}
-        {activeTab === "stats" && <StatsTab agent={agent} />}
-        {activeTab === "role" && <RoleTab agent={agent} />}
+        {activeTab === "info" && <InfoTab agent={agent} />}
       </div>
 
       {/* Message input bar -- always visible at bottom */}
